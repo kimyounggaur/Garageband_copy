@@ -80,6 +80,11 @@ function mirrorDist() {
 
 try {
   run(process.execPath, [join(root, "node_modules", "typescript", "bin", "tsc"), "-b"], root);
+  if (process.platform !== "win32") {
+    run(process.execPath, [join(root, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], root);
+    process.exit(0);
+  }
+
   copyProject();
   run(process.execPath, [join(tempRoot, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], tempRoot);
   console.log("> copy dist");
