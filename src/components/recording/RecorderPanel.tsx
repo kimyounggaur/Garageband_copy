@@ -1,6 +1,6 @@
 import { Mic, Square, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { saveAudioAsset } from "../../db/projectsDb";
+import { saveAudioAsset } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { AudioAsset } from "../../types/project";
 import { makeId } from "../../utils/id";

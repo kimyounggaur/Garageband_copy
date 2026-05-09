@@ -1,4 +1,4 @@
-import { loadAudioAsset } from "../db/projectsDb";
+import { loadAudioAsset } from "../db/studioRepository";
 import type { Clip } from "../types/project";
 
 const peakCache = new Map<string, Promise<PeakOverview>>();

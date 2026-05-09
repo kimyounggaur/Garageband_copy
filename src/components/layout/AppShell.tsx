@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAudioEngine } from "../../audio/AudioEngine";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
-import { loadLastProject, saveProject } from "../../db/projectsDb";
+import { loadLastProject, saveProject } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
 import { ClipEditor } from "../editor/ClipEditor";
-import { LessonPanel } from "../education/LessonPanel";
 import { ReviewPanel } from "../education/ReviewPanel";
-import { MixerPanel } from "../mixer/MixerPanel";
+import { StudentPanel } from "../education/StudentPanel";
+import { TeacherPanel } from "../education/TeacherPanel";
 import { SoundLibrary } from "../library/SoundLibrary";
 import { TransportBar } from "../transport/TransportBar";
 
@@ -34,6 +34,7 @@ export function AppShell() {
   const refreshLessonProgress = useDawStore((state) => state.refreshLessonProgress);
   const [saveStatus, setSaveStatus] = useState<Status>("idle");
   const [exportStatus, setExportStatus] = useState<Status>("idle");
+  const [educationView, setEducationView] = useState<"student" | "teacher">("student");
   const engine = useMemo(() => getAudioEngine(), []);
   const firstLoadRef = useRef(false);
 
@@ -125,6 +126,13 @@ export function AppShell() {
     }
   }
 
+  function renderSidePanel() {
+    if (educationView === "teacher") return <TeacherPanel />;
+    if (mode === "review") return <ReviewPanel />;
+    if (mode === "lesson") return <StudentPanel />;
+    return <StudentPanel />;
+  }
+
   return (
     <div className="grid h-dvh w-screen min-w-0 grid-rows-[56px_minmax(0,1fr)_260px] overflow-hidden bg-studio-950 text-slate-100">
       <TransportBar
@@ -132,12 +140,14 @@ export function AppShell() {
         saveStatus={saveStatus}
         onExport={handleExport}
         exportStatus={exportStatus}
+        educationView={educationView}
+        onEducationViewChange={setEducationView}
       />
 
       <main className="grid min-h-0 w-full min-w-0 grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] gap-2 p-2">
         <SoundLibrary />
         <ArrangementTimeline />
-        {mode === "lesson" ? <LessonPanel /> : mode === "review" ? <ReviewPanel /> : <MixerPanel />}
+        {renderSidePanel()}
       </main>
 
       <ClipEditor />

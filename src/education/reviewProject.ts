@@ -2,7 +2,7 @@ import type { Clip, Project, Track, TrackRole } from "../types/project";
 import { analyzeProjectNotes, getTheoryHint } from "../assist/musicTheory";
 import { evaluateLesson, getProjectEndBeat } from "./evaluateMission";
 import { getLessonById } from "./lessons";
-import type { Lesson, ReviewItem, ReviewRubricCheck, ReviewRubricStatus, ReviewSummary } from "./types";
+import type { Assignment, Lesson, ReviewItem, ReviewRubricCheck, ReviewRubricStatus, ReviewSummary } from "./types";
 
 const MIN_PROJECT_BEATS = 32;
 const MIN_CLIP_BEATS = 1;
@@ -270,8 +270,8 @@ function defaultRubric(project: Project): Lesson["rubric"] {
   };
 }
 
-function buildRubricStatus(project: Project, lesson?: Lesson): ReviewRubricStatus[] {
-  const rubric = lesson?.rubric ?? defaultRubric(project);
+function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assignment): ReviewRubricStatus[] {
+  const rubric = assignment?.rubric ?? lesson?.rubric ?? defaultRubric(project);
   const endBeat = getProjectEndBeat(project);
   const notes = midiNoteCount(project);
   const audioCount = audioClipCount(project);
@@ -368,11 +368,11 @@ function buildRubricStatus(project: Project, lesson?: Lesson): ReviewRubricStatu
   });
 }
 
-export function createReviewSummary(project: Project): ReviewSummary {
-  const lesson = getLessonById(project.lessonId);
+export function createReviewSummary(project: Project, assignment?: Assignment): ReviewSummary {
+  const lesson = getLessonById(project.lessonId ?? assignment?.lessonId);
   const items = buildReviewItems(project, lesson);
   const missionResults = evaluateLesson(project, lesson);
-  const rubric = buildRubricStatus(project, lesson);
+  const rubric = buildRubricStatus(project, lesson, assignment);
   const blockingWarnings = items.filter((item) => item.severity === "warning");
   const incompleteMissions = missionResults.filter((result) => !result.completed);
   const incompleteRubric = rubric.filter((criterion) => !criterion.completed);
@@ -381,6 +381,8 @@ export function createReviewSummary(project: Project): ReviewSummary {
   return {
     projectId: project.id,
     projectName: project.name,
+    assignmentId: assignment?.id ?? project.assignmentId,
+    assignmentTitle: assignment?.title,
     lessonId: lesson?.id,
     lessonTitle: lesson?.title,
     ready,

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { summarizeLesson } from "../education/evaluateMission";
 import { createLessonProject, getLessonById } from "../education/lessons";
-import type { StudioMode } from "../education/types";
+import type { Assignment, StudioMode } from "../education/types";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "../utils/id";
@@ -35,6 +35,7 @@ type DawState = {
   renameProject: (name: string) => void;
   duplicateProject: () => void;
   startLesson: (lessonId: string) => void;
+  startAssignment: (assignment: Assignment) => void;
   refreshLessonProgress: () => void;
   setMode: (mode: StudioMode) => void;
   setHydrated: (hydrated: boolean) => void;
@@ -393,6 +394,31 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentBeat: 0,
       selectedTrackId: project.tracks[0]?.id,
       selectedClipId: project.tracks[0]?.clips[0]?.id,
+      undoStack: [],
+      redoStack: [],
+      pendingHistory: undefined
+    });
+  },
+
+  startAssignment: (assignment) => {
+    const lessonProject = assignment.lessonId ? createLessonProject(assignment.lessonId) : undefined;
+    const project = lessonProject ?? createInitialProject();
+    const nextProject = normalizeProject({
+      ...project,
+      id: makeId("project"),
+      name: assignment.title,
+      assignmentId: assignment.id,
+      lessonId: assignment.lessonId,
+      createdAt: now(),
+      updatedAt: now()
+    });
+    set({
+      project: nextProject,
+      mode: assignment.lessonId ? "lesson" : "studio",
+      isPlaying: false,
+      currentBeat: 0,
+      selectedTrackId: nextProject.tracks[0]?.id,
+      selectedClipId: nextProject.tracks[0]?.clips[0]?.id,
       undoStack: [],
       redoStack: [],
       pendingHistory: undefined

@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Square,
   Redo2,
+  School,
   Undo2
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -24,6 +25,8 @@ type TransportBarProps = {
   saveStatus: Status;
   onExport: () => void;
   exportStatus: Status;
+  educationView: "student" | "teacher";
+  onEducationViewChange: (view: "student" | "teacher") => void;
 };
 
 function statusText(status: Status, fallback: string) {
@@ -33,7 +36,14 @@ function statusText(status: Status, fallback: string) {
   return fallback;
 }
 
-export function TransportBar({ onSave, saveStatus, onExport, exportStatus }: TransportBarProps) {
+export function TransportBar({
+  onSave,
+  saveStatus,
+  onExport,
+  exportStatus,
+  educationView,
+  onEducationViewChange
+}: TransportBarProps) {
   const project = useDawStore((state) => state.project);
   const mode = useDawStore((state) => state.mode);
   const isPlaying = useDawStore((state) => state.isPlaying);
@@ -137,6 +147,28 @@ export function TransportBar({ onSave, saveStatus, onExport, exportStatus }: Tra
       </div>
 
       <div className="flex min-w-0 items-center gap-2">
+        <div className="flex h-9 items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
+          <button
+            className={`inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
+              educationView === "student" ? "bg-meter-green text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            }`}
+            onClick={() => onEducationViewChange("student")}
+            title="Student View"
+          >
+            <GraduationCap size={14} />
+            Student
+          </button>
+          <button
+            className={`inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
+              educationView === "teacher" ? "bg-meter-amber text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            }`}
+            onClick={() => onEducationViewChange("teacher")}
+            title="Teacher View"
+          >
+            <School size={14} />
+            Teacher
+          </button>
+        </div>
         <div className="flex h-9 items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
           {modes.map((item) => (
             <button

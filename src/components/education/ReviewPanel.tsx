@@ -1,10 +1,11 @@
 import { CheckCircle2, Circle, Download, FileArchive, Info, TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
+import { loadAssignment } from "../../db/studioRepository";
 import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";
-import type { ReviewSeverity } from "../../education/types";
+import type { Assignment, ReviewSeverity } from "../../education/types";
 
 type ExportStatus = "idle" | "working" | "done" | "error";
 
@@ -31,7 +32,8 @@ function statusClasses(ready: boolean) {
 
 export function ReviewPanel() {
   const project = useDawStore((state) => state.project);
-  const summary = useMemo(() => createReviewSummary(project), [project]);
+  const [assignment, setAssignment] = useState<Assignment | undefined>();
+  const summary = useMemo(() => createReviewSummary(project, assignment), [assignment, project]);
   const lesson = getLessonById(summary.lessonId);
   const [manualChecks, setManualChecks] = useState<Record<string, boolean>>({});
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
@@ -39,6 +41,20 @@ export function ReviewPanel() {
   const manualTotal = summary.rubric.reduce((sum, criterion) => sum + criterion.manualChecks.length, 0);
   const manualDone = Object.values(manualChecks).filter(Boolean).length;
   const name = fileSafeName(project.name);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!project.assignmentId) {
+      setAssignment(undefined);
+      return;
+    }
+    loadAssignment(project.assignmentId).then((nextAssignment) => {
+      if (!cancelled) setAssignment(nextAssignment);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.assignmentId]);
 
   function toggleManualCheck(id: string) {
     setManualChecks((current) => ({ ...current, [id]: !current[id] }));

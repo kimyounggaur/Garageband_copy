@@ -34,6 +34,16 @@ export type Rubric = {
   criteria: RubricCriterion[];
 };
 
+export type Assignment = {
+  id: string;
+  title: string;
+  description: string;
+  lessonId?: string;
+  dueDate?: number;
+  rubric: Rubric;
+  createdAt: number;
+};
+
 export type Lesson = {
   id: string;
   title: string;
@@ -84,6 +94,8 @@ export type ReviewRubricStatus = {
 export type ReviewSummary = {
   projectId: string;
   projectName: string;
+  assignmentId?: string;
+  assignmentTitle?: string;
   lessonId?: string;
   lessonTitle?: string;
   ready: boolean;
@@ -93,4 +105,13 @@ export type ReviewSummary = {
   items: ReviewItem[];
   missionResults: MissionEvaluation[];
   rubric: ReviewRubricStatus[];
+};
+
+export type Submission = {
+  id: string;
+  assignmentId: string;
+  projectId: string;
+  submittedAt: number;
+  reviewSnapshot: ReviewSummary;
+  wavExportName?: string;
 };

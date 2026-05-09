@@ -1,6 +1,6 @@
 import { Drum, Keyboard, Plus, RefreshCcw, Trash2, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { deleteProject, listProjects, loadProject } from "../../db/projectsDb";
+import { deleteProject, listProjects, loadProject } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { Project, TrackType } from "../../types/project";
 
