@@ -68,6 +68,10 @@ export function RecorderPanel() {
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        if (blob.size === 0) {
+          setStatus("error");
+          return;
+        }
         const duration = Math.max(0.5, (Date.now() - startedAtRef.current) / 1000);
         void saveBlob(blob, duration, `Recording ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`);
       };

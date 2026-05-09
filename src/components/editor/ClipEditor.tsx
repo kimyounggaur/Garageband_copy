@@ -49,8 +49,8 @@ export function ClipEditor() {
 
   if (selectedClip?.type === "midi") {
     return (
-      <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[40px_minmax(0,1fr)] border-x-0 border-b-0">
-        <div className="flex items-center justify-between border-b border-white/10 px-3">
+      <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)] border-x-0 border-b-0">
+        <div className="flex min-h-10 items-center justify-between gap-2 border-b border-white/10 px-3 py-1">
           <div className="flex min-w-0 items-center gap-3">
             <span className="panel-title">Piano Roll</span>
             <span className="truncate text-sm font-bold text-slate-200">{selectedClip.name}</span>
@@ -66,9 +66,9 @@ export function ClipEditor() {
   }
 
   return (
-    <section className="panel grid min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(280px,20vw,420px)] border-x-0 border-b-0">
+    <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[minmax(0,1fr)_minmax(150px,auto)] border-x-0 border-b-0 lg:grid-cols-[minmax(0,1fr)_clamp(280px,20vw,420px)] lg:grid-rows-none">
       <div className="min-h-0 overflow-hidden">
-        <div className="flex h-10 items-center justify-between border-b border-white/10 px-3">
+        <div className="flex min-h-10 items-center justify-between gap-2 border-b border-white/10 px-3 py-1">
           <div className="flex min-w-0 items-center gap-3">
             <span className="panel-title">Clip Editor</span>
             <span className="truncate text-sm font-bold text-slate-200">
@@ -80,7 +80,7 @@ export function ClipEditor() {
           </button>
         </div>
 
-        <div className="flex h-[calc(100%-40px)] items-center justify-center bg-[linear-gradient(to_right,rgba(255,255,255,.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,.04)_1px,transparent_1px)] bg-[length:28px_28px]">
+        <div className="flex h-[calc(100%-42px)] min-h-0 items-center justify-center overflow-auto bg-[linear-gradient(to_right,rgba(255,255,255,.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,.04)_1px,transparent_1px)] bg-[length:28px_28px]">
           {selectedClip ? (
             <div className="mx-4 w-full max-w-[920px] rounded-md border border-white/10 bg-black/25 p-4">
               <div className="mb-3 flex items-center gap-3">
@@ -128,7 +128,7 @@ export function ClipEditor() {
         </div>
       </div>
 
-      <div className="border-l border-white/10 p-3">
+      <div className="min-h-0 overflow-y-auto border-t border-white/10 p-3 lg:border-l lg:border-t-0">
         <span className="panel-title">Inspector</span>
         {selectedClip ? (
           <div className="mt-3 space-y-3 text-sm">

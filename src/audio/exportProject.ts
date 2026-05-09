@@ -6,7 +6,7 @@ const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
 
 function beatSeconds(project: Project) {
-  return 60 / project.bpm;
+  return 60 / Math.max(1, Number(project.bpm) || 120);
 }
 
 function projectDurationSeconds(project: Project) {

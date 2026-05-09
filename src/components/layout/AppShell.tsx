@@ -5,6 +5,7 @@ import { loadLastProject, projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
 import { ClipEditor } from "../editor/ClipEditor";
+import { LessonPanel } from "../education/LessonPanel";
 import { ReviewPanel } from "../education/ReviewPanel";
 import { StudentPanel } from "../education/StudentPanel";
 import { TeacherPanel } from "../education/TeacherPanel";
@@ -129,12 +130,12 @@ export function AppShell() {
   function renderSidePanel() {
     if (educationView === "teacher") return <TeacherPanel />;
     if (mode === "review") return <ReviewPanel />;
-    if (mode === "lesson") return <StudentPanel />;
+    if (mode === "lesson") return <LessonPanel />;
     return <StudentPanel />;
   }
 
   return (
-    <div className="grid h-dvh w-screen min-w-0 grid-rows-[56px_minmax(0,1fr)_260px] overflow-hidden bg-studio-950 text-slate-100">
+    <div className="grid h-dvh w-screen min-w-0 grid-rows-[auto_minmax(0,1fr)_minmax(220px,34dvh)] overflow-hidden bg-studio-950 text-slate-100 lg:grid-rows-[56px_minmax(0,1fr)_260px]">
       <TransportBar
         onSave={handleSave}
         saveStatus={saveStatus}
@@ -144,7 +145,7 @@ export function AppShell() {
         onEducationViewChange={setEducationView}
       />
 
-      <main className="grid min-h-0 w-full min-w-0 grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] gap-2 p-2">
+      <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(220px,30dvh)_minmax(360px,1fr)_minmax(300px,38dvh)] gap-2 overflow-auto p-2 lg:grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] lg:grid-rows-none lg:overflow-hidden">
         <SoundLibrary />
         <ArrangementTimeline />
         {renderSidePanel()}

@@ -60,10 +60,10 @@ export function ArrangementTimeline() {
   }, []);
 
   return (
-    <section className="panel grid min-h-0 min-w-0 grid-rows-[48px_minmax(0,1fr)] rounded-lg">
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-white/10 px-3">
+    <section className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
         <span className="panel-title">Arrangement</span>
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
             Snap
             <select
@@ -113,7 +113,7 @@ export function ArrangementTimeline() {
         </div>
       </div>
 
-      <div className="grid min-h-0 min-w-0 grid-cols-[178px_minmax(0,1fr)]">
+      <div className="grid min-h-0 min-w-0 grid-cols-[132px_minmax(0,1fr)] sm:grid-cols-[178px_minmax(0,1fr)]">
         <div className="border-r border-white/10 bg-black/10">
           <div className="h-9 border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
             Tracks

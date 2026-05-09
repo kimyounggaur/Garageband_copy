@@ -50,14 +50,19 @@ export function resolveClipAudioTiming(clip: Clip, bpm: number, sourceDurationSe
 }
 
 export async function getClipAudioBlob(clip: Clip) {
-  if (clip.audioAssetId) {
-    const asset = await audioAssetRepository.loadAudioAsset(clip.audioAssetId);
-    if (asset?.blob) return asset.blob;
-  }
+  try {
+    if (clip.audioAssetId) {
+      const asset = await audioAssetRepository.loadAudioAsset(clip.audioAssetId);
+      if (asset?.blob) return asset.blob;
+    }
 
-  if (!clip.audioUrl) return undefined;
-  const response = await fetch(clip.audioUrl);
-  return response.blob();
+    if (!clip.audioUrl) return undefined;
+    const response = await fetch(clip.audioUrl);
+    if (!response.ok) return undefined;
+    return response.blob();
+  } catch {
+    return undefined;
+  }
 }
 
 export async function createClipAudioUrl(clip: Clip) {
@@ -117,24 +122,28 @@ export async function getClipPeakOverview(clip: Clip, bins = 512): Promise<PeakO
 }
 
 export async function measureClipPeak(clip: Clip, bpm: number) {
-  const blob = await getClipAudioBlob(clip);
-  if (!blob) return undefined;
-  const buffer = await decodeAudioBlob(blob);
-  const timing = resolveClipAudioTiming(clip, bpm, buffer.duration);
-  const startSample = Math.floor(timing.offsetSeconds * buffer.sampleRate);
-  const endSample = Math.min(buffer.length, Math.ceil((timing.offsetSeconds + timing.durationSeconds) * buffer.sampleRate));
-  let peak = 0;
+  try {
+    const blob = await getClipAudioBlob(clip);
+    if (!blob) return undefined;
+    const buffer = await decodeAudioBlob(blob);
+    const timing = resolveClipAudioTiming(clip, bpm, buffer.duration);
+    const startSample = Math.floor(timing.offsetSeconds * buffer.sampleRate);
+    const endSample = Math.min(buffer.length, Math.ceil((timing.offsetSeconds + timing.durationSeconds) * buffer.sampleRate));
+    let peak = 0;
 
-  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
-    const data = buffer.getChannelData(channel);
-    for (let index = startSample; index < endSample; index += 1) {
-      peak = Math.max(peak, Math.abs(data[index] ?? 0));
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const data = buffer.getChannelData(channel);
+      for (let index = startSample; index < endSample; index += 1) {
+        peak = Math.max(peak, Math.abs(data[index] ?? 0));
+      }
     }
-  }
 
-  return {
-    peak,
-    normalizedGain: peak > 0.0001 ? Math.min(8, 0.95 / peak) : 1,
-    durationSeconds: timing.durationSeconds
-  };
+    return {
+      peak,
+      normalizedGain: peak > 0.0001 ? Math.min(8, 0.95 / peak) : 1,
+      durationSeconds: timing.durationSeconds
+    };
+  } catch {
+    return undefined;
+  }
 }

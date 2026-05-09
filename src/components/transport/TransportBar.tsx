@@ -66,8 +66,8 @@ export function TransportBar({
   ];
 
   return (
-    <header className="flex min-w-0 items-center justify-between gap-3 border-b border-white/10 bg-studio-900 px-3">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="flex min-h-14 min-w-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-studio-900 px-2 py-2 lg:h-14 lg:flex-nowrap lg:px-3 lg:py-0">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:flex-nowrap lg:gap-3">
         <div className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2">
           <button
             className="studio-icon-button"
@@ -133,9 +133,9 @@ export function TransportBar({
           {formatBeat(currentBeat)}
         </div>
 
-        <div className="min-w-0">
+        <div className="order-last min-w-0 basis-full sm:order-none sm:basis-auto">
           <input
-            className="h-6 w-[clamp(150px,16vw,280px)] rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none transition focus:border-white/20 focus:bg-black/20"
+            className="h-6 w-full rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none transition focus:border-white/20 focus:bg-black/20 sm:w-[clamp(150px,16vw,280px)]"
             value={project.name}
             onChange={(event) => renameProject(event.target.value)}
             aria-label="Project name"
@@ -146,7 +146,7 @@ export function TransportBar({
         </div>
       </div>
 
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
         <div className="flex h-9 items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
           <button
             className={`inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
@@ -156,7 +156,7 @@ export function TransportBar({
             title="Student View"
           >
             <GraduationCap size={14} />
-            Student
+            <span className="hidden sm:inline">Student</span>
           </button>
           <button
             className={`inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
@@ -166,7 +166,7 @@ export function TransportBar({
             title="Teacher View"
           >
             <School size={14} />
-            Teacher
+            <span className="hidden sm:inline">Teacher</span>
           </button>
         </div>
         <div className="flex h-9 items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
@@ -180,25 +180,25 @@ export function TransportBar({
               title={`${item.label} mode`}
             >
               {item.icon}
-              {item.label}
+              <span className="hidden sm:inline">{item.label}</span>
             </button>
           ))}
         </div>
         <button className="studio-button" onClick={() => createProject("Untitled Session")} title="New project">
           <FolderPlus size={15} />
-          New
+          <span className="hidden sm:inline">New</span>
         </button>
         <button className="studio-button" onClick={duplicateProject} title="Duplicate project">
           <Copy size={15} />
-          Duplicate
+          <span className="hidden sm:inline">Duplicate</span>
         </button>
         <button className="studio-button" onClick={onSave} title="Save project">
           <Save size={15} />
-          {statusText(saveStatus, "Save")}
+          <span className="hidden sm:inline">{statusText(saveStatus, "Save")}</span>
         </button>
         <button className="studio-button" onClick={onExport} title="Export WAV">
           <Download size={15} />
-          {statusText(exportStatus, "Export")}
+          <span className="hidden sm:inline">{statusText(exportStatus, "Export")}</span>
         </button>
       </div>
     </header>
