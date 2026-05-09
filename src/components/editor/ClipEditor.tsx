@@ -1,24 +1,51 @@
-import { Trash2 } from "lucide-react";
-import { useMemo } from "react";
+import { Scissors, Trash2, Wand2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { measureClipPeak } from "../../audio/clipAudio";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
+import { AudioWaveform } from "../audio/AudioWaveform";
 import { PianoRoll } from "./PianoRoll";
 
 function findSelectedClip(clips: Clip[], clipId?: string) {
   return clips.find((clip) => clip.id === clipId);
 }
 
+function audioValue(value: number | undefined, fallback = 0) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
 export function ClipEditor() {
+  const [normalizeStatus, setNormalizeStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const project = useDawStore((state) => state.project);
   const selectedClipId = useDawStore((state) => state.selectedClipId);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
+  const snapBeats = useDawStore((state) => state.snapBeats);
   const moveClip = useDawStore((state) => state.moveClip);
   const resizeClip = useDawStore((state) => state.resizeClip);
   const removeClip = useDawStore((state) => state.removeClip);
   const addMidiClip = useDawStore((state) => state.addMidiClip);
+  const updateClipAudioSettings = useDawStore((state) => state.updateClipAudioSettings);
+  const splitSelectedAudioClip = useDawStore((state) => state.splitSelectedAudioClip);
   const clips = useMemo(() => project.tracks.flatMap((track) => track.clips), [project.tracks]);
   const selectedClip = findSelectedClip(clips, selectedClipId);
   const selectedTrack = project.tracks.find((track) => track.id === selectedTrackId);
+
+  useEffect(() => {
+    setNormalizeStatus("idle");
+  }, [selectedClipId]);
+
+  async function normalizeSelectedClip() {
+    if (!selectedClip || selectedClip.type !== "audio" || selectedClip.locked) return;
+    setNormalizeStatus("working");
+    const result = await measureClipPeak(selectedClip, project.bpm);
+    if (!result || result.peak <= 0.0001) {
+      setNormalizeStatus("error");
+      return;
+    }
+    updateClipAudioSettings(selectedClip.id, { gain: result.normalizedGain });
+    setNormalizeStatus("done");
+  }
 
   if (selectedClip?.type === "midi") {
     return (
@@ -63,6 +90,11 @@ export function ClipEditor() {
                   <div className="text-xs uppercase tracking-[0.12em] text-slate-500">{selectedClip.type}</div>
                 </div>
               </div>
+              {selectedClip.type === "audio" ? (
+                <div className="mb-3 h-24 overflow-hidden rounded border border-white/10 bg-studio-950/80">
+                  <AudioWaveform clip={selectedClip} color="#4ade80" showTrim className="h-full w-full" />
+                </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-xs font-bold text-slate-400">
                   Start
@@ -70,7 +102,7 @@ export function ClipEditor() {
                     className="mt-1 h-9 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                     type="number"
                     min={0}
-                    step={0.25}
+                    step={snapBeats}
                     value={selectedClip.startBeat}
                     disabled={selectedClip.locked}
                     onChange={(event) => moveClip(selectedClip.id, Number(event.target.value))}
@@ -82,7 +114,7 @@ export function ClipEditor() {
                     className="mt-1 h-9 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                     type="number"
                     min={0.25}
-                    step={0.25}
+                    step={snapBeats}
                     value={selectedClip.lengthBeats}
                     disabled={selectedClip.locked}
                     onChange={(event) => resizeClip(selectedClip.id, Number(event.target.value))}
@@ -116,6 +148,101 @@ export function ClipEditor() {
                 </div>
               ) : null}
             </div>
+            {selectedClip.type === "audio" ? (
+              <div className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Audio</div>
+                  <div className="text-[11px] font-semibold text-slate-500">
+                    {selectedClip.audioAssetId ? "IndexedDB asset" : selectedClip.audioUrl ? "Legacy data URL" : "Missing source"}
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="text-xs font-bold text-slate-400">
+                    Trim Start
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={audioValue(selectedClip.trimStartSeconds)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) =>
+                        updateClipAudioSettings(selectedClip.id, { trimStartSeconds: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Trim End
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={audioValue(selectedClip.trimEndSeconds)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) =>
+                        updateClipAudioSettings(selectedClip.id, { trimEndSeconds: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Gain
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      max={8}
+                      step={0.01}
+                      value={audioValue(selectedClip.gain, 1)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) => updateClipAudioSettings(selectedClip.id, { gain: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Fade In
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={audioValue(selectedClip.fadeInSeconds)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) =>
+                        updateClipAudioSettings(selectedClip.id, { fadeInSeconds: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Fade Out
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={audioValue(selectedClip.fadeOutSeconds)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) =>
+                        updateClipAudioSettings(selectedClip.id, { fadeOutSeconds: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="studio-button w-full" onClick={splitSelectedAudioClip} disabled={selectedClip.locked}>
+                    <Scissors size={14} />
+                    Split
+                  </button>
+                  <button
+                    className="studio-button w-full"
+                    onClick={() => void normalizeSelectedClip()}
+                    disabled={selectedClip.locked || normalizeStatus === "working"}
+                  >
+                    <Wand2 size={14} />
+                    {normalizeStatus === "working" ? "Working" : normalizeStatus === "done" ? "Normalized" : "Normalize"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <button className="studio-button w-full" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
               <Trash2 size={14} />
               {selectedClip.locked ? "Locked Clip" : "Delete Clip"}

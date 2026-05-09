@@ -17,6 +17,11 @@ function fileSafeName(name: string) {
   return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "webband-session";
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
 export function AppShell() {
   const project = useDawStore((state) => state.project);
   const mode = useDawStore((state) => state.mode);
@@ -73,6 +78,30 @@ export function AppShell() {
   useEffect(() => {
     engine.updateTrackControls(project);
   }, [engine, project]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isEditableTarget(event.target) || event.altKey || (!event.ctrlKey && !event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault();
+        useDawStore.getState().redo();
+        return;
+      }
+      if (key === "z") {
+        event.preventDefault();
+        useDawStore.getState().undo();
+        return;
+      }
+      if (key === "y") {
+        event.preventDefault();
+        useDawStore.getState().redo();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   async function handleSave() {
     setSaveStatus("working");

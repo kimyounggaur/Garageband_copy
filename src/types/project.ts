@@ -19,6 +19,16 @@ export type Project = {
   updatedAt: number;
 };
 
+export type AudioAsset = {
+  id: string;
+  projectId: string;
+  name: string;
+  blob: Blob;
+  mimeType: string;
+  durationSeconds: number;
+  createdAt: number;
+};
+
 export type MissionProgress = {
   completed: boolean;
   progress: number;
@@ -50,6 +60,11 @@ export type Clip = {
   notes?: MidiNote[];
   audioUrl?: string;
   audioAssetId?: string;
+  trimStartSeconds?: number;
+  trimEndSeconds?: number;
+  gain?: number;
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
   loopId?: string;
   locked?: boolean;
   instructions?: string;

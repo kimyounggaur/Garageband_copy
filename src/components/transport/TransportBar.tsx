@@ -8,7 +8,9 @@ import {
   RotateCcw,
   Save,
   SlidersHorizontal,
-  Square
+  Square,
+  Redo2,
+  Undo2
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { StudioMode } from "../../education/types";
@@ -43,6 +45,10 @@ export function TransportBar({ onSave, saveStatus, onExport, exportStatus }: Tra
   const renameProject = useDawStore((state) => state.renameProject);
   const createProject = useDawStore((state) => state.createProject);
   const duplicateProject = useDawStore((state) => state.duplicateProject);
+  const undo = useDawStore((state) => state.undo);
+  const redo = useDawStore((state) => state.redo);
+  const canUndo = useDawStore((state) => state.undoStack.length > 0);
+  const canRedo = useDawStore((state) => state.redoStack.length > 0);
   const modes: Array<{ id: StudioMode; label: string; icon: ReactNode }> = [
     { id: "studio", label: "Studio", icon: <SlidersHorizontal size={14} /> },
     { id: "lesson", label: "Lesson", icon: <GraduationCap size={14} /> },
@@ -79,6 +85,24 @@ export function TransportBar({ onSave, saveStatus, onExport, exportStatus }: Tra
             aria-label="Return to start"
           >
             <RotateCcw size={15} />
+          </button>
+          <button
+            className="studio-icon-button"
+            title="Undo"
+            onClick={undo}
+            disabled={!canUndo}
+            aria-label="Undo"
+          >
+            <Undo2 size={15} />
+          </button>
+          <button
+            className="studio-icon-button"
+            title="Redo"
+            onClick={redo}
+            disabled={!canRedo}
+            aria-label="Redo"
+          >
+            <Redo2 size={15} />
           </button>
         </div>
 

@@ -1,18 +1,12 @@
 import { Mic, Square, Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import { saveAudioAsset } from "../../db/projectsDb";
 import { useDawStore } from "../../store/useDawStore";
+import type { AudioAsset } from "../../types/project";
+import { makeId } from "../../utils/id";
 import { snapBeat } from "../../utils/timeline";
 
 type RecorderStatus = "idle" | "recording" | "saving" | "error";
-
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
 
 async function getAudioDuration(url: string) {
   return new Promise<number>((resolve) => {
@@ -22,7 +16,10 @@ async function getAudioDuration(url: string) {
       URL.revokeObjectURL(audio.src);
       resolve(Number.isFinite(audio.duration) ? audio.duration : 4);
     };
-    audio.onerror = () => resolve(4);
+    audio.onerror = () => {
+      URL.revokeObjectURL(audio.src);
+      resolve(4);
+    };
     audio.src = url;
   });
 }
@@ -33,14 +30,25 @@ export function RecorderPanel() {
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const addAudioClip = useDawStore((state) => state.addAudioClip);
+  const projectId = useDawStore((state) => state.project.id);
   const currentBeat = useDawStore((state) => state.currentBeat);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
+  const snapBeats = useDawStore((state) => state.snapBeats);
 
   async function saveBlob(blob: Blob, durationSeconds: number, name: string) {
     setStatus("saving");
     try {
-      const dataUrl = await blobToDataUrl(blob);
-      addAudioClip(selectedTrackId, snapBeat(currentBeat), name, dataUrl, durationSeconds);
+      const asset: AudioAsset = {
+        id: makeId("audio"),
+        projectId,
+        name,
+        blob,
+        mimeType: blob.type || "application/octet-stream",
+        durationSeconds,
+        createdAt: Date.now()
+      };
+      await saveAudioAsset(asset);
+      addAudioClip(selectedTrackId, snapBeat(currentBeat, snapBeats), name, undefined, durationSeconds, asset.id);
       setStatus("idle");
     } catch {
       setStatus("error");

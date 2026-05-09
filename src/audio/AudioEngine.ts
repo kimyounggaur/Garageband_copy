@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import { getLoopById } from "../data/loops";
-import type { Clip, Project, Track } from "../types/project";
+import type { Clip, Project } from "../types/project";
+import { clipGain, createClipAudioUrl, resolveClipAudioTiming } from "./clipAudio";
 
 type BeatCallback = (beat: number) => void;
 type EndCallback = () => void;
@@ -37,6 +38,7 @@ export class AudioEngine {
   private channels = new Map<string, Tone.Channel>();
   private nodes: Tone.ToneAudioNode[] = [];
   private scheduledIds: number[] = [];
+  private audioUrlCleanups: Array<() => void> = [];
   private frameId = 0;
   private lengthBeats = 16;
 
@@ -66,6 +68,8 @@ export class AudioEngine {
     this.nodes = [];
     this.channels.forEach((channel) => channel.dispose());
     this.channels.clear();
+    this.audioUrlCleanups.forEach((cleanup) => cleanup());
+    this.audioUrlCleanups = [];
   }
 
   updateTrackControls(project: Project) {
@@ -106,7 +110,7 @@ export class AudioEngine {
           this.scheduleMidiClip(clip, channel);
         }
         if (clip.type === "audio") {
-          audioLoads.push(this.scheduleAudioClip(clip, channel));
+          audioLoads.push(this.scheduleAudioClip(project, clip, channel));
         }
       });
     });
@@ -210,18 +214,27 @@ export class AudioEngine {
     });
   }
 
-  private async scheduleAudioClip(clip: Clip, channel: Tone.Channel) {
-    if (!clip.audioUrl) return;
+  private async scheduleAudioClip(project: Project, clip: Clip, channel: Tone.Channel) {
+    const source = await createClipAudioUrl(clip);
+    if (!source) return;
+    if (source.revoke) this.audioUrlCleanups.push(source.revoke);
+
+    const gain = new Tone.Gain(clipGain(clip)).connect(channel);
     const player = new Tone.Player({
-      url: clip.audioUrl,
-      fadeIn: 0.01,
-      fadeOut: 0.03
-    }).connect(channel);
-    this.nodes.push(player);
-    await player.load(clip.audioUrl);
+      url: source.url,
+      fadeIn: 0,
+      fadeOut: 0
+    }).connect(gain);
+    this.nodes.push(gain, player);
+    await player.load(source.url);
+
+    const timing = resolveClipAudioTiming(clip, project.bpm, player.buffer.duration);
+    if (timing.durationSeconds <= 0) return;
+    player.fadeIn = Math.min(clip.fadeInSeconds ?? 0, timing.durationSeconds / 2);
+    player.fadeOut = Math.min(clip.fadeOutSeconds ?? 0, timing.durationSeconds / 2);
 
     const id = Tone.Transport.schedule((time) => {
-      player.start(time, 0, beatDuration(clip.lengthBeats));
+      player.start(time, timing.offsetSeconds, timing.durationSeconds);
     }, tickTime(clip.startBeat));
     this.scheduledIds.push(id);
   }

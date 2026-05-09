@@ -12,6 +12,7 @@ export function SoundLibrary() {
   const addMidiClip = useDawStore((state) => state.addMidiClip);
   const currentBeat = useDawStore((state) => state.currentBeat);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
+  const snapBeats = useDawStore((state) => state.snapBeats);
   const loops = LOOP_LIBRARY.filter((loop) => loop.category === category);
 
   return (
@@ -21,7 +22,7 @@ export function SoundLibrary() {
         <button
           className="studio-icon-button"
           title="Add MIDI clip"
-          onClick={() => addMidiClip(selectedTrackId, snapBeat(currentBeat))}
+          onClick={() => addMidiClip(selectedTrackId, snapBeat(currentBeat, snapBeats))}
           draggable
           onDragStart={(event) => event.dataTransfer.setData("application/webband-midi", "midi")}
           aria-label="Add MIDI clip"
@@ -50,7 +51,7 @@ export function SoundLibrary() {
             <button
               key={loop.id}
               className="group w-full rounded-md border border-white/10 bg-white/[0.045] p-3 text-left transition hover:border-white/20 hover:bg-white/[0.075]"
-              onClick={() => addLoopClip(loop.id, selectedTrackId, snapBeat(currentBeat))}
+              onClick={() => addLoopClip(loop.id, selectedTrackId, snapBeat(currentBeat, snapBeats))}
               draggable
               onDragStart={(event) => event.dataTransfer.setData("application/webband-loop", loop.id)}
             >
@@ -74,7 +75,7 @@ export function SoundLibrary() {
         <RecorderPanel />
         <button
           className="studio-button w-full"
-          onClick={() => addMidiClip(selectedTrackId, snapBeat(currentBeat))}
+          onClick={() => addMidiClip(selectedTrackId, snapBeat(currentBeat, snapBeats))}
           draggable
           onDragStart={(event) => event.dataTransfer.setData("application/webband-midi", "midi")}
         >

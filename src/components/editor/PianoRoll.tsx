@@ -23,6 +23,9 @@ export function PianoRoll({ clip }: PianoRollProps) {
   const moveNote = useDawStore((state) => state.moveNote);
   const resizeNote = useDawStore((state) => state.resizeNote);
   const removeNote = useDawStore((state) => state.removeNote);
+  const snapBeats = useDawStore((state) => state.snapBeats);
+  const beginHistorySnapshot = useDawStore((state) => state.beginHistorySnapshot);
+  const commitHistorySnapshot = useDawStore((state) => state.commitHistorySnapshot);
   const [selectedNoteId, setSelectedNoteId] = useState<string | undefined>();
   const pitches = useMemo(() => {
     return Array.from({ length: MAX_PITCH - MIN_PITCH + 1 }, (_, index) => MAX_PITCH - index);
@@ -46,7 +49,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const pitch = clamp(MAX_PITCH - Math.floor(y / ROW_HEIGHT), MIN_PITCH, MAX_PITCH);
-    const startBeat = clamp(snapBeat(x / NOTE_BEAT_WIDTH), 0, Math.max(0, clip.lengthBeats - 0.25));
+    const startBeat = clamp(snapBeat(x / NOTE_BEAT_WIDTH, snapBeats), 0, Math.max(0, clip.lengthBeats - 0.25));
     const id = addNote(clip.id, {
       pitch,
       startBeat,
@@ -59,6 +62,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
   function beginMove(note: MidiNote, event: PointerEvent<HTMLDivElement>) {
     event.stopPropagation();
     setSelectedNoteId(note.id);
+    beginHistorySnapshot();
     const startX = event.clientX;
     const startY = event.clientY;
     const originalBeat = note.startBeat;
@@ -70,23 +74,28 @@ export function PianoRoll({ clip }: PianoRollProps) {
       moveNote(
         clip.id,
         note.id,
-        clamp(snapBeat(originalBeat + deltaBeat), 0, Math.max(0, clip.lengthBeats - note.durationBeats)),
-        clamp(originalPitch - deltaPitch, MIN_PITCH, MAX_PITCH)
+        clamp(snapBeat(originalBeat + deltaBeat, snapBeats), 0, Math.max(0, clip.lengthBeats - note.durationBeats)),
+        clamp(originalPitch - deltaPitch, MIN_PITCH, MAX_PITCH),
+        { recordHistory: false }
       );
     }
 
     function handleUp() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      commitHistorySnapshot();
     }
 
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
   }
 
   function beginResize(note: MidiNote, event: PointerEvent<HTMLButtonElement>) {
     event.stopPropagation();
     setSelectedNoteId(note.id);
+    beginHistorySnapshot();
     const startX = event.clientX;
     const originalDuration = note.durationBeats;
 
@@ -95,17 +104,21 @@ export function PianoRoll({ clip }: PianoRollProps) {
       resizeNote(
         clip.id,
         note.id,
-        clamp(snapBeat(originalDuration + deltaBeat), 0.25, Math.max(0.25, clip.lengthBeats - note.startBeat))
+        clamp(snapBeat(originalDuration + deltaBeat, snapBeats), 0.25, Math.max(0.25, clip.lengthBeats - note.startBeat)),
+        { recordHistory: false }
       );
     }
 
     function handleUp() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      commitHistorySnapshot();
     }
 
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
   }
 
   return (

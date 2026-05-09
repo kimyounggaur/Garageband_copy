@@ -11,6 +11,11 @@ function now() {
   return Date.now();
 }
 
+function nonNegative(value: unknown, fallback = 0) {
+  const numberValue = Number(value ?? fallback);
+  return Number.isFinite(numberValue) ? Math.max(0, numberValue) : fallback;
+}
+
 function inferRole(type: TrackType, name = ""): TrackRole {
   const lower = name.toLowerCase();
   if (type === "drum" || lower.includes("beat") || lower.includes("drum")) return "beat";
@@ -27,6 +32,7 @@ function normalizeTrackType(value?: string): TrackType {
 
 function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: number): Clip {
   const type = clip.type === "audio" || clip.type === "loop" || clip.type === "midi" ? clip.type : "midi";
+  const gain = Number(clip.gain);
   return {
     id: clip.id ?? makeId("clip"),
     trackId,
@@ -44,6 +50,11 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
     })),
     audioUrl: clip.audioUrl,
     audioAssetId: clip.audioAssetId,
+    trimStartSeconds: nonNegative(clip.trimStartSeconds),
+    trimEndSeconds: nonNegative(clip.trimEndSeconds),
+    gain: Number.isFinite(gain) ? Math.max(0, gain) : undefined,
+    fadeInSeconds: nonNegative(clip.fadeInSeconds),
+    fadeOutSeconds: nonNegative(clip.fadeOutSeconds),
     loopId: clip.loopId,
     locked: clip.locked ?? false,
     instructions: clip.instructions

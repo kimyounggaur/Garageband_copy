@@ -1,5 +1,6 @@
 import { getLoopById } from "../data/loops";
 import type { Clip, LoopStep, Project, Track } from "../types/project";
+import { clipGain, getClipAudioBlob, resolveClipAudioTiming } from "./clipAudio";
 
 const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
@@ -161,23 +162,35 @@ function scheduleMidiClip(context: OfflineAudioContext, project: Project, output
 }
 
 async function scheduleAudioClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
-  if (!clip.audioUrl) return;
   try {
-    const response = await fetch(clip.audioUrl);
-    const arrayBuffer = await response.arrayBuffer();
+    const blob = await getClipAudioBlob(clip);
+    if (!blob) return;
+    const arrayBuffer = await blob.arrayBuffer();
     const decoded = await context.decodeAudioData(arrayBuffer);
     const source = context.createBufferSource();
     const gain = context.createGain();
     const beat = beatSeconds(project);
     const start = clip.startBeat * beat;
-    const duration = Math.min(decoded.duration, clip.lengthBeats * beat);
+    const timing = resolveClipAudioTiming(clip, project.bpm, decoded.duration);
+    const duration = timing.durationSeconds;
+    const clipGainValue = clipGain(clip);
+    if (duration <= 0) return;
+
     source.buffer = decoded;
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(1, start + 0.01);
-    gain.gain.setValueAtTime(1, Math.max(start + 0.01, start + duration - 0.03));
-    gain.gain.linearRampToValueAtTime(0, start + duration);
+    const fadeIn = Math.min(clip.fadeInSeconds ?? 0, duration / 2);
+    const fadeOut = Math.min(clip.fadeOutSeconds ?? 0, duration / 2);
+    gain.gain.setValueAtTime(fadeIn > 0 ? 0 : clipGainValue, start);
+    if (fadeIn > 0) {
+      gain.gain.linearRampToValueAtTime(clipGainValue, start + fadeIn);
+    }
+    if (fadeOut > 0) {
+      gain.gain.setValueAtTime(clipGainValue, Math.max(start + fadeIn, start + duration - fadeOut));
+      gain.gain.linearRampToValueAtTime(0, start + duration);
+    } else {
+      gain.gain.setValueAtTime(clipGainValue, start + duration);
+    }
     source.connect(gain).connect(output);
-    source.start(start);
+    source.start(start, timing.offsetSeconds, duration);
     source.stop(start + duration);
   } catch {
     // Skip unreadable imported audio while preserving the rest of the export.

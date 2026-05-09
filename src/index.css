@@ -61,7 +61,7 @@ input[type="range"] {
 }
 
 .studio-icon-button {
-  @apply inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.06] text-slate-100 transition hover:bg-white/[0.1] active:bg-white/[0.14];
+  @apply inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.06] text-slate-100 transition hover:bg-white/[0.1] active:bg-white/[0.14] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white/[0.06];
 }
 
 .panel {
