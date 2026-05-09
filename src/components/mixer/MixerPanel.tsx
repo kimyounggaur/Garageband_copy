@@ -1,6 +1,6 @@
 import { Drum, Keyboard, Plus, RefreshCcw, Trash2, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { deleteProject, listProjects, loadProject } from "../../db/studioRepository";
+import { projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { Project, TrackType } from "../../types/project";
 
@@ -28,16 +28,16 @@ export function MixerPanel() {
   const [projects, setProjects] = useState<Project[]>([]);
 
   async function refreshProjects() {
-    setProjects(await listProjects());
+    setProjects(await projectRepository.listProjects());
   }
 
   async function handleLoad(projectId: string) {
-    const saved = await loadProject(projectId);
+    const saved = await projectRepository.loadProject(projectId);
     if (saved) loadProjectIntoStore(saved);
   }
 
   async function handleDelete(projectId: string) {
-    await deleteProject(projectId);
+    await projectRepository.deleteProject(projectId);
     await refreshProjects();
   }
 

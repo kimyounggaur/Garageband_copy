@@ -1,4 +1,4 @@
-import { loadAudioAsset } from "../db/studioRepository";
+import { audioAssetRepository } from "../db/studioRepository";
 import type { Clip } from "../types/project";
 
 const peakCache = new Map<string, Promise<PeakOverview>>();
@@ -51,7 +51,7 @@ export function resolveClipAudioTiming(clip: Clip, bpm: number, sourceDurationSe
 
 export async function getClipAudioBlob(clip: Clip) {
   if (clip.audioAssetId) {
-    const asset = await loadAudioAsset(clip.audioAssetId);
+    const asset = await audioAssetRepository.loadAudioAsset(clip.audioAssetId);
     if (asset?.blob) return asset.blob;
   }
 

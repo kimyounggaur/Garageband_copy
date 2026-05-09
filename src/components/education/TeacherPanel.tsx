@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { rubricForLesson } from "../../education/assignments";
 import { LESSONS, getLessonById } from "../../education/lessons";
 import type { Assignment, Submission } from "../../education/types";
-import { deleteAssignment, listAssignments, listSubmissions, saveAssignment } from "../../db/studioRepository";
+import { assignmentRepository, submissionRepository } from "../../db/studioRepository";
 import { makeId } from "../../utils/id";
 
 function formatDate(value?: number) {
@@ -31,7 +31,10 @@ export function TeacherPanel() {
   }, [submissions]);
 
   async function refresh() {
-    const [nextAssignments, nextSubmissions] = await Promise.all([listAssignments(), listSubmissions()]);
+    const [nextAssignments, nextSubmissions] = await Promise.all([
+      assignmentRepository.listAssignments(),
+      submissionRepository.listSubmissions()
+    ]);
     setAssignments(nextAssignments);
     setSubmissions(nextSubmissions);
   }
@@ -48,7 +51,7 @@ export function TeacherPanel() {
       rubric: rubricForLesson(lessonId || undefined),
       createdAt: Date.now()
     };
-    await saveAssignment(assignment);
+    await assignmentRepository.saveAssignment(assignment);
     setTitle("");
     setDescription("");
     setLessonId("");
@@ -57,7 +60,7 @@ export function TeacherPanel() {
   }
 
   async function handleDeleteAssignment(id: string) {
-    await deleteAssignment(id);
+    await assignmentRepository.deleteAssignment(id);
     await refresh();
   }
 

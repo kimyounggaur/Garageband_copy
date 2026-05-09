@@ -1,6 +1,6 @@
 import { Mic, Square, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { saveAudioAsset } from "../../db/studioRepository";
+import { audioAssetRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { AudioAsset } from "../../types/project";
 import { makeId } from "../../utils/id";
@@ -47,7 +47,7 @@ export function RecorderPanel() {
         durationSeconds,
         createdAt: Date.now()
       };
-      await saveAudioAsset(asset);
+      await audioAssetRepository.saveAudioAsset(asset);
       addAudioClip(selectedTrackId, snapBeat(currentBeat, snapBeats), name, undefined, durationSeconds, asset.id);
       setStatus("idle");
     } catch {

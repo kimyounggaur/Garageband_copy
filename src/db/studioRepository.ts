@@ -1,84 +1,20 @@
-import type { Assignment, Submission } from "../education/types";
-import type { AudioAsset, Project } from "../types/project";
-import { normalizeProject } from "../utils/projectMigration";
-import { db } from "./projectsDb";
+import { LocalAssignmentRepository, LocalAudioAssetRepository, LocalProjectRepository, LocalSubmissionRepository } from "./localRepositories";
+import type { StudioRepositories } from "./repositories";
 
-export async function saveProject(project: Project) {
-  const normalized = normalizeProject(project);
-  await db.projects.put(normalized);
-  await db.metadata.put({ key: "lastProjectId", value: normalized.id });
-}
+const localProjectRepository = new LocalProjectRepository();
 
-export async function loadProject(projectId: string) {
-  const project = await db.projects.get(projectId);
-  return project ? normalizeProject(project) : undefined;
-}
+export const studioRepositories: StudioRepositories = {
+  projects: localProjectRepository,
+  assignments: new LocalAssignmentRepository(),
+  submissions: new LocalSubmissionRepository(),
+  audioAssets: new LocalAudioAssetRepository()
+};
+
+export const projectRepository = studioRepositories.projects;
+export const assignmentRepository = studioRepositories.assignments;
+export const submissionRepository = studioRepositories.submissions;
+export const audioAssetRepository = studioRepositories.audioAssets;
 
 export async function loadLastProject() {
-  const metadata = await db.metadata.get("lastProjectId");
-  if (!metadata?.value) return undefined;
-  return loadProject(metadata.value);
-}
-
-export async function listProjects() {
-  const projects = await db.projects.orderBy("updatedAt").reverse().toArray();
-  return projects.map(normalizeProject);
-}
-
-export async function deleteProject(projectId: string) {
-  await db.transaction("rw", db.projects, db.audioAssets, db.metadata, async () => {
-    await db.projects.delete(projectId);
-    await db.audioAssets.where("projectId").equals(projectId).delete();
-  });
-  const metadata = await db.metadata.get("lastProjectId");
-  if (metadata?.value === projectId) {
-    await db.metadata.delete("lastProjectId");
-  }
-}
-
-export async function saveAudioAsset(asset: AudioAsset) {
-  await db.audioAssets.put(asset);
-  return asset;
-}
-
-export async function loadAudioAsset(assetId: string) {
-  return db.audioAssets.get(assetId);
-}
-
-export async function listAudioAssets(projectId: string) {
-  return db.audioAssets.where("projectId").equals(projectId).toArray();
-}
-
-export async function saveAssignment(assignment: Assignment) {
-  await db.assignments.put(assignment);
-  return assignment;
-}
-
-export async function loadAssignment(assignmentId: string) {
-  return db.assignments.get(assignmentId);
-}
-
-export async function listAssignments() {
-  return db.assignments.orderBy("createdAt").reverse().toArray();
-}
-
-export async function deleteAssignment(assignmentId: string) {
-  await db.transaction("rw", db.assignments, db.submissions, async () => {
-    await db.assignments.delete(assignmentId);
-    await db.submissions.where("assignmentId").equals(assignmentId).delete();
-  });
-}
-
-export async function saveSubmission(submission: Submission) {
-  await db.submissions.put(submission);
-  return submission;
-}
-
-export async function listSubmissions() {
-  return db.submissions.orderBy("submittedAt").reverse().toArray();
-}
-
-export async function listSubmissionsForAssignment(assignmentId: string) {
-  const submissions = await db.submissions.where("assignmentId").equals(assignmentId).toArray();
-  return submissions.sort((left, right) => right.submittedAt - left.submittedAt);
+  return localProjectRepository.loadLastProject();
 }

@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, Download, FileArchive, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
-import { loadAssignment } from "../../db/studioRepository";
+import { assignmentRepository } from "../../db/studioRepository";
 import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";
@@ -49,7 +49,7 @@ export function ReviewPanel() {
       setAssignment(undefined);
       return;
     }
-    loadAssignment(project.assignmentId).then((nextAssignment) => {
+    assignmentRepository.loadAssignment(project.assignmentId).then((nextAssignment) => {
       if (!cancelled) setAssignment(nextAssignment);
     });
     return () => {

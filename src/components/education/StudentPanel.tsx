@@ -1,7 +1,7 @@
 import { CheckCircle2, Download, FileArchive, PlayCircle, RefreshCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
-import { listAssignments, listSubmissions, saveProject, saveSubmission } from "../../db/studioRepository";
+import { assignmentRepository, projectRepository, submissionRepository } from "../../db/studioRepository";
 import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import type { Assignment, Submission } from "../../education/types";
@@ -41,14 +41,17 @@ export function StudentPanel() {
   const submittedAssignmentIds = useMemo(() => new Set(submissions.map((submission) => submission.assignmentId)), [submissions]);
 
   async function refresh() {
-    const [nextAssignments, nextSubmissions] = await Promise.all([listAssignments(), listSubmissions()]);
+    const [nextAssignments, nextSubmissions] = await Promise.all([
+      assignmentRepository.listAssignments(),
+      submissionRepository.listSubmissions()
+    ]);
     setAssignments(nextAssignments);
     setSubmissions(nextSubmissions);
   }
 
   async function handleStartAssignment(assignment: Assignment) {
     startAssignment(assignment);
-    await saveProject(useDawStore.getState().project);
+    await projectRepository.saveProject(useDawStore.getState().project);
   }
 
   async function handleSubmit() {
@@ -59,12 +62,12 @@ export function StudentPanel() {
       const snapshot = createReviewSummary(currentProject, currentAssignment);
       const safeName = fileSafeName(currentProject.name);
       const wavExportName = `${safeName}.wav`;
-      await saveProject(currentProject);
+      await projectRepository.saveProject(currentProject);
       exportJson(currentProject, `${safeName}.webband.json`);
       exportJson({ ...snapshot, exportedAt: new Date().toISOString() }, `${safeName}.review-summary.json`);
       const wav = await exportProjectToWav(currentProject);
       downloadBlob(wav, wavExportName);
-      await saveSubmission({
+      await submissionRepository.saveSubmission({
         id: makeId("submission"),
         assignmentId: currentAssignment.id,
         projectId: currentProject.id,

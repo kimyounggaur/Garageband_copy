@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAudioEngine } from "../../audio/AudioEngine";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
-import { loadLastProject, saveProject } from "../../db/studioRepository";
+import { loadLastProject, projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
 import { ClipEditor } from "../editor/ClipEditor";
@@ -56,7 +56,7 @@ export function AppShell() {
   useEffect(() => {
     if (!hydrated) return;
     const timer = window.setTimeout(() => {
-      saveProject(project)
+      projectRepository.saveProject(project)
         .then(() => setSaveStatus("done"))
         .catch(() => setSaveStatus("error"));
     }, 1000);
@@ -107,7 +107,7 @@ export function AppShell() {
   async function handleSave() {
     setSaveStatus("working");
     try {
-      await saveProject(useDawStore.getState().project);
+      await projectRepository.saveProject(useDawStore.getState().project);
       setSaveStatus("done");
     } catch {
       setSaveStatus("error");
