@@ -60,4 +60,37 @@ export type ReviewItem = {
   title: string;
   message: string;
   severity: ReviewSeverity;
+  detail?: string;
+  category?: "length" | "tracks" | "clips" | "balance" | "structure" | "midi" | "audio" | "lesson";
+  autoCheck?: boolean;
+};
+
+export type ReviewRubricCheck = {
+  id: string;
+  label: string;
+  completed: boolean;
+  detail: string;
+};
+
+export type ReviewRubricStatus = {
+  criterionId: string;
+  title: string;
+  autoChecks: ReviewRubricCheck[];
+  manualChecks: ReviewRubricCheck[];
+  suggestedLevel: string;
+  completed: boolean;
+};
+
+export type ReviewSummary = {
+  projectId: string;
+  projectName: string;
+  lessonId?: string;
+  lessonTitle?: string;
+  ready: boolean;
+  statusLabel: string;
+  studentMessage: string;
+  teacherSummary: string;
+  items: ReviewItem[];
+  missionResults: MissionEvaluation[];
+  rubric: ReviewRubricStatus[];
 };
