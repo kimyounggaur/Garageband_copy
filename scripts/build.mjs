@@ -81,7 +81,7 @@ function mirrorDist() {
 try {
   run(process.execPath, [join(root, "node_modules", "typescript", "bin", "tsc"), "-b"], root);
   copyProject();
-  run(process.execPath, [join(tempRoot, "node_modules", "vite", "bin", "vite.js"), "build"], tempRoot);
+  run(process.execPath, [join(tempRoot, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], tempRoot);
   console.log("> copy dist");
   mirrorDist();
   console.log("> build complete");

@@ -6,6 +6,11 @@
     <title>WebBand Studio</title>
   </head>
   <body>
+    <script>
+      if (location.protocol === "file:" && !location.pathname.includes("/dist/")) {
+        location.replace("./dist/index.html");
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
