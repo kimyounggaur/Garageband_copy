@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { Project } from "../types/project";
+import { normalizeProject } from "../utils/projectMigration";
 
 type MetadataRecord = {
   key: string;
@@ -22,12 +23,14 @@ class StudioDatabase extends Dexie {
 export const db = new StudioDatabase();
 
 export async function saveProject(project: Project) {
-  await db.projects.put(project);
-  await db.metadata.put({ key: "lastProjectId", value: project.id });
+  const normalized = normalizeProject(project);
+  await db.projects.put(normalized);
+  await db.metadata.put({ key: "lastProjectId", value: normalized.id });
 }
 
 export async function loadProject(projectId: string) {
-  return db.projects.get(projectId);
+  const project = await db.projects.get(projectId);
+  return project ? normalizeProject(project) : undefined;
 }
 
 export async function loadLastProject() {
@@ -37,7 +40,8 @@ export async function loadLastProject() {
 }
 
 export async function listProjects() {
-  return db.projects.orderBy("updatedAt").reverse().toArray();
+  const projects = await db.projects.orderBy("updatedAt").reverse().toArray();
+  return projects.map(normalizeProject);
 }
 
 export async function deleteProject(projectId: string) {

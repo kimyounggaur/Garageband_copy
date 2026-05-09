@@ -69,7 +69,9 @@ export function ArrangementTimeline() {
               <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-bold text-slate-100">{track.name}</span>
-                <span className="block text-[11px] uppercase tracking-[0.08em] text-slate-500">{track.type}</span>
+                <span className="block text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                  {track.role ?? track.type}
+                </span>
               </span>
             </button>
           ))}

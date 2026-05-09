@@ -51,7 +51,8 @@ export class AudioEngine {
 
     this.lengthBeats = projectLength(project);
     this.createChannels(project);
-    this.scheduleProject(project);
+    await this.scheduleProject(project);
+    await Tone.loaded();
     this.startBeatLoop(onBeat, onEnded);
     Tone.Transport.start("+0.04");
   }
@@ -91,7 +92,8 @@ export class AudioEngine {
     });
   }
 
-  private scheduleProject(project: Project) {
+  private async scheduleProject(project: Project) {
+    const audioLoads: Promise<void>[] = [];
     project.tracks.forEach((track) => {
       const channel = this.channels.get(track.id);
       if (!channel) return;
@@ -103,8 +105,12 @@ export class AudioEngine {
         if (clip.type === "midi") {
           this.scheduleMidiClip(clip, channel);
         }
+        if (clip.type === "audio") {
+          audioLoads.push(this.scheduleAudioClip(clip, channel));
+        }
       });
     });
+    await Promise.all(audioLoads);
   }
 
   private scheduleLoopClip(clip: Clip, channel: Tone.Channel) {
@@ -202,6 +208,22 @@ export class AudioEngine {
       }, tickTime(absoluteBeat));
       this.scheduledIds.push(id);
     });
+  }
+
+  private async scheduleAudioClip(clip: Clip, channel: Tone.Channel) {
+    if (!clip.audioUrl) return;
+    const player = new Tone.Player({
+      url: clip.audioUrl,
+      fadeIn: 0.01,
+      fadeOut: 0.03
+    }).connect(channel);
+    this.nodes.push(player);
+    await player.load(clip.audioUrl);
+
+    const id = Tone.Transport.schedule((time) => {
+      player.start(time, 0, beatDuration(clip.lengthBeats));
+    }, tickTime(clip.startBeat));
+    this.scheduledIds.push(id);
   }
 
   private startBeatLoop(onBeat: BeatCallback, onEnded: EndCallback) {

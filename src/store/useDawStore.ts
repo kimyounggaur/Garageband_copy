@@ -1,12 +1,18 @@
 import { create } from "zustand";
+import { summarizeLesson } from "../education/evaluateMission";
+import { createLessonProject, getLessonById } from "../education/lessons";
+import type { StudioMode } from "../education/types";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
-import type { Clip, MidiNote, Project, Track, TrackType } from "../types/project";
+import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
+import { makeId } from "../utils/id";
+import { normalizeProject } from "../utils/projectMigration";
 import { snapBeat } from "../utils/timeline";
 
 type ClipDraft = Omit<Clip, "id" | "trackId"> & Partial<Pick<Clip, "id" | "trackId">>;
 
 type DawState = {
   project: Project;
+  mode: StudioMode;
   isPlaying: boolean;
   currentBeat: number;
   selectedTrackId?: string;
@@ -14,6 +20,11 @@ type DawState = {
   hydrated: boolean;
   createProject: (name?: string) => void;
   loadProject: (project: Project) => void;
+  renameProject: (name: string) => void;
+  duplicateProject: () => void;
+  startLesson: (lessonId: string) => void;
+  refreshLessonProgress: () => void;
+  setMode: (mode: StudioMode) => void;
   setHydrated: (hydrated: boolean) => void;
   addTrack: (type?: TrackType, name?: string) => string;
   renameTrack: (trackId: string, name: string) => void;
@@ -21,6 +32,7 @@ type DawState = {
   addClip: (trackId: string, clip: ClipDraft) => string;
   addLoopClip: (loopId: string, trackId?: string, startBeat?: number) => string;
   addMidiClip: (trackId?: string, startBeat?: number) => string;
+  addAudioClip: (trackId: string | undefined, startBeat: number, name: string, audioUrl: string, durationSeconds: number) => string;
   moveClip: (clipId: string, startBeat: number, targetTrackId?: string) => void;
   resizeClip: (clipId: string, lengthBeats: number) => void;
   removeClip: (clipId: string) => void;
@@ -41,13 +53,6 @@ type DawState = {
 
 const TRACK_COLORS = ["#38bdf8", "#f59e0b", "#a78bfa", "#4ade80", "#fb7185", "#eab308"];
 
-function makeId(prefix: string) {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function now() {
   return Date.now();
 }
@@ -56,12 +61,23 @@ function touch(project: Project): Project {
   return { ...project, updatedAt: now() };
 }
 
-function createTrack(type: TrackType, index: number, name?: string): Track {
+function inferTrackRole(type: TrackType, name?: string): TrackRole {
+  const lower = (name ?? "").toLowerCase();
+  if (type === "drum" || lower.includes("beat") || lower.includes("drum")) return "beat";
+  if (type === "audio" || lower.includes("record")) return "recording";
+  if (lower.includes("bass")) return "bass";
+  if (lower.includes("key") || lower.includes("chord") || lower.includes("pad")) return "harmony";
+  return "melody";
+}
+
+function createTrack(type: TrackType, index: number, name?: string, role?: TrackRole): Track {
   const label = type === "drum" ? "Drums" : type === "audio" ? "Audio" : "Instrument";
+  const trackName = name ?? `${label} ${index + 1}`;
   return {
     id: makeId("track"),
-    name: name ?? `${label} ${index + 1}`,
+    name: trackName,
     type,
+    role: role ?? inferTrackRole(type, trackName),
     volume: 0.82,
     pan: 0,
     muted: false,
@@ -122,6 +138,7 @@ function createInitialProject(): Project {
 
   return {
     id: makeId("project"),
+    version: CURRENT_PROJECT_VERSION,
     name: "Untitled Session",
     bpm: 120,
     timeSignature: [4, 4],
@@ -129,6 +146,33 @@ function createInitialProject(): Project {
     createdAt: timestamp,
     updatedAt: timestamp
   };
+}
+
+function cloneProject(project: Project, name: string): Project {
+  const trackIds = new Map<string, string>();
+  const tracks = project.tracks.map((track) => {
+    const id = makeId("track");
+    trackIds.set(track.id, id);
+    return {
+      ...track,
+      id,
+      clips: track.clips.map((clip) => ({
+        ...clip,
+        id: makeId("clip"),
+        trackId: trackIds.get(clip.trackId) ?? id,
+        notes: clip.notes?.map((note) => ({ ...note, id: makeId("note") }))
+      }))
+    };
+  });
+  const timestamp = now();
+  return normalizeProject({
+    ...project,
+    id: makeId("project"),
+    name,
+    tracks,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  });
 }
 
 function updateClip(project: Project, clipId: string, updater: (clip: Clip) => Clip): Project {
@@ -148,6 +192,7 @@ function findClip(project: Project, clipId?: string) {
 
 export const useDawStore = create<DawState>((set, get) => ({
   project: createInitialProject(),
+  mode: "studio",
   isPlaying: false,
   currentBeat: 0,
   selectedTrackId: undefined,
@@ -158,6 +203,7 @@ export const useDawStore = create<DawState>((set, get) => ({
     const project = createInitialProject();
     set({
       project: { ...project, id: makeId("project"), name },
+      mode: "studio",
       isPlaying: false,
       currentBeat: 0,
       selectedTrackId: undefined,
@@ -166,14 +212,73 @@ export const useDawStore = create<DawState>((set, get) => ({
   },
 
   loadProject: (project) => {
+    const migratedProject = normalizeProject(project);
+    set({
+      project: migratedProject,
+      mode: migratedProject.lessonId ? "lesson" : "studio",
+      isPlaying: false,
+      currentBeat: 0,
+      selectedTrackId: migratedProject.tracks[0]?.id,
+      selectedClipId: migratedProject.tracks[0]?.clips[0]?.id
+    });
+  },
+
+  renameProject: (name) => {
+    set((state) => ({
+      project: touch({ ...state.project, name: name.trim() || "Untitled Session" })
+    }));
+  },
+
+  duplicateProject: () => {
+    const source = get().project;
+    const project = cloneProject(source, `${source.name} Copy`);
     set({
       project,
+      mode: project.lessonId ? "lesson" : "studio",
       isPlaying: false,
       currentBeat: 0,
       selectedTrackId: project.tracks[0]?.id,
       selectedClipId: project.tracks[0]?.clips[0]?.id
     });
   },
+
+  startLesson: (lessonId) => {
+    const project = createLessonProject(lessonId);
+    if (!project) return;
+    set({
+      project,
+      mode: "lesson",
+      isPlaying: false,
+      currentBeat: 0,
+      selectedTrackId: project.tracks[0]?.id,
+      selectedClipId: project.tracks[0]?.clips[0]?.id
+    });
+  },
+
+  refreshLessonProgress: () => {
+    const state = get();
+    const lesson = getLessonById(state.project.lessonId);
+    if (!lesson) return;
+
+    const { results } = summarizeLesson(state.project, lesson);
+    const previous = state.project.lessonProgress ?? {};
+    const next = results.reduce<Project["lessonProgress"]>((progress, result) => {
+      if (!progress) return progress;
+      const old = previous[result.missionId];
+      progress[result.missionId] = {
+        completed: result.completed,
+        progress: result.progress,
+        target: result.target,
+        completedAt: result.completed ? old?.completedAt ?? now() : undefined
+      };
+      return progress;
+    }, {});
+
+    if (JSON.stringify(previous) === JSON.stringify(next)) return;
+    set({ project: touch({ ...state.project, lessonProgress: next }) });
+  },
+
+  setMode: (mode) => set({ mode }),
 
   setHydrated: (hydrated) => set({ hydrated }),
 
@@ -266,11 +371,32 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
+  addAudioClip: (trackId, startBeat, name, audioUrl, durationSeconds) => {
+    const state = get();
+    const selectedTrack = state.project.tracks.find((track) => track.id === state.selectedTrackId);
+    const targetTrackId =
+      trackId ??
+      (selectedTrack?.type === "audio" || selectedTrack?.role === "recording" ? selectedTrack.id : undefined) ??
+      state.project.tracks.find((track) => track.type === "audio" || track.role === "recording")?.id ??
+      get().addTrack("audio", "Recording");
+    const lengthBeats = Math.max(1, snapBeat(durationSeconds / (60 / state.project.bpm)));
+
+    return get().addClip(targetTrackId, {
+      type: "audio",
+      name,
+      startBeat,
+      lengthBeats,
+      color: "#4ade80",
+      audioUrl
+    });
+  },
+
   moveClip: (clipId, startBeat, targetTrackId) => {
     set((state) => {
       const sourceTrack = state.project.tracks.find((track) => track.clips.some((clip) => clip.id === clipId));
       const clip = sourceTrack?.clips.find((item) => item.id === clipId);
       if (!sourceTrack || !clip) return state;
+      if (clip.locked) return state;
 
       if (targetTrackId && targetTrackId !== sourceTrack.id) {
         const movedClip = { ...clip, trackId: targetTrackId, startBeat: snapBeat(startBeat) };
@@ -302,22 +428,26 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((state) => ({
       project: updateClip(state.project, clipId, (clip) => ({
         ...clip,
-        lengthBeats: Math.max(0.25, snapBeat(lengthBeats))
+        lengthBeats: clip.locked ? clip.lengthBeats : Math.max(0.25, snapBeat(lengthBeats))
       }))
     }));
   },
 
   removeClip: (clipId) => {
-    set((state) => ({
-      project: touch({
-        ...state.project,
-        tracks: state.project.tracks.map((track) => ({
-          ...track,
-          clips: track.clips.filter((clip) => clip.id !== clipId)
-        }))
-      }),
-      selectedClipId: state.selectedClipId === clipId ? undefined : state.selectedClipId
-    }));
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (clip?.locked) return state;
+      return {
+        project: touch({
+          ...state.project,
+          tracks: state.project.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.filter((item) => item.id !== clipId)
+          }))
+        }),
+        selectedClipId: state.selectedClipId === clipId ? undefined : state.selectedClipId
+      };
+    });
   },
 
   selectTrack: (trackId) => set({ selectedTrackId: trackId }),

@@ -1,21 +1,36 @@
 export type TrackType = "drum" | "instrument" | "audio";
+export type TrackRole = "beat" | "bass" | "melody" | "harmony" | "recording";
 export type ClipType = "midi" | "audio" | "loop";
 export type LoopCategory = "Drums" | "Bass" | "Synth" | "FX";
 
+export const CURRENT_PROJECT_VERSION = 2;
+
 export type Project = {
   id: string;
+  version: number;
   name: string;
   bpm: number;
   timeSignature: [number, number];
   tracks: Track[];
+  lessonId?: string;
+  assignmentId?: string;
+  lessonProgress?: Record<string, MissionProgress>;
   createdAt: number;
   updatedAt: number;
+};
+
+export type MissionProgress = {
+  completed: boolean;
+  progress: number;
+  target: number;
+  completedAt?: number;
 };
 
 export type Track = {
   id: string;
   name: string;
   type: TrackType;
+  role?: TrackRole;
   volume: number;
   pan: number;
   muted: boolean;
@@ -34,7 +49,10 @@ export type Clip = {
   color: string;
   notes?: MidiNote[];
   audioUrl?: string;
+  audioAssetId?: string;
   loopId?: string;
+  locked?: boolean;
+  instructions?: string;
 };
 
 export type MidiNote = {

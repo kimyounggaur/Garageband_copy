@@ -160,6 +160,30 @@ function scheduleMidiClip(context: OfflineAudioContext, project: Project, output
   });
 }
 
+async function scheduleAudioClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
+  if (!clip.audioUrl) return;
+  try {
+    const response = await fetch(clip.audioUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const decoded = await context.decodeAudioData(arrayBuffer);
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    const beat = beatSeconds(project);
+    const start = clip.startBeat * beat;
+    const duration = Math.min(decoded.duration, clip.lengthBeats * beat);
+    source.buffer = decoded;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(1, start + 0.01);
+    gain.gain.setValueAtTime(1, Math.max(start + 0.01, start + duration - 0.03));
+    gain.gain.linearRampToValueAtTime(0, start + duration);
+    source.connect(gain).connect(output);
+    source.start(start);
+    source.stop(start + duration);
+  } catch {
+    // Skip unreadable imported audio while preserving the rest of the export.
+  }
+}
+
 function encodeWav(buffer: AudioBuffer) {
   const channels = [buffer.getChannelData(0), buffer.getChannelData(1)];
   const length = buffer.length * 4 + 44;
@@ -206,14 +230,17 @@ export async function exportProjectToWav(project: Project) {
   master.connect(context.destination);
 
   const hasSolo = project.tracks.some((track) => track.solo);
+  const audioSchedules: Promise<void>[] = [];
   project.tracks.forEach((track) => {
     const trackOutput = connectTrackOutput(context, track, master, hasSolo);
     track.clips.forEach((clip) => {
       if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput, clip);
       if (clip.type === "midi") scheduleMidiClip(context, project, trackOutput, clip);
+      if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput, clip));
     });
   });
 
+  await Promise.all(audioSchedules);
   const rendered = await context.startRendering();
   return encodeWav(rendered);
 }

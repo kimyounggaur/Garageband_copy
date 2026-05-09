@@ -1,4 +1,17 @@
-import { Download, FolderPlus, Play, RotateCcw, Save, Square } from "lucide-react";
+import {
+  ClipboardCheck,
+  Copy,
+  Download,
+  FolderPlus,
+  GraduationCap,
+  Play,
+  RotateCcw,
+  Save,
+  SlidersHorizontal,
+  Square
+} from "lucide-react";
+import type { ReactNode } from "react";
+import type { StudioMode } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
 import { formatBeat } from "../../utils/timeline";
 
@@ -20,15 +33,24 @@ function statusText(status: Status, fallback: string) {
 
 export function TransportBar({ onSave, saveStatus, onExport, exportStatus }: TransportBarProps) {
   const project = useDawStore((state) => state.project);
+  const mode = useDawStore((state) => state.mode);
   const isPlaying = useDawStore((state) => state.isPlaying);
   const currentBeat = useDawStore((state) => state.currentBeat);
   const setPlaying = useDawStore((state) => state.setPlaying);
   const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
   const setBpm = useDawStore((state) => state.setBpm);
+  const setMode = useDawStore((state) => state.setMode);
+  const renameProject = useDawStore((state) => state.renameProject);
   const createProject = useDawStore((state) => state.createProject);
+  const duplicateProject = useDawStore((state) => state.duplicateProject);
+  const modes: Array<{ id: StudioMode; label: string; icon: ReactNode }> = [
+    { id: "studio", label: "Studio", icon: <SlidersHorizontal size={14} /> },
+    { id: "lesson", label: "Lesson", icon: <GraduationCap size={14} /> },
+    { id: "review", label: "Review", icon: <ClipboardCheck size={14} /> }
+  ];
 
   return (
-    <header className="flex items-center justify-between border-b border-white/10 bg-studio-900 px-3">
+    <header className="flex min-w-0 items-center justify-between gap-3 border-b border-white/10 bg-studio-900 px-3">
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2">
           <button
@@ -78,17 +100,41 @@ export function TransportBar({ onSave, saveStatus, onExport, exportStatus }: Tra
         </div>
 
         <div className="min-w-0">
-          <div className="truncate text-sm font-bold">{project.name}</div>
+          <input
+            className="h-6 w-[clamp(150px,16vw,280px)] rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none transition focus:border-white/20 focus:bg-black/20"
+            value={project.name}
+            onChange={(event) => renameProject(event.target.value)}
+            aria-label="Project name"
+          />
           <div className="text-[11px] text-slate-500">
-            {project.tracks.length} tracks · {project.timeSignature.join("/")}
+            v{project.version} · {project.tracks.length} tracks · {project.timeSignature.join("/")}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="flex h-9 items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
+          {modes.map((item) => (
+            <button
+              key={item.id}
+              className={`inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
+                mode === item.id ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+              }`}
+              onClick={() => setMode(item.id)}
+              title={`${item.label} mode`}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
         <button className="studio-button" onClick={() => createProject("Untitled Session")} title="New project">
           <FolderPlus size={15} />
           New
+        </button>
+        <button className="studio-button" onClick={duplicateProject} title="Duplicate project">
+          <Copy size={15} />
+          Duplicate
         </button>
         <button className="studio-button" onClick={onSave} title="Save project">
           <Save size={15} />

@@ -28,9 +28,9 @@ export function ClipEditor() {
             <span className="panel-title">Piano Roll</span>
             <span className="truncate text-sm font-bold text-slate-200">{selectedClip.name}</span>
           </div>
-          <button className="studio-button" onClick={() => removeClip(selectedClip.id)}>
+          <button className="studio-button" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
             <Trash2 size={14} />
-            Delete
+            {selectedClip.locked ? "Locked" : "Delete"}
           </button>
         </div>
         <PianoRoll clip={selectedClip} />
@@ -72,6 +72,7 @@ export function ClipEditor() {
                     min={0}
                     step={0.25}
                     value={selectedClip.startBeat}
+                    disabled={selectedClip.locked}
                     onChange={(event) => moveClip(selectedClip.id, Number(event.target.value))}
                   />
                 </label>
@@ -83,6 +84,7 @@ export function ClipEditor() {
                     min={0.25}
                     step={0.25}
                     value={selectedClip.lengthBeats}
+                    disabled={selectedClip.locked}
                     onChange={(event) => resizeClip(selectedClip.id, Number(event.target.value))}
                   />
                 </label>
@@ -106,11 +108,17 @@ export function ClipEditor() {
                 <span>Length {selectedClip.lengthBeats}</span>
                 <span>Type {selectedClip.type}</span>
                 <span>{selectedClip.notes?.length ?? 0} notes</span>
+                {selectedClip.locked ? <span>Locked</span> : null}
               </div>
+              {selectedClip.instructions ? (
+                <div className="mt-3 rounded-md bg-meter-amber/10 p-2 text-xs leading-5 text-amber-100">
+                  {selectedClip.instructions}
+                </div>
+              ) : null}
             </div>
-            <button className="studio-button w-full" onClick={() => removeClip(selectedClip.id)}>
+            <button className="studio-button w-full" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
               <Trash2 size={14} />
-              Delete Clip
+              {selectedClip.locked ? "Locked Clip" : "Delete Clip"}
             </button>
           </div>
         ) : (

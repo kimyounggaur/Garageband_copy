@@ -1,4 +1,5 @@
 import type { PointerEvent } from "react";
+import { Lock } from "lucide-react";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
 import { CLIP_HEIGHT, PIXELS_PER_BEAT, beatToX, snapBeat } from "../../utils/timeline";
@@ -30,6 +31,7 @@ export function ClipBlock({ clip }: ClipBlockProps) {
     event.stopPropagation();
     selectTrack(clip.trackId);
     selectClip(clip.id);
+    if (clip.locked) return;
 
     const startX = event.clientX;
     const originalBeat = clip.startBeat;
@@ -52,6 +54,7 @@ export function ClipBlock({ clip }: ClipBlockProps) {
     event.stopPropagation();
     selectTrack(clip.trackId);
     selectClip(clip.id);
+    if (clip.locked) return;
 
     const startX = event.clientX;
     const originalLength = clip.lengthBeats;
@@ -79,14 +82,19 @@ export function ClipBlock({ clip }: ClipBlockProps) {
       onPointerDown={beginMove}
     >
       <div className="flex h-full min-w-0 flex-col justify-between px-2 py-1">
-        <div className="truncate text-xs font-black">{clip.name}</div>
+        <div className="flex min-w-0 items-center gap-1">
+          {clip.locked ? <Lock size={11} className="shrink-0" /> : null}
+          <span className="truncate text-xs font-black">{clip.name}</span>
+        </div>
         <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase opacity-80">
           <span>{clip.type}</span>
           <span>{clip.lengthBeats}b</span>
         </div>
       </div>
       <button
-        className="absolute right-0 top-0 h-full w-2 cursor-ew-resize bg-black/18 transition hover:bg-black/32"
+        className={`absolute right-0 top-0 h-full w-2 bg-black/18 transition hover:bg-black/32 ${
+          clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
+        }`}
         title="Resize clip"
         aria-label="Resize clip"
         onPointerDown={beginResize}

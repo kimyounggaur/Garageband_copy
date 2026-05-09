@@ -1,6 +1,7 @@
 import { Music2, Plus } from "lucide-react";
 import { useState } from "react";
 import { LOOP_CATEGORIES, LOOP_LIBRARY } from "../../data/loops";
+import { RecorderPanel } from "../recording/RecorderPanel";
 import { useDawStore } from "../../store/useDawStore";
 import type { LoopCategory } from "../../types/project";
 import { snapBeat } from "../../utils/timeline";
@@ -69,7 +70,8 @@ export function SoundLibrary() {
         </div>
       </div>
 
-      <div className="border-t border-white/10 p-2">
+      <div className="space-y-2 border-t border-white/10 p-2">
+        <RecorderPanel />
         <button
           className="studio-button w-full"
           onClick={() => addMidiClip(selectedTrackId, snapBeat(currentBeat))}
