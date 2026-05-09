@@ -4,14 +4,76 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebBand Studio</title>
-  </head>
-  <body>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #0c0f14;
+        color: #e5ecf6;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          #0c0f14;
+        background-size: 32px 32px;
+      }
+
+      main {
+        width: min(440px, calc(100vw - 40px));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: rgba(17, 23, 34, 0.96);
+        padding: 28px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      p {
+        margin: 10px 0 0;
+        color: #9ba8ba;
+        line-height: 1.55;
+      }
+
+      a {
+        display: inline-flex;
+        margin-top: 22px;
+        height: 42px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background: #38bdf8;
+        color: #07111c;
+        padding: 0 18px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+    </style>
     <script>
-      if (location.protocol === "file:" && !location.pathname.includes("/dist/")) {
-        location.replace("./dist/index.html");
+      if (location.protocol === "file:" && !location.pathname.replaceAll("\\", "/").includes("/dist/")) {
+        location.href = new URL("dist/index.html", location.href).href;
       }
     </script>
-    <div id="root"></div>
+  </head>
+  <body>
+    <div id="root">
+      <main>
+        <h1>WebBand Studio</h1>
+        <p>파일로 직접 열 때는 빌드된 앱 화면을 사용합니다. 자동으로 이동하지 않으면 아래 버튼을 누르세요.</p>
+        <a href="./dist/index.html">앱 열기</a>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
