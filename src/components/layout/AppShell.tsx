@@ -88,7 +88,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="grid h-screen grid-rows-[56px_minmax(0,1fr)_260px] bg-studio-950 text-slate-100">
+    <div className="grid h-dvh w-screen min-w-0 grid-rows-[56px_minmax(0,1fr)_260px] overflow-hidden bg-studio-950 text-slate-100">
       <TransportBar
         onSave={handleSave}
         saveStatus={saveStatus}
@@ -96,7 +96,7 @@ export function AppShell() {
         exportStatus={exportStatus}
       />
 
-      <main className="grid min-h-0 grid-cols-[260px_minmax(0,1fr)_300px] gap-2 p-2">
+      <main className="grid min-h-0 w-full min-w-0 grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] gap-2 p-2">
         <SoundLibrary />
         <ArrangementTimeline />
         <MixerPanel />

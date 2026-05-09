@@ -22,7 +22,7 @@ export function ClipEditor() {
 
   if (selectedClip?.type === "midi") {
     return (
-      <section className="panel grid min-h-0 grid-rows-[40px_minmax(0,1fr)] border-x-0 border-b-0">
+      <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[40px_minmax(0,1fr)] border-x-0 border-b-0">
         <div className="flex items-center justify-between border-b border-white/10 px-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="panel-title">Piano Roll</span>
@@ -39,7 +39,7 @@ export function ClipEditor() {
   }
 
   return (
-    <section className="panel grid min-h-0 grid-cols-[minmax(0,1fr)_360px] border-x-0 border-b-0">
+    <section className="panel grid min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(280px,20vw,420px)] border-x-0 border-b-0">
       <div className="min-h-0 overflow-hidden">
         <div className="flex h-10 items-center justify-between border-b border-white/10 px-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -55,7 +55,7 @@ export function ClipEditor() {
 
         <div className="flex h-[calc(100%-40px)] items-center justify-center bg-[linear-gradient(to_right,rgba(255,255,255,.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,.04)_1px,transparent_1px)] bg-[length:28px_28px]">
           {selectedClip ? (
-            <div className="w-[520px] rounded-md border border-white/10 bg-black/25 p-4">
+            <div className="mx-4 w-full max-w-[920px] rounded-md border border-white/10 bg-black/25 p-4">
               <div className="mb-3 flex items-center gap-3">
                 <span className="h-8 w-2 rounded-full" style={{ backgroundColor: selectedClip.color }} />
                 <div className="min-w-0">

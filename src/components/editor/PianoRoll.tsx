@@ -28,7 +28,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
     return Array.from({ length: MAX_PITCH - MIN_PITCH + 1 }, (_, index) => MAX_PITCH - index);
   }, []);
   const height = pitches.length * ROW_HEIGHT;
-  const width = Math.max(clip.lengthBeats * NOTE_BEAT_WIDTH, 640);
+  const width = `max(100%, ${Math.max(clip.lengthBeats * NOTE_BEAT_WIDTH, 640)}px)`;
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

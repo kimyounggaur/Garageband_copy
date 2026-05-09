@@ -31,6 +31,7 @@ export function TrackLane({ track, width }: TrackLaneProps) {
       style={{
         height: TRACK_HEIGHT,
         width,
+        minWidth: "100%",
         backgroundImage:
           "linear-gradient(to right, rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.045) 1px, transparent 1px)",
         backgroundSize: `${PIXELS_PER_BEAT * 4}px 100%, ${PIXELS_PER_BEAT}px 100%`
