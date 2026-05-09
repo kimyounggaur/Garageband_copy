@@ -1,28 +1,11 @@
 import type { Project, Track } from "../types/project";
+import { analyzeProjectNotes, getTheoryHint } from "../assist/musicTheory";
 import { evaluateLesson, getProjectEndBeat } from "./evaluateMission";
 import { getLessonById } from "./lessons";
 import type { ReviewItem } from "./types";
 
 function roleLabel(track: Track) {
   return track.role ?? track.type;
-}
-
-function uniquePitches(project: Project) {
-  return new Set(
-    project.tracks
-      .flatMap((track) => track.clips)
-      .flatMap((clip) => clip.notes ?? [])
-      .map((note) => note.pitch % 12)
-  ).size;
-}
-
-function pitchRange(project: Project) {
-  const pitches = project.tracks
-    .flatMap((track) => track.clips)
-    .flatMap((clip) => clip.notes ?? [])
-    .map((note) => note.pitch);
-  if (pitches.length === 0) return undefined;
-  return Math.max(...pitches) - Math.min(...pitches);
 }
 
 export function reviewProject(project: Project): ReviewItem[] {
@@ -87,17 +70,14 @@ export function reviewProject(project: Project): ReviewItem[] {
     });
   }
 
-  const pitchKinds = uniquePitches(project);
-  const range = pitchRange(project);
-  if (pitchKinds > 0) {
+  const noteAnalysis = analyzeProjectNotes(project);
+  const theoryHint = getTheoryHint(project);
+  if (theoryHint) {
     items.push({
       id: "theory-notes",
       title: "멜로디 힌트",
-      severity: pitchKinds >= 4 && (range ?? 0) <= 18 ? "good" : "info",
-      message:
-        pitchKinds >= 4
-          ? `서로 다른 음 ${pitchKinds}개를 사용했습니다. 음역 간격은 ${range ?? 0}반음이라 ${range && range > 18 ? "조금 넓게 들릴 수 있습니다." : "초보자 멜로디로 안정적입니다."}`
-          : "MIDI 노트 종류가 적습니다. 3~5개의 음으로 작은 패턴을 만들어보세요."
+      severity: noteAnalysis.pitchClassNames.length >= 4 && noteAnalysis.hasStableBeginnerRange ? "good" : "info",
+      message: theoryHint
     });
   }
 
