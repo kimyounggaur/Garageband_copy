@@ -6,6 +6,7 @@ import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";
 import type { Assignment, ReviewSeverity } from "../../education/types";
+import { AssistPanel } from "../assist/AssistPanel";
 
 type ExportStatus = "idle" | "working" | "done" | "error";
 
@@ -241,6 +242,10 @@ export function ReviewPanel() {
             <Download size={15} />
             {exportStatus === "working" ? "Exporting" : exportStatus === "done" ? "Exported" : exportStatus === "error" ? "Retry Export" : "Export Package"}
           </button>
+        </div>
+
+        <div className="mt-3">
+          <AssistPanel />
         </div>
       </div>
     </aside>

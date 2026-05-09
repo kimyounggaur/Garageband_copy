@@ -144,6 +144,22 @@ function scheduleLoopClip(context: OfflineAudioContext, project: Project, output
   }
 }
 
+function scheduleMidiDrumClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
+  const beat = beatSeconds(project);
+  (clip.notes ?? []).forEach((note) => {
+    const absoluteBeat = clip.startBeat + note.startBeat;
+    if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
+    const start = absoluteBeat * beat;
+    if (note.pitch <= 36) {
+      scheduleDrumStep(context, output, { beat: 0, drum: "kick", velocity: note.velocity }, start);
+    } else if (note.pitch <= 40) {
+      scheduleDrumStep(context, output, { beat: 0, drum: "snare", velocity: note.velocity }, start);
+    } else {
+      scheduleDrumStep(context, output, { beat: 0, drum: "hat", velocity: note.velocity }, start);
+    }
+  });
+}
+
 function scheduleMidiClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
   const beat = beatSeconds(project);
   (clip.notes ?? []).forEach((note) => {
@@ -248,7 +264,10 @@ export async function exportProjectToWav(project: Project) {
     const trackOutput = connectTrackOutput(context, track, master, hasSolo);
     track.clips.forEach((clip) => {
       if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput, clip);
-      if (clip.type === "midi") scheduleMidiClip(context, project, trackOutput, clip);
+      if (clip.type === "midi") {
+        if (track.type === "drum" || track.role === "beat") scheduleMidiDrumClip(context, project, trackOutput, clip);
+        else scheduleMidiClip(context, project, trackOutput, clip);
+      }
       if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput, clip));
     });
   });

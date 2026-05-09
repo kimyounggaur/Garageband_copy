@@ -75,6 +75,7 @@ type DawState = {
   setTrackVolume: (trackId: string, volume: number) => void;
   setTrackPan: (trackId: string, pan: number) => void;
   addNote: (clipId: string, note: Omit<MidiNote, "id">) => string;
+  addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>) => void;
   moveNote: (clipId: string, noteId: string, startBeat: number, pitch: number, options?: EditOptions) => void;
   resizeNote: (clipId: string, noteId: string, durationBeats: number, options?: EditOptions) => void;
   removeNote: (clipId: string, noteId: string) => void;
@@ -911,6 +912,33 @@ export const useDawStore = create<DawState>((set, get) => ({
       );
     });
     return id;
+  },
+
+  addNotes: (clipId, notes) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.type !== "midi" || notes.length === 0) return state;
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          lengthBeats: Math.max(
+            item.lengthBeats,
+            ...notes.map((note) => snapBeat(note.startBeat + note.durationBeats, state.snapBeats))
+          ),
+          notes: [
+            ...(item.notes ?? []),
+            ...notes.map((note) => ({
+              ...note,
+              id: makeId("note"),
+              startBeat: clamp(snapBeat(note.startBeat, state.snapBeats), 0, 256),
+              durationBeats: Math.max(0.25, snapBeat(note.durationBeats, state.snapBeats)),
+              velocity: clamp(note.velocity, 0, 1)
+            }))
+          ]
+        }))
+      );
+    });
   },
 
   moveNote: (clipId, noteId, startBeat, pitch, options) => {

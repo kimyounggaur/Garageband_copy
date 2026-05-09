@@ -107,7 +107,7 @@ export class AudioEngine {
           this.scheduleLoopClip(clip, channel);
         }
         if (clip.type === "midi") {
-          this.scheduleMidiClip(clip, channel);
+          this.scheduleMidiClip(track, clip, channel);
         }
         if (clip.type === "audio") {
           audioLoads.push(this.scheduleAudioClip(project, clip, channel));
@@ -192,7 +192,12 @@ export class AudioEngine {
     }
   }
 
-  private scheduleMidiClip(clip: Clip, channel: Tone.Channel) {
+  private scheduleMidiClip(track: { type: string; role?: string }, clip: Clip, channel: Tone.Channel) {
+    if (track.type === "drum" || track.role === "beat") {
+      this.scheduleDrumMidiClip(clip, channel);
+      return;
+    }
+
     const synth = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: "triangle" },
       envelope: { attack: 0.01, decay: 0.15, sustain: 0.58, release: 0.35 }
@@ -209,6 +214,37 @@ export class AudioEngine {
           time,
           note.velocity
         );
+      }, tickTime(absoluteBeat));
+      this.scheduledIds.push(id);
+    });
+  }
+
+  private scheduleDrumMidiClip(clip: Clip, channel: Tone.Channel) {
+    const kick = new Tone.MembraneSynth({
+      pitchDecay: 0.025,
+      octaves: 7,
+      envelope: { attack: 0.001, decay: 0.18, sustain: 0.01, release: 0.2 }
+    }).connect(channel);
+    const snare = new Tone.NoiseSynth({
+      noise: { type: "white" },
+      envelope: { attack: 0.001, decay: 0.12, sustain: 0, release: 0.08 }
+    }).connect(channel);
+    const hat = new Tone.MetalSynth({
+      envelope: { attack: 0.001, decay: 0.05, release: 0.02 },
+      harmonicity: 5.1,
+      modulationIndex: 20,
+      resonance: 2800,
+      octaves: 1
+    }).connect(channel);
+    this.nodes.push(kick, snare, hat);
+
+    (clip.notes ?? []).forEach((note) => {
+      const absoluteBeat = clip.startBeat + note.startBeat;
+      if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
+      const id = Tone.Transport.schedule((time) => {
+        if (note.pitch <= 36) kick.triggerAttackRelease("C1", "8n", time, note.velocity);
+        else if (note.pitch <= 40) snare.triggerAttackRelease("16n", time, note.velocity);
+        else hat.triggerAttackRelease("32n", time, note.velocity * 0.55);
       }, tickTime(absoluteBeat));
       this.scheduledIds.push(id);
     });

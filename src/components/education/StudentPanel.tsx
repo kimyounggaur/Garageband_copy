@@ -7,6 +7,7 @@ import { getLessonById } from "../../education/lessons";
 import type { Assignment, Submission } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
 import { makeId } from "../../utils/id";
+import { AssistPanel } from "../assist/AssistPanel";
 
 type SubmitStatus = "idle" | "working" | "done" | "error";
 
@@ -165,6 +166,10 @@ export function StudentPanel() {
             <Download size={15} />
             {submitStatus === "working" ? "Submitting" : submitStatus === "done" ? "Submitted" : submitStatus === "error" ? "Retry Submit" : "Create Package"}
           </button>
+        </div>
+
+        <div className="mt-3">
+          <AssistPanel />
         </div>
       </div>
     </aside>
