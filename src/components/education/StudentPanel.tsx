@@ -160,6 +160,13 @@ export function StudentPanel() {
               {summary.statusLabel}
             </div>
             <div className="mt-1 text-xs leading-5 text-slate-400">{summary.studentMessage}</div>
+            <div className="mt-2 rounded border border-meter-cyan/20 bg-meter-cyan/10 p-2">
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100/70">다음 한 가지</div>
+              <div className="mt-1 text-xs font-black text-slate-100">{summary.nextAction?.title ?? "Review 확인하기"}</div>
+              <div className="mt-1 text-[11px] leading-5 text-slate-400">
+                {summary.nextAction?.message ?? "제출 전에 보완할 점을 한 번 더 확인해보세요."}
+              </div>
+            </div>
           </div>
           <button
             className="studio-button mt-3 w-full"

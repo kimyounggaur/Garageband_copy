@@ -2,7 +2,7 @@ import type { Clip, Project, Track, TrackRole } from "../types/project";
 import { analyzeProjectNotes, getTheoryHint } from "../assist/musicTheory";
 import { evaluateLesson, getProjectEndBeat } from "./evaluateMission";
 import { getLessonById } from "./lessons";
-import type { Assignment, Lesson, ReviewItem, ReviewRubricCheck, ReviewRubricStatus, ReviewSummary } from "./types";
+import type { Assignment, Lesson, ReviewItem, ReviewNextAction, ReviewRubricCheck, ReviewRubricStatus, ReviewScore, ReviewSummary } from "./types";
 
 const MIN_PROJECT_BEATS = 32;
 const MIN_CLIP_BEATS = 1;
@@ -230,10 +230,19 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
   return items;
 }
 
-function rubricLevels(criterion: Lesson["rubric"]["criteria"][number], autoChecks: ReviewRubricCheck[]) {
+function scoreRubricCriterion(criterion: Lesson["rubric"]["criteria"][number], autoChecks: ReviewRubricCheck[]) {
+  const maxScore = Math.max(1, criterion.levels.length);
   const completed = autoChecks.filter((check) => check.completed).length;
-  const levelIndex = Math.max(0, Math.min(criterion.levels.length - 1, completed - 1));
-  return criterion.levels[levelIndex]?.label ?? criterion.levels[0]?.label ?? "확인";
+  const ratio = autoChecks.length > 0 ? completed / autoChecks.length : 0;
+  const score = Math.max(0, Math.min(maxScore, Math.round(ratio * maxScore)));
+  const levelIndex = Math.max(0, Math.min(maxScore - 1, Math.max(1, score) - 1));
+
+  return {
+    score,
+    maxScore,
+    percent: Math.round((score / maxScore) * 100),
+    suggestedLevel: criterion.levels[levelIndex]?.label ?? criterion.levels[0]?.label ?? "확인"
+  };
 }
 
 function defaultRubric(project: Project): Lesson["rubric"] {
@@ -357,15 +366,115 @@ function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assig
       manualChecks = [missingCheck("teacher-listen", "교사 청취 확인", "교사가 듣고 체크합니다.")];
     }
 
+    const score = scoreRubricCriterion(criterion, autoChecks);
+
     return {
       criterionId: criterion.id,
       title: criterion.title,
       autoChecks,
       manualChecks,
-      suggestedLevel: rubricLevels(criterion, autoChecks),
+      suggestedLevel: score.suggestedLevel,
+      score: score.score,
+      maxScore: score.maxScore,
+      percent: score.percent,
       completed: autoChecks.every((check) => check.completed)
     };
   });
+}
+
+function buildRubricScore(rubric: ReviewRubricStatus[]): ReviewScore {
+  const earned = rubric.reduce((sum, criterion) => sum + criterion.score, 0);
+  const possible = rubric.reduce((sum, criterion) => sum + criterion.maxScore, 0);
+  const percent = possible > 0 ? Math.round((earned / possible) * 100) : 0;
+  const levelLabel = percent >= 85 ? "완성" : percent >= 55 ? "성장" : percent > 0 ? "시작" : "준비";
+
+  return { earned, possible, percent, levelLabel };
+}
+
+function buildNextAction(
+  items: ReviewItem[],
+  missionResults: ReturnType<typeof evaluateLesson>,
+  rubric: ReviewRubricStatus[],
+  ready: boolean
+): ReviewNextAction {
+  if (ready) {
+    return {
+      title: "제출 패키지 만들기",
+      message: "지금 상태라면 제출해도 좋아요."
+    };
+  }
+
+  const warning = items.find((item) => item.severity === "warning");
+  if (warning) {
+    const byId: Record<string, ReviewNextAction> = {
+      length: {
+        title: "8마디까지 늘리기",
+        message: "좋은 클립을 오른쪽으로 늘려 곡 길이를 먼저 채워보세요.",
+        category: warning.category,
+        itemId: warning.id
+      },
+      "track-balance": {
+        title: "트랙 하나 더 추가하기",
+        message: "비트, 베이스, 멜로디 중 비어 있는 역할을 하나만 더 넣어보세요.",
+        category: warning.category,
+        itemId: warning.id
+      },
+      "short-clips": {
+        title: "짧은 클립 확인하기",
+        message: "아주 짧게 잘린 클립을 지우거나 길이를 다시 맞춰보세요.",
+        category: warning.category,
+        itemId: warning.id
+      },
+      "arrangement-balance": {
+        title: "비트 기준 잡기",
+        message: "드럼 비트부터 넣으면 다른 소리를 맞추기 쉬워요.",
+        category: warning.category,
+        itemId: warning.id
+      },
+      repetition: {
+        title: "좋은 구간 한 번 반복하기",
+        message: "마음에 드는 4마디를 한 번 더 이어서 곡의 흐름을 만들어보세요.",
+        category: warning.category,
+        itemId: warning.id
+      },
+      "midi-notes": {
+        title: "MIDI 노트 더 넣기",
+        message: "멜로디나 베이스 노트를 몇 개 더 추가해보세요.",
+        category: warning.category,
+        itemId: warning.id
+      },
+      "audio-recording": {
+        title: "녹음 하나 추가하기",
+        message: "짧은 목소리, 박수, 악기 소리도 좋은 오디오 레이어가 됩니다.",
+        category: warning.category,
+        itemId: warning.id
+      }
+    };
+
+    return byId[warning.id] ?? {
+      title: warning.title,
+      message: warning.message,
+      category: warning.category,
+      itemId: warning.id
+    };
+  }
+
+  const mission = missionResults.find((result) => !result.completed);
+  if (mission) {
+    return {
+      title: "남은 미션 하나 끝내기",
+      message: mission.summary,
+      category: "lesson",
+      itemId: mission.missionId
+    };
+  }
+
+  const criterion = rubric.find((item) => !item.completed);
+  return {
+    title: criterion ? `${criterion.title} 보완하기` : "Review 다시 확인하기",
+    message: criterion?.autoChecks.find((check) => !check.completed)?.detail ?? "제출 전에 빠진 항목이 있는지 한 번 더 확인해보세요.",
+    itemId: criterion?.criterionId
+  };
 }
 
 export function createReviewSummary(project: Project, assignment?: Assignment): ReviewSummary {
@@ -373,10 +482,12 @@ export function createReviewSummary(project: Project, assignment?: Assignment): 
   const items = buildReviewItems(project, lesson);
   const missionResults = evaluateLesson(project, lesson);
   const rubric = buildRubricStatus(project, lesson, assignment);
+  const rubricScore = buildRubricScore(rubric);
   const blockingWarnings = items.filter((item) => item.severity === "warning");
   const incompleteMissions = missionResults.filter((result) => !result.completed);
   const incompleteRubric = rubric.filter((criterion) => !criterion.completed);
   const ready = blockingWarnings.length === 0 && incompleteMissions.length === 0 && incompleteRubric.length === 0;
+  const nextAction = buildNextAction(items, missionResults, rubric, ready);
 
   return {
     projectId: project.id,
@@ -389,8 +500,10 @@ export function createReviewSummary(project: Project, assignment?: Assignment): 
     statusLabel: ready ? "제출 준비됨" : "보완 필요",
     studentMessage: ready ? "좋아요. 제출해도 됩니다." : "조금만 더 다듬으면 좋아요.",
     teacherSummary: ready
-      ? "자동 체크와 레슨 미션이 모두 완료되었습니다."
-      : `${blockingWarnings.length}개 자동 보완 항목, ${incompleteMissions.length}개 미션, ${incompleteRubric.length}개 루브릭 기준 확인 필요`,
+      ? `자동 체크와 레슨 미션이 모두 완료되었습니다. 루브릭 ${rubricScore.earned}/${rubricScore.possible}점입니다.`
+      : `${blockingWarnings.length}개 자동 보완 항목, ${incompleteMissions.length}개 미션, ${incompleteRubric.length}개 루브릭 기준 확인 필요 · 루브릭 ${rubricScore.earned}/${rubricScore.possible}점`,
+    rubricScore,
+    nextAction,
     items,
     missionResults,
     rubric

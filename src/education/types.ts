@@ -88,7 +88,24 @@ export type ReviewRubricStatus = {
   autoChecks: ReviewRubricCheck[];
   manualChecks: ReviewRubricCheck[];
   suggestedLevel: string;
+  score: number;
+  maxScore: number;
+  percent: number;
   completed: boolean;
+};
+
+export type ReviewScore = {
+  earned: number;
+  possible: number;
+  percent: number;
+  levelLabel: string;
+};
+
+export type ReviewNextAction = {
+  title: string;
+  message: string;
+  category?: ReviewItem["category"];
+  itemId?: string;
 };
 
 export type ReviewSummary = {
@@ -102,6 +119,8 @@ export type ReviewSummary = {
   statusLabel: string;
   studentMessage: string;
   teacherSummary: string;
+  rubricScore: ReviewScore;
+  nextAction: ReviewNextAction;
   items: ReviewItem[];
   missionResults: MissionEvaluation[];
   rubric: ReviewRubricStatus[];

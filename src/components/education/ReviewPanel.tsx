@@ -5,7 +5,7 @@ import { assignmentRepository } from "../../db/studioRepository";
 import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";
-import type { Assignment, ReviewSeverity } from "../../education/types";
+import type { Assignment, ReviewNextAction, ReviewRubricStatus, ReviewScore, ReviewSeverity } from "../../education/types";
 import { AssistPanel } from "../assist/AssistPanel";
 
 type ExportStatus = "idle" | "working" | "done" | "error";
@@ -31,6 +31,22 @@ function statusClasses(ready: boolean) {
     : "border-meter-amber/40 bg-meter-amber/10 text-amber-100";
 }
 
+function fallbackScore(rubric: ReviewRubricStatus[]): ReviewScore {
+  const possible = rubric.reduce((sum, criterion) => sum + (criterion.maxScore ?? criterion.autoChecks.length), 0);
+  const earned = rubric.reduce(
+    (sum, criterion) => sum + (criterion.score ?? criterion.autoChecks.filter((check) => check.completed).length),
+    0
+  );
+  const percent = possible > 0 ? Math.round((earned / possible) * 100) : 0;
+  return { earned, possible, percent, levelLabel: percent >= 85 ? "완성" : percent >= 55 ? "성장" : "시작" };
+}
+
+function fallbackNextAction(ready: boolean): ReviewNextAction {
+  return ready
+    ? { title: "제출 패키지 만들기", message: "지금 상태라면 제출해도 좋아요." }
+    : { title: "보완할 점 하나 고르기", message: "아래 경고 항목 중 하나부터 고쳐보세요." };
+}
+
 export function ReviewPanel() {
   const project = useDawStore((state) => state.project);
   const [assignment, setAssignment] = useState<Assignment | undefined>();
@@ -41,6 +57,8 @@ export function ReviewPanel() {
   const warningItems = summary.items.filter((item) => item.severity === "warning");
   const manualTotal = summary.rubric.reduce((sum, criterion) => sum + criterion.manualChecks.length, 0);
   const manualDone = Object.values(manualChecks).filter(Boolean).length;
+  const score = summary.rubricScore ?? fallbackScore(summary.rubric);
+  const nextAction = summary.nextAction ?? fallbackNextAction(summary.ready);
   const name = fileSafeName(project.name);
 
   useEffect(() => {
@@ -102,7 +120,18 @@ export function ReviewPanel() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 rounded-md border border-meter-cyan/30 bg-meter-cyan/10 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100/80">다음 한 가지</div>
+          <div className="mt-1 text-sm font-black text-slate-100">{nextAction.title}</div>
+          <div className="mt-1 text-xs leading-5 text-slate-300">{nextAction.message}</div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-md border border-white/10 bg-black/20 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Score</div>
+            <div className="mt-1 text-lg font-black text-slate-100">{score.earned}/{score.possible}</div>
+            <div className="text-[10px] font-bold text-slate-500">{score.percent}% · {score.levelLabel}</div>
+          </div>
           <div className="rounded-md border border-white/10 bg-black/20 p-2">
             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Auto</div>
             <div className="mt-1 text-lg font-black text-slate-100">{summary.items.length - warningItems.length}/{summary.items.length}</div>
@@ -181,8 +210,14 @@ export function ReviewPanel() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-black text-slate-100">{criterion.title}</div>
                   <span className="rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] font-bold text-slate-300">
-                    {criterion.suggestedLevel}
+                    {criterion.score ?? 0}/{criterion.maxScore ?? criterion.autoChecks.length} · {criterion.suggestedLevel}
                   </span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-meter-cyan"
+                    style={{ width: `${criterion.percent ?? 0}%` }}
+                  />
                 </div>
 
                 <div className="mt-3">
