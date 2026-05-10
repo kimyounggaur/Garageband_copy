@@ -7,9 +7,9 @@ import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
 import { ClipEditor } from "../editor/ClipEditor";
 import { LessonPanel } from "../education/LessonPanel";
 import { ReviewPanel } from "../education/ReviewPanel";
-import { StudentPanel } from "../education/StudentPanel";
 import { TeacherPanel } from "../education/TeacherPanel";
 import { SoundLibrary } from "../library/SoundLibrary";
+import { StudioPanel } from "../studio/StudioPanel";
 import { TransportBar } from "../transport/TransportBar";
 
 type Status = "idle" | "working" | "done" | "error";
@@ -131,7 +131,7 @@ export function AppShell() {
     if (educationView === "teacher") return <TeacherPanel />;
     if (mode === "review") return <ReviewPanel />;
     if (mode === "lesson") return <LessonPanel />;
-    return <StudentPanel />;
+    return <StudioPanel />;
   }
 
   return (

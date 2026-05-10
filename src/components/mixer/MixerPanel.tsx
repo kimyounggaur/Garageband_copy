@@ -50,7 +50,7 @@ export function MixerPanel() {
   }
 
   return (
-    <aside className="panel grid min-h-0 grid-rows-[44px_minmax(0,1fr)_190px] rounded-lg">
+    <aside className="panel grid h-full min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg sm:grid-rows-[44px_minmax(0,1fr)_190px]">
       <div className="flex items-center justify-between border-b border-white/10 px-3">
         <span className="panel-title">Mixer</span>
         <div className="flex items-center gap-1">
@@ -90,7 +90,7 @@ export function MixerPanel() {
                   value={track.name}
                   onChange={(event) => renameTrack(track.id, event.target.value)}
                   onClick={(event) => event.stopPropagation()}
-                  aria-label="Track name"
+                  aria-label={`${track.name} track name`}
                 />
                 <button
                   className="studio-icon-button h-7 w-7"
@@ -115,7 +115,7 @@ export function MixerPanel() {
                   value={track.volume}
                   onChange={(event) => setTrackVolume(track.id, Number(event.target.value))}
                   onClick={(event) => event.stopPropagation()}
-                  aria-label="Track volume"
+                  aria-label={`${track.name} volume`}
                 />
                 <span className="text-right text-[11px] font-bold text-slate-400">{Math.round(track.volume * 100)}</span>
               </div>
@@ -130,7 +130,7 @@ export function MixerPanel() {
                   value={track.pan}
                   onChange={(event) => setTrackPan(track.id, Number(event.target.value))}
                   onClick={(event) => event.stopPropagation()}
-                  aria-label="Track pan"
+                  aria-label={`${track.name} pan`}
                 />
                 <span className="text-right text-[11px] font-bold text-slate-400">{track.pan.toFixed(1)}</span>
               </div>
@@ -144,6 +144,8 @@ export function MixerPanel() {
                     event.stopPropagation();
                     toggleMute(track.id);
                   }}
+                  title={`Mute ${track.name}`}
+                  aria-label={`Mute ${track.name}`}
                 >
                   Mute
                 </button>
@@ -155,6 +157,8 @@ export function MixerPanel() {
                     event.stopPropagation();
                     toggleSolo(track.id);
                   }}
+                  title={`Solo ${track.name}`}
+                  aria-label={`Solo ${track.name}`}
                 >
                   Solo
                 </button>
@@ -164,7 +168,7 @@ export function MixerPanel() {
         </div>
       </div>
 
-      <div className="border-t border-white/10 p-2">
+      <div className="hidden border-t border-white/10 p-2 sm:block">
         <div className="mb-2 flex items-center justify-between">
           <span className="panel-title">Sessions</span>
           <button className="studio-icon-button h-7 w-7" onClick={refreshProjects} title="Refresh sessions" aria-label="Refresh sessions">
