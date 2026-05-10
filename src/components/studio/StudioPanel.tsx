@@ -2,6 +2,7 @@ import { GraduationCap, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { MixerPanel } from "../mixer/MixerPanel";
 import { StudentPanel } from "../education/StudentPanel";
+import { RepositorySwitch } from "./RepositorySwitch";
 
 type StudioTab = "mixer" | "class";
 
@@ -9,7 +10,7 @@ export function StudioPanel() {
   const [tab, setTab] = useState<StudioTab>("mixer");
 
   return (
-    <aside className="grid min-h-0 grid-rows-[38px_minmax(0,1fr)] gap-2 rounded-lg">
+    <aside className="grid min-h-0 grid-rows-[38px_auto_minmax(0,1fr)] gap-2 rounded-lg">
       <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-studio-900/80 p-1">
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-black transition ${
@@ -32,6 +33,8 @@ export function StudioPanel() {
           Class
         </button>
       </div>
+
+      <RepositorySwitch />
 
       <div className="min-h-0 [&>aside]:h-full">{tab === "mixer" ? <MixerPanel /> : <StudentPanel />}</div>
     </aside>
