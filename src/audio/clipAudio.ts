@@ -1,6 +1,8 @@
 import { audioAssetRepository } from "../db/studioRepository";
 import type { Clip } from "../types/project";
 
+const MAX_PEAK_CACHE_ENTRIES = 24;
+const MAX_SAMPLES_PER_PEAK_BIN = 2048;
 const peakCache = new Map<string, Promise<PeakOverview>>();
 
 export type ClipAudioTiming = {
@@ -32,6 +34,13 @@ function audioKey(clip: Clip, bins?: number) {
   if (clip.audioAssetId) return `asset:${clip.audioAssetId}:${bins ?? "raw"}`;
   if (clip.audioUrl) return `url:${clip.audioUrl.slice(0, 80)}:${clip.audioUrl.length}:${bins ?? "raw"}`;
   return `clip:${clip.id}:${bins ?? "raw"}`;
+}
+
+function rememberPeak(key: string, promise: Promise<PeakOverview>) {
+  peakCache.set(key, promise);
+  if (peakCache.size <= MAX_PEAK_CACHE_ENTRIES) return;
+  const oldestKey = peakCache.keys().next().value as string | undefined;
+  if (oldestKey) peakCache.delete(oldestKey);
 }
 
 export function resolveClipAudioTiming(clip: Clip, bpm: number, sourceDurationSeconds: number): ClipAudioTiming {
@@ -104,10 +113,11 @@ export async function getClipPeakOverview(clip: Clip, bins = 512): Promise<PeakO
     for (let bin = 0; bin < bins; bin += 1) {
       const start = bin * samplesPerBin;
       const end = Math.min(buffer.length, start + samplesPerBin);
+      const stride = Math.max(1, Math.ceil((end - start) / MAX_SAMPLES_PER_PEAK_BIN));
       let peak = 0;
       for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
         const data = buffer.getChannelData(channel);
-        for (let index = start; index < end; index += 1) {
+        for (let index = start; index < end; index += stride) {
           peak = Math.max(peak, Math.abs(data[index] ?? 0));
         }
       }
@@ -117,7 +127,7 @@ export async function getClipPeakOverview(clip: Clip, bins = 512): Promise<PeakO
     return { peaks, durationSeconds: buffer.duration };
   })();
 
-  peakCache.set(key, promise);
+  rememberPeak(key, promise);
   return promise.catch(() => undefined);
 }
 

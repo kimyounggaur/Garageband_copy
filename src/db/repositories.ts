@@ -25,6 +25,9 @@ export type AudioAssetRepository = {
   saveAudioAsset: (asset: AudioAsset) => Promise<AudioAsset>;
   loadAudioAsset: (assetId: string) => Promise<AudioAsset | undefined>;
   listAudioAssets: (projectId: string) => Promise<AudioAsset[]>;
+  renameAudioAsset: (assetId: string, name: string) => Promise<void>;
+  deleteAudioAsset: (assetId: string) => Promise<void>;
+  deleteUnusedAudioAssets: (projectId: string, usedAssetIds: string[]) => Promise<number>;
 };
 
 export type StudioRepositories = {

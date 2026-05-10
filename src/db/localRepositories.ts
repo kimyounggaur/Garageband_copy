@@ -52,6 +52,23 @@ export class LocalAudioAssetRepository implements AudioAssetRepository {
   async listAudioAssets(projectId: string) {
     return db.audioAssets.where("projectId").equals(projectId).toArray();
   }
+
+  async renameAudioAsset(assetId: string, name: string) {
+    await db.audioAssets.update(assetId, { name });
+  }
+
+  async deleteAudioAsset(assetId: string) {
+    await db.audioAssets.delete(assetId);
+  }
+
+  async deleteUnusedAudioAssets(projectId: string, usedAssetIds: string[]) {
+    const used = new Set(usedAssetIds);
+    const assets = await this.listAudioAssets(projectId);
+    const unusedIds = assets.filter((asset) => !used.has(asset.id)).map((asset) => asset.id);
+    if (unusedIds.length === 0) return 0;
+    await db.audioAssets.bulkDelete(unusedIds);
+    return unusedIds.length;
+  }
 }
 
 export class LocalAssignmentRepository implements AssignmentRepository {

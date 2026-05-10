@@ -9,16 +9,16 @@ import { snapBeat } from "../../utils/timeline";
 type RecorderStatus = "idle" | "recording" | "saving" | "error";
 
 async function getAudioDuration(url: string) {
-  return new Promise<number>((resolve) => {
+  return new Promise<number | undefined>((resolve) => {
     const audio = new Audio();
     audio.preload = "metadata";
     audio.onloadedmetadata = () => {
       URL.revokeObjectURL(audio.src);
-      resolve(Number.isFinite(audio.duration) ? audio.duration : 4);
+      resolve(Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : undefined);
     };
     audio.onerror = () => {
       URL.revokeObjectURL(audio.src);
-      resolve(4);
+      resolve(undefined);
     };
     audio.src = url;
   });
@@ -26,6 +26,7 @@ async function getAudioDuration(url: string) {
 
 export function RecorderPanel() {
   const [status, setStatus] = useState<RecorderStatus>("idle");
+  const [message, setMessage] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
@@ -37,6 +38,7 @@ export function RecorderPanel() {
 
   async function saveBlob(blob: Blob, durationSeconds: number, name: string) {
     setStatus("saving");
+    setMessage("");
     try {
       const asset: AudioAsset = {
         id: makeId("audio"),
@@ -50,13 +52,16 @@ export function RecorderPanel() {
       await audioAssetRepository.saveAudioAsset(asset);
       addAudioClip(selectedTrackId, snapBeat(currentBeat, snapBeats), name, undefined, durationSeconds, asset.id);
       setStatus("idle");
+      setMessage("오디오 클립을 만들었어요.");
     } catch {
       setStatus("error");
+      setMessage("오디오를 저장하지 못했어요.");
     }
   }
 
   async function startRecording() {
     try {
+      setMessage("");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
@@ -70,6 +75,7 @@ export function RecorderPanel() {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (blob.size === 0) {
           setStatus("error");
+          setMessage("녹음된 오디오가 비어 있어요.");
           return;
         }
         const duration = Math.max(0.5, (Date.now() - startedAtRef.current) / 1000);
@@ -79,6 +85,7 @@ export function RecorderPanel() {
       setStatus("recording");
     } catch {
       setStatus("error");
+      setMessage("마이크 권한을 확인해 주세요.");
     }
   }
 
@@ -88,8 +95,15 @@ export function RecorderPanel() {
 
   async function handleUpload(file?: File) {
     if (!file) return;
+    setMessage("");
+    setStatus("saving");
     const objectUrl = URL.createObjectURL(file);
     const duration = await getAudioDuration(objectUrl);
+    if (!duration) {
+      setStatus("error");
+      setMessage("이 오디오는 읽을 수 없어요. WAV, MP3, M4A, WebM 파일로 다시 시도해 주세요.");
+      return;
+    }
     await saveBlob(file, duration, file.name.replace(/\.[^.]+$/, ""));
   }
 
@@ -122,6 +136,13 @@ export function RecorderPanel() {
           />
         </label>
       </div>
+      {message ? (
+        <div className={`mt-2 rounded border p-2 text-[11px] font-semibold ${
+          status === "error" ? "border-meter-rose/30 bg-meter-rose/10 text-rose-100" : "border-meter-green/30 bg-meter-green/10 text-green-100"
+        }`}>
+          {message}
+        </div>
+      ) : null}
     </div>
   );
 }
