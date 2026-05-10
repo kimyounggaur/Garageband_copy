@@ -1,15 +1,14 @@
-import { Drum, Lightbulb, Music2, Plus, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Drum, Lightbulb, Music2, Play, Plus, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ruleBasedAssistAdapter } from "../../assist/aiAdapter";
+import { playAssistPreview, stopAssistPreview } from "../../assist/assistPreview";
 import {
-  continueMelody,
-  explainProject,
-  generateDrumSuggestions,
-  suggestChordProgressions,
   type ChordSuggestion,
   type DrumSuggestion,
   type MelodySuggestion
 } from "../../assist/creativeAssist";
 import { useDawStore } from "../../store/useDawStore";
+import type { MidiNote } from "../../types/project";
 import { makeId } from "../../utils/id";
 
 type AssistTab = "chords" | "drums" | "melody" | "why";
@@ -23,6 +22,8 @@ function firstTrackIdFor(project: ReturnType<typeof useDawStore.getState>["proje
 
 export function AssistPanel() {
   const [tab, setTab] = useState<AssistTab>("chords");
+  const [lastApplied, setLastApplied] = useState<string>();
+  const [previewingId, setPreviewingId] = useState<string>();
   const project = useDawStore((state) => state.project);
   const selectedClipId = useDawStore((state) => state.selectedClipId);
   const currentBeat = useDawStore((state) => state.currentBeat);
@@ -31,10 +32,38 @@ export function AssistPanel() {
   const addNotes = useDawStore((state) => state.addNotes);
   const selectClip = useDawStore((state) => state.selectClip);
   const selectTrack = useDawStore((state) => state.selectTrack);
-  const chordSuggestions = useMemo(() => suggestChordProgressions(project), [project]);
-  const drumSuggestions = useMemo(() => generateDrumSuggestions(), []);
-  const melodySuggestions = useMemo(() => continueMelody(project, selectedClipId), [project, selectedClipId]);
-  const feedback = useMemo(() => explainProject(project, selectedClipId), [project, selectedClipId]);
+  const undo = useDawStore((state) => state.undo);
+  const adapter = ruleBasedAssistAdapter;
+  const chordSuggestions = useMemo(() => adapter.suggestChords(project) as ChordSuggestion[], [adapter, project]);
+  const drumSuggestions = useMemo(() => adapter.suggestDrums(project) as DrumSuggestion[], [adapter, project]);
+  const melodySuggestions = useMemo(
+    () => adapter.continueMelody(project, selectedClipId) as MelodySuggestion[],
+    [adapter, project, selectedClipId]
+  );
+  const feedback = useMemo(() => adapter.explain(project, selectedClipId), [adapter, project, selectedClipId]);
+
+  useEffect(() => {
+    return () => stopAssistPreview();
+  }, []);
+
+  async function preview(id: string, notes: Array<Omit<MidiNote, "id">>, drum = false) {
+    setPreviewingId(id);
+    try {
+      await playAssistPreview({ bpm: project.bpm, notes, drum });
+    } finally {
+      window.setTimeout(() => setPreviewingId((current) => (current === id ? undefined : current)), 650);
+    }
+  }
+
+  function markApplied(label: string) {
+    setLastApplied(label);
+    stopAssistPreview();
+  }
+
+  function undoLastApplied() {
+    undo();
+    setLastApplied(undefined);
+  }
 
   function applyChord(suggestion: ChordSuggestion) {
     const trackId = firstTrackIdFor(project, "harmony") ?? addTrack("instrument", "Chords");
@@ -48,6 +77,7 @@ export function AssistPanel() {
     });
     selectTrack(trackId);
     selectClip(clipId);
+    markApplied(suggestion.title);
   }
 
   function applyDrum(suggestion: DrumSuggestion) {
@@ -62,12 +92,14 @@ export function AssistPanel() {
     });
     selectTrack(trackId);
     selectClip(clipId);
+    markApplied(`${suggestion.title} Beat`);
   }
 
   function applyMelody(suggestion: MelodySuggestion) {
     if (suggestion.sourceClipId) {
       addNotes(suggestion.sourceClipId, suggestion.notes);
       selectClip(suggestion.sourceClipId);
+      markApplied(suggestion.title);
       return;
     }
     const trackId = firstTrackIdFor(project, "melody") ?? addTrack("instrument", "Melody");
@@ -81,6 +113,7 @@ export function AssistPanel() {
     });
     selectTrack(trackId);
     selectClip(clipId);
+    markApplied(suggestion.title);
   }
 
   const tabs: Array<{ id: AssistTab; label: string }> = [
@@ -97,6 +130,9 @@ export function AssistPanel() {
           <Sparkles size={14} />
           Assist
         </div>
+        <span className="rounded border border-white/10 bg-white/[0.045] px-2 py-1 text-[10px] font-bold text-slate-500">
+          {adapter.label}
+        </span>
       </div>
       <div className="grid grid-cols-4 gap-1 border-b border-white/10 p-1">
         {tabs.map((item) => (
@@ -113,6 +149,18 @@ export function AssistPanel() {
       </div>
 
       <div className="max-h-[420px] overflow-y-auto p-2">
+        {lastApplied ? (
+          <div className="mb-2 rounded-md border border-meter-green/30 bg-meter-green/10 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">Applied</div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <div className="min-w-0 truncate text-xs font-black text-green-100">{lastApplied}</div>
+              <button className="studio-icon-button h-7 w-7" title="Undo assist apply" onClick={undoLastApplied}>
+                <RotateCcw size={13} />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {tab === "chords" ? (
           <div className="space-y-2">
             {chordSuggestions.map((suggestion) => (
@@ -122,10 +170,20 @@ export function AssistPanel() {
                     <div className="text-sm font-black text-slate-100">{suggestion.title}</div>
                     <div className="mt-1 text-[11px] font-bold text-meter-cyan">{suggestion.mood}</div>
                   </div>
-                  <button className="studio-icon-button h-7 w-7" title="Apply chord progression" onClick={() => applyChord(suggestion)}>
-                    <Plus size={13} />
-                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      className="studio-icon-button h-7 w-7"
+                      title="Preview chord progression"
+                      onClick={() => void preview(`chord:${suggestion.id}`, suggestion.notes)}
+                    >
+                      <Play size={13} className={previewingId === `chord:${suggestion.id}` ? "text-meter-cyan" : undefined} />
+                    </button>
+                    <button className="studio-icon-button h-7 w-7" title="Apply chord progression" onClick={() => applyChord(suggestion)}>
+                      <Plus size={13} />
+                    </button>
+                  </div>
                 </div>
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">설명</div>
                 <div className="mt-2 text-xs leading-5 text-slate-400">{suggestion.reason}</div>
               </div>
             ))}
@@ -144,9 +202,18 @@ export function AssistPanel() {
                       <div className="mt-1 text-xs leading-5 text-slate-400">{suggestion.description}</div>
                     </div>
                   </div>
-                  <button className="studio-icon-button h-7 w-7" title="Apply drum pattern" onClick={() => applyDrum(suggestion)}>
-                    <Plus size={13} />
-                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      className="studio-icon-button h-7 w-7"
+                      title="Preview drum pattern"
+                      onClick={() => void preview(`drum:${suggestion.id}`, suggestion.notes, true)}
+                    >
+                      <Play size={13} className={previewingId === `drum:${suggestion.id}` ? "text-meter-cyan" : undefined} />
+                    </button>
+                    <button className="studio-icon-button h-7 w-7" title="Apply drum pattern" onClick={() => applyDrum(suggestion)}>
+                      <Plus size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -170,9 +237,18 @@ export function AssistPanel() {
                         <div className="mt-1 text-xs leading-5 text-slate-400">{suggestion.explanation}</div>
                       </div>
                     </div>
-                    <button className="studio-icon-button h-7 w-7" title="Apply melody continuation" onClick={() => applyMelody(suggestion)}>
-                      <Plus size={13} />
-                    </button>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        className="studio-icon-button h-7 w-7"
+                        title="Preview melody continuation"
+                        onClick={() => void preview(`melody:${suggestion.id}`, suggestion.notes)}
+                      >
+                        <Play size={13} className={previewingId === `melody:${suggestion.id}` ? "text-meter-cyan" : undefined} />
+                      </button>
+                      <button className="studio-icon-button h-7 w-7" title="Apply melody continuation" onClick={() => applyMelody(suggestion)}>
+                        <Plus size={13} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
