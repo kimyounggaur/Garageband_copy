@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
+import { trackRoleLabel } from "../../utils/labels";
 import {
   DEFAULT_PROJECT_BEATS,
   MAX_TIMELINE_ZOOM,
@@ -16,8 +17,8 @@ import { TrackLane } from "./TrackLane";
 function snapLabel(snapBeats: number) {
   if (snapBeats === 0.25) return "1/4";
   if (snapBeats === 0.5) return "1/2";
-  if (snapBeats === 1) return "1 beat";
-  return "1 bar";
+  if (snapBeats === 1) return "1박";
+  return "1마디";
 }
 
 function getTimelineBeats() {
@@ -62,15 +63,15 @@ export function ArrangementTimeline() {
   return (
     <section className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
-        <span className="panel-title">Arrangement</span>
+        <span className="panel-title">편곡</span>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
-            Snap
+            스냅
             <select
               className="h-6 rounded border border-white/10 bg-studio-950 px-2 text-xs font-bold normal-case tracking-normal text-slate-100 outline-none focus:border-meter-cyan"
               value={snapBeats}
               onChange={(event) => setSnapBeats(Number(event.target.value) as SnapBeats)}
-              aria-label="Snap unit"
+              aria-label="스냅 단위"
             >
               {SNAP_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -85,12 +86,12 @@ export function ArrangementTimeline() {
               className="h-3.5 w-3.5"
               checked={preventClipOverlap}
               onChange={(event) => setPreventClipOverlap(event.target.checked)}
-              aria-label="Prevent clip overlap"
+              aria-label="클립 겹침 방지"
             />
-            No overlap
+            겹침 방지
           </label>
           <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
-            Zoom
+            확대
             <input
               className="w-24"
               type="range"
@@ -99,16 +100,16 @@ export function ArrangementTimeline() {
               step={0.05}
               value={timelineZoom}
               onChange={(event) => setTimelineZoom(Number(event.target.value))}
-              aria-label="Timeline zoom"
+              aria-label="타임라인 확대"
             />
           </label>
-          <button className="studio-button" onClick={() => addTrack("drum", "Drums")}>
+          <button className="studio-button" onClick={() => addTrack("drum", "드럼")}>
             <Plus size={14} />
-            Drum
+            드럼
           </button>
-          <button className="studio-button" onClick={() => addTrack("instrument", "Instrument")}>
+          <button className="studio-button" onClick={() => addTrack("instrument", "악기")}>
             <Plus size={14} />
-            Inst
+            악기
           </button>
         </div>
       </div>
@@ -116,7 +117,7 @@ export function ArrangementTimeline() {
       <div className="grid min-h-0 min-w-0 grid-cols-[132px_minmax(0,1fr)] sm:grid-cols-[178px_minmax(0,1fr)]">
         <div className="border-r border-white/10 bg-black/10">
           <div className="h-9 border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-            Tracks
+            트랙
           </div>
           {project.tracks.map((track) => (
             <button
@@ -131,7 +132,7 @@ export function ArrangementTimeline() {
               <span className="min-w-0">
                 <span className="block truncate text-sm font-bold text-slate-100">{track.name}</span>
                 <span className="block text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                  {track.role ?? track.type}
+                  {trackRoleLabel(track.role ?? track.type)}
                 </span>
               </span>
             </button>

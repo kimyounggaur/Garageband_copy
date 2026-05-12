@@ -5,6 +5,7 @@ import type { Assignment, StudioMode } from "../education/types";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "../utils/id";
+import { loopCategoryLabel } from "../utils/labels";
 import { normalizeProject } from "../utils/projectMigration";
 import { MAX_TIMELINE_ZOOM, MIN_TIMELINE_ZOOM, SNAP_BEAT, clamp, snapBeat, type SnapBeats } from "../utils/timeline";
 
@@ -115,15 +116,15 @@ function pushHistory(stack: Project[], project: Project) {
 
 function inferTrackRole(type: TrackType, name?: string): TrackRole {
   const lower = (name ?? "").toLowerCase();
-  if (type === "drum" || lower.includes("beat") || lower.includes("drum")) return "beat";
-  if (type === "audio" || lower.includes("record")) return "recording";
-  if (lower.includes("bass")) return "bass";
-  if (lower.includes("key") || lower.includes("chord") || lower.includes("pad")) return "harmony";
+  if (type === "drum" || lower.includes("beat") || lower.includes("drum") || name?.includes("비트") || name?.includes("드럼")) return "beat";
+  if (type === "audio" || lower.includes("record") || name?.includes("녹음")) return "recording";
+  if (lower.includes("bass") || name?.includes("베이스")) return "bass";
+  if (lower.includes("key") || lower.includes("chord") || lower.includes("pad") || name?.includes("건반") || name?.includes("화성") || name?.includes("코드")) return "harmony";
   return "melody";
 }
 
 function createTrack(type: TrackType, index: number, name?: string, role?: TrackRole): Track {
-  const label = type === "drum" ? "Drums" : type === "audio" ? "Audio" : "Instrument";
+  const label = type === "drum" ? "드럼" : type === "audio" ? "오디오" : "악기";
   const trackName = name ?? `${label} ${index + 1}`;
   return {
     id: makeId("track"),
@@ -141,15 +142,15 @@ function createTrack(type: TrackType, index: number, name?: string, role?: Track
 
 function createInitialProject(): Project {
   const timestamp = now();
-  const drums = createTrack("drum", 0, "Beat");
-  const bass = createTrack("instrument", 1, "Bass");
-  const keys = createTrack("instrument", 2, "Keys");
+  const drums = createTrack("drum", 0, "비트");
+  const bass = createTrack("instrument", 1, "베이스");
+  const keys = createTrack("instrument", 2, "건반");
 
   drums.clips.push({
     id: makeId("clip"),
     trackId: drums.id,
     type: "loop",
-    name: "Grid Room Kit",
+    name: "그리드 룸 드럼",
     startBeat: 0,
     lengthBeats: 8,
     color: "#38bdf8",
@@ -160,7 +161,7 @@ function createInitialProject(): Project {
     id: makeId("clip"),
     trackId: bass.id,
     type: "loop",
-    name: "Midnight Bass",
+    name: "미드나잇 베이스",
     startBeat: 0,
     lengthBeats: 8,
     color: "#f59e0b",
@@ -171,7 +172,7 @@ function createInitialProject(): Project {
     id: makeId("clip"),
     trackId: keys.id,
     type: "midi",
-    name: "Sketch Chords",
+    name: "스케치 코드",
     startBeat: 8,
     lengthBeats: 8,
     color: "#a78bfa",
@@ -191,7 +192,7 @@ function createInitialProject(): Project {
   return {
     id: makeId("project"),
     version: CURRENT_PROJECT_VERSION,
-    name: "Untitled Session",
+    name: "새 프로젝트",
     bpm: 120,
     timeSignature: [4, 4],
     tracks: [drums, bass, keys],
@@ -331,7 +332,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   timelineZoom: 1,
   preventClipOverlap: true,
 
-  createProject: (name = "Untitled Session") => {
+  createProject: (name = "새 프로젝트") => {
     const project = createInitialProject();
     set({
       project: { ...project, id: makeId("project"), name },
@@ -363,7 +364,7 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   renameProject: (name) => {
     set((state) => {
-      const nextName = name.trim() || "Untitled Session";
+      const nextName = name.trim() || "새 프로젝트";
       if (nextName === state.project.name) return state;
       return commitProjectChange(state, touch({ ...state.project, name: nextName }));
     });
@@ -371,7 +372,7 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   duplicateProject: () => {
     const source = get().project;
-    const project = cloneProject(source, `${source.name} Copy`);
+    const project = cloneProject(source, `${source.name} 복사본`);
     set({
       project,
       mode: project.lessonId ? "lesson" : "studio",
@@ -587,7 +588,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       trackId ??
       state.selectedTrackId ??
       state.project.tracks.find((track) => track.type === loop.trackType)?.id ??
-      get().addTrack(loop.trackType, loop.category);
+      get().addTrack(loop.trackType, loopCategoryLabel(loop.category));
 
     return get().addClip(targetTrackId, {
       type: "loop",
@@ -605,11 +606,11 @@ export const useDawStore = create<DawState>((set, get) => ({
       trackId ??
       state.selectedTrackId ??
       state.project.tracks.find((track) => track.type === "instrument")?.id ??
-      get().addTrack("instrument", "Keys");
+      get().addTrack("instrument", "건반");
 
     return get().addClip(targetTrackId, {
       type: "midi",
-      name: "MIDI Clip",
+      name: "미디 클립",
       startBeat,
       lengthBeats: 4,
       color: "#a78bfa",
@@ -624,7 +625,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       trackId ??
       (selectedTrack?.type === "audio" || selectedTrack?.role === "recording" ? selectedTrack.id : undefined) ??
       state.project.tracks.find((track) => track.type === "audio" || track.role === "recording")?.id ??
-      get().addTrack("audio", "Recording");
+      get().addTrack("audio", "녹음");
     const lengthBeats = Math.max(1, snapBeat(durationSeconds / (60 / state.project.bpm), state.snapBeats));
 
     return get().addClip(targetTrackId, {
@@ -691,7 +692,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       const rightClip: Clip = {
         ...clip,
         id: makeId("clip"),
-        name: `${clip.name} Split`,
+        name: `${clip.name} 분할`,
         startBeat: splitBeat,
         lengthBeats: rightBeats,
         trimStartSeconds: (clip.trimStartSeconds ?? 0) + leftBeats * (60 / state.project.bpm)

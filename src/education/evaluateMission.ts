@@ -63,7 +63,7 @@ export function evaluateMission(project: Project, mission: Mission): MissionEval
       completed: progress >= check.beats,
       progress,
       target: check.beats,
-      summary: `${Math.min(progress, check.beats)} / ${check.beats} beats`
+      summary: `${Math.min(progress, check.beats)} / ${check.beats}박`
     };
   }
 
@@ -74,7 +74,7 @@ export function evaluateMission(project: Project, mission: Mission): MissionEval
       completed: progress >= check.count,
       progress,
       target: check.count,
-      summary: `${Math.min(progress, check.count)} / ${check.count} notes`
+      summary: `${Math.min(progress, check.count)} / ${check.count}개 노트`
     };
   }
 
@@ -85,7 +85,7 @@ export function evaluateMission(project: Project, mission: Mission): MissionEval
       completed: progress >= check.beats,
       progress,
       target: check.beats,
-      summary: `${Math.min(progress, check.beats)} / ${check.beats} beats`
+      summary: `${Math.min(progress, check.beats)} / ${check.beats}박`
     };
   }
 
@@ -96,7 +96,7 @@ export function evaluateMission(project: Project, mission: Mission): MissionEval
       completed: progress >= check.sections,
       progress,
       target: check.sections,
-      summary: `${Math.min(progress, check.sections)} / ${check.sections} sections`
+      summary: `${Math.min(progress, check.sections)} / ${check.sections}개 구간`
     };
   }
 
@@ -107,7 +107,7 @@ export function evaluateMission(project: Project, mission: Mission): MissionEval
       completed: progress >= check.count,
       progress,
       target: check.count,
-      summary: `${Math.min(progress, check.count)} / ${check.count} audio clips`
+      summary: `${Math.min(progress, check.count)} / ${check.count}개 오디오 클립`
     };
   }
 
@@ -117,7 +117,7 @@ export function evaluateMission(project: Project, mission: Mission): MissionEval
     completed: progress >= check.roles.length,
     progress,
     target: check.roles.length,
-    summary: `${progress} / ${check.roles.length} roles`
+    summary: `${progress} / ${check.roles.length}개 역할`
   };
 }
 

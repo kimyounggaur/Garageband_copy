@@ -105,7 +105,7 @@ export async function getClipPeakOverview(clip: Clip, bins = 512): Promise<PeakO
 
   const promise = (async () => {
     const blob = await getClipAudioBlob(clip);
-    if (!blob) throw new Error("Audio clip has no readable source");
+    if (!blob) throw new Error("오디오 클립에서 읽을 수 있는 소스를 찾지 못했습니다");
     const buffer = await decodeAudioBlob(blob);
     const peaks = new Float32Array(bins);
     const samplesPerBin = Math.max(1, Math.floor(buffer.length / bins));

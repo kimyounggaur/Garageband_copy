@@ -5,17 +5,18 @@ import {
   FolderPlus,
   GraduationCap,
   Play,
+  Redo2,
   RotateCcw,
   Save,
+  School,
   SlidersHorizontal,
   Square,
-  Redo2,
-  School,
   Undo2
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { StudioMode } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
+import { statusLabel } from "../../utils/labels";
 import { formatBeat } from "../../utils/timeline";
 
 type Status = "idle" | "working" | "done" | "error";
@@ -28,13 +29,6 @@ type TransportBarProps = {
   educationView: "student" | "teacher";
   onEducationViewChange: (view: "student" | "teacher") => void;
 };
-
-function statusText(status: Status, fallback: string) {
-  if (status === "working") return "Working";
-  if (status === "done") return "Done";
-  if (status === "error") return "Error";
-  return fallback;
-}
 
 export function TransportBar({
   onSave,
@@ -60,9 +54,9 @@ export function TransportBar({
   const canUndo = useDawStore((state) => state.undoStack.length > 0);
   const canRedo = useDawStore((state) => state.redoStack.length > 0);
   const modes: Array<{ id: StudioMode; label: string; icon: ReactNode }> = [
-    { id: "studio", label: "Studio", icon: <SlidersHorizontal size={14} /> },
-    { id: "lesson", label: "Lesson", icon: <GraduationCap size={14} /> },
-    { id: "review", label: "Review", icon: <ClipboardCheck size={14} /> }
+    { id: "studio", label: "스튜디오", icon: <SlidersHorizontal size={14} /> },
+    { id: "lesson", label: "레슨", icon: <GraduationCap size={14} /> },
+    { id: "review", label: "검토", icon: <ClipboardCheck size={14} /> }
   ];
 
   return (
@@ -71,53 +65,41 @@ export function TransportBar({
         <div className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2">
           <button
             className="studio-icon-button"
-            title={isPlaying ? "Pause" : "Play"}
+            title={isPlaying ? "일시정지" : "재생"}
             onClick={() => setPlaying(!isPlaying)}
-            aria-label={isPlaying ? "Pause" : "Play"}
+            aria-label={isPlaying ? "일시정지" : "재생"}
           >
             <Play size={16} fill={isPlaying ? "currentColor" : "none"} />
           </button>
           <button
             className="studio-icon-button"
-            title="Stop"
+            title="정지"
             onClick={() => {
               setPlaying(false);
               setCurrentBeat(0);
             }}
-            aria-label="Stop"
+            aria-label="정지"
           >
             <Square size={15} />
           </button>
           <button
             className="studio-icon-button"
-            title="Return to start"
+            title="처음으로 이동"
             onClick={() => setCurrentBeat(0)}
-            aria-label="Return to start"
+            aria-label="처음으로 이동"
           >
             <RotateCcw size={15} />
           </button>
-          <button
-            className="studio-icon-button"
-            title="Undo"
-            onClick={undo}
-            disabled={!canUndo}
-            aria-label="Undo"
-          >
+          <button className="studio-icon-button" title="되돌리기" onClick={undo} disabled={!canUndo} aria-label="되돌리기">
             <Undo2 size={15} />
           </button>
-          <button
-            className="studio-icon-button"
-            title="Redo"
-            onClick={redo}
-            disabled={!canRedo}
-            aria-label="Redo"
-          >
+          <button className="studio-icon-button" title="다시 실행" onClick={redo} disabled={!canRedo} aria-label="다시 실행">
             <Redo2 size={15} />
           </button>
         </div>
 
         <div className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-3">
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">BPM</span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">템포</span>
           <input
             className="h-7 w-16 rounded border border-white/10 bg-studio-950 px-2 text-center text-sm font-bold text-slate-100 outline-none focus:border-meter-cyan"
             type="number"
@@ -125,7 +107,7 @@ export function TransportBar({
             max={220}
             value={project.bpm}
             onChange={(event) => setBpm(Number(event.target.value))}
-            aria-label="BPM"
+            aria-label="템포"
           />
         </div>
 
@@ -138,10 +120,10 @@ export function TransportBar({
             className="h-6 w-full rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none transition focus:border-white/20 focus:bg-black/20 sm:w-[clamp(150px,16vw,280px)]"
             value={project.name}
             onChange={(event) => renameProject(event.target.value)}
-            aria-label="Project name"
+            aria-label="프로젝트 이름"
           />
           <div className="text-[11px] text-slate-500">
-            v{project.version} · {project.tracks.length} tracks · {project.timeSignature.join("/")}
+            v{project.version} · 트랙 {project.tracks.length}개 · {project.timeSignature.join("/")}
           </div>
         </div>
       </div>
@@ -153,20 +135,20 @@ export function TransportBar({
               educationView === "student" ? "bg-meter-green text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
             }`}
             onClick={() => onEducationViewChange("student")}
-            title="Student View"
+            title="학생 보기"
           >
             <GraduationCap size={14} />
-            <span className="hidden sm:inline">Student</span>
+            <span className="hidden sm:inline">학생</span>
           </button>
           <button
             className={`inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
               educationView === "teacher" ? "bg-meter-amber text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
             }`}
             onClick={() => onEducationViewChange("teacher")}
-            title="Teacher View"
+            title="교사 보기"
           >
             <School size={14} />
-            <span className="hidden sm:inline">Teacher</span>
+            <span className="hidden sm:inline">교사</span>
           </button>
         </div>
         <div className="flex h-9 items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
@@ -177,28 +159,28 @@ export function TransportBar({
                 mode === item.id ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
               }`}
               onClick={() => setMode(item.id)}
-              title={`${item.label} mode`}
+              title={`${item.label} 모드`}
             >
               {item.icon}
               <span className="hidden sm:inline">{item.label}</span>
             </button>
           ))}
         </div>
-        <button className="studio-button" onClick={() => createProject("Untitled Session")} title="New project">
+        <button className="studio-button" onClick={() => createProject("새 프로젝트")} title="새 프로젝트">
           <FolderPlus size={15} />
-          <span className="hidden sm:inline">New</span>
+          <span className="hidden sm:inline">새로 만들기</span>
         </button>
-        <button className="studio-button" onClick={duplicateProject} title="Duplicate project">
+        <button className="studio-button" onClick={duplicateProject} title="프로젝트 복제">
           <Copy size={15} />
-          <span className="hidden sm:inline">Duplicate</span>
+          <span className="hidden sm:inline">복제</span>
         </button>
-        <button className="studio-button" onClick={onSave} title="Save project">
+        <button className="studio-button" onClick={onSave} title="프로젝트 저장">
           <Save size={15} />
-          <span className="hidden sm:inline">{statusText(saveStatus, "Save")}</span>
+          <span className="hidden sm:inline">{statusLabel(saveStatus, "저장")}</span>
         </button>
-        <button className="studio-button" onClick={onExport} title="Export WAV">
+        <button className="studio-button" onClick={onExport} title="WAV 내보내기">
           <Download size={15} />
-          <span className="hidden sm:inline">{statusText(exportStatus, "Export")}</span>
+          <span className="hidden sm:inline">{statusLabel(exportStatus, "내보내기")}</span>
         </button>
       </div>
     </header>

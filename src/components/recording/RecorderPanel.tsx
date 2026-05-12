@@ -4,6 +4,7 @@ import { audioAssetRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { AudioAsset } from "../../types/project";
 import { makeId } from "../../utils/id";
+import { statusLabel } from "../../utils/labels";
 import { snapBeat } from "../../utils/timeline";
 
 type RecorderStatus = "idle" | "recording" | "saving" | "error";
@@ -79,7 +80,7 @@ export function RecorderPanel() {
           return;
         }
         const duration = Math.max(0.5, (Date.now() - startedAtRef.current) / 1000);
-        void saveBlob(blob, duration, `Recording ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`);
+        void saveBlob(blob, duration, `녹음 ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`);
       };
       recorder.start();
       setStatus("recording");
@@ -110,24 +111,24 @@ export function RecorderPanel() {
   return (
     <div className="rounded-md border border-white/10 bg-black/20 p-2">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Recording</span>
-        <span className="text-[10px] font-bold text-slate-500">{status}</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">녹음</span>
+        <span className="text-[10px] font-bold text-slate-500">{statusLabel(status, "대기")}</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {status === "recording" ? (
           <button className="studio-button w-full bg-meter-rose/20" onClick={stopRecording}>
             <Square size={14} />
-            Stop
+            정지
           </button>
         ) : (
           <button className="studio-button w-full" onClick={startRecording} disabled={status === "saving"}>
             <Mic size={14} />
-            Record
+            녹음
           </button>
         )}
         <label className="studio-button w-full cursor-pointer">
           <Upload size={14} />
-          Upload
+          업로드
           <input
             className="hidden"
             type="file"

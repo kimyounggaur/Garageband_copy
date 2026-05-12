@@ -5,6 +5,7 @@ import { assignmentRepository } from "../../db/studioRepository";
 import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";
+import { statusLabel } from "../../utils/labels";
 import type { Assignment, ReviewNextAction, ReviewRubricStatus, ReviewScore, ReviewSeverity } from "../../education/types";
 import { AssistPanel } from "../assist/AssistPanel";
 
@@ -17,7 +18,7 @@ function iconFor(severity: ReviewSeverity) {
 }
 
 function fileSafeName(name: string) {
-  return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "webband-session";
+  return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "웹밴드-세션";
 }
 
 function exportJson(data: unknown, fileName: string) {
@@ -103,7 +104,7 @@ export function ReviewPanel() {
   return (
     <aside className="panel flex min-h-0 flex-col rounded-lg">
       <div className="flex h-11 items-center justify-between border-b border-white/10 px-3">
-        <span className="panel-title">Review</span>
+        <span className="panel-title">검토</span>
         <span className={`rounded px-2 py-1 text-[11px] font-black ${statusClasses(summary.ready)}`}>
           {summary.statusLabel}
         </span>
@@ -128,16 +129,16 @@ export function ReviewPanel() {
 
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Score</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">점수</div>
             <div className="mt-1 text-lg font-black text-slate-100">{score.earned}/{score.possible}</div>
             <div className="text-[10px] font-bold text-slate-500">{score.percent}% · {score.levelLabel}</div>
           </div>
           <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Auto</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">자동 점검</div>
             <div className="mt-1 text-lg font-black text-slate-100">{summary.items.length - warningItems.length}/{summary.items.length}</div>
           </div>
           <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Mission</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">미션</div>
             <div className="mt-1 text-lg font-black text-slate-100">
               {summary.missionResults.length > 0
                 ? `${summary.missionResults.filter((item) => item.completed).length}/${summary.missionResults.length}`
@@ -145,17 +146,17 @@ export function ReviewPanel() {
             </div>
           </div>
           <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Manual</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">수동 확인</div>
             <div className="mt-1 text-lg font-black text-slate-100">{manualDone}/{manualTotal}</div>
           </div>
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">보완할 점</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">보완 항목</div>
           <div className="space-y-2">
             {warningItems.length === 0 ? (
               <div className="rounded-md border border-meter-green/30 bg-meter-green/10 p-3 text-sm font-semibold text-green-100">
-                자동 체크는 모두 좋아요.
+                자동 점검 항목이 모두 좋습니다.
               </div>
             ) : (
               warningItems.map((item) => (
@@ -176,7 +177,7 @@ export function ReviewPanel() {
 
         {summary.missionResults.length > 0 ? (
           <div className="mt-3">
-            <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Lesson Missions</div>
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">레슨 미션</div>
             <div className="space-y-2">
               {summary.missionResults.map((mission) => (
                 <div key={mission.missionId} className="rounded-md border border-white/10 bg-black/20 p-3">
@@ -199,9 +200,9 @@ export function ReviewPanel() {
 
         <div className="mt-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Rubric</span>
+            <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">평가 기준</span>
             <span className="text-[11px] font-semibold text-slate-500">
-              {summary.lessonTitle ?? "기본 리뷰"}
+              {summary.lessonTitle ?? "기본 기준"}
             </span>
           </div>
           <div className="space-y-2">
@@ -221,7 +222,7 @@ export function ReviewPanel() {
                 </div>
 
                 <div className="mt-3">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Auto</div>
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">자동</div>
                   <div className="space-y-1">
                     {criterion.autoChecks.map((check) => (
                       <div key={check.id} className="flex items-start gap-2 text-xs leading-5 text-slate-400">
@@ -239,7 +240,7 @@ export function ReviewPanel() {
                 </div>
 
                 <div className="mt-3">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Manual</div>
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">수동</div>
                   <div className="space-y-1">
                     {criterion.manualChecks.map((check) => {
                       const id = `${criterion.criterionId}:${check.id}`;
@@ -268,14 +269,14 @@ export function ReviewPanel() {
         <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
             <FileArchive size={14} />
-            Submission Package
+            제출 패키지
           </div>
           <div className="mt-2 text-xs leading-5 text-slate-400">
             프로젝트, WAV, 리뷰 요약 JSON을 함께 내보냅니다.
           </div>
           <button className="studio-button mt-3 w-full" onClick={() => void handlePackageExport()} disabled={exportStatus === "working"}>
             <Download size={15} />
-            {exportStatus === "working" ? "Exporting" : exportStatus === "done" ? "Exported" : exportStatus === "error" ? "Retry Export" : "Export Package"}
+            {statusLabel(exportStatus, "패키지 내보내기")}
           </button>
         </div>
 

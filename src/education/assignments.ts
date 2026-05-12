@@ -26,8 +26,8 @@ export const DEFAULT_ASSIGNMENT_RUBRIC: Rubric = {
       title: "정리",
       levels: [
         { label: "시작", description: "클립이 배치되어 있다." },
-        { label: "성장", description: "짧게 잘린 클립과 빈 트랙을 확인했다." },
-        { label: "완성", description: "제출 전 체크를 끝냈다." }
+        { label: "성장", description: "짧게 남은 클립과 빈 트랙을 확인했다." },
+        { label: "완성", description: "제출 전 체크를 통과했다." }
       ]
     }
   ]

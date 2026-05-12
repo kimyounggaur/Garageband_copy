@@ -1,6 +1,6 @@
 import type { Project } from "../types/project";
 
-const PITCH_CLASS_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const PITCH_CLASS_NAMES = ["도", "도#", "레", "레#", "미", "파", "파#", "솔", "솔#", "라", "라#", "시"];
 
 function midiNotes(project: Project) {
   return project.tracks.flatMap((track) => track.clips).flatMap((clip) => clip.notes ?? []);

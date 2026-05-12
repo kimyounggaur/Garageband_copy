@@ -46,26 +46,26 @@ export function MixerPanel() {
   }, [project.id, project.updatedAt]);
 
   function add(type: TrackType) {
-    addTrack(type, type === "drum" ? "Drums" : type === "audio" ? "Audio" : "Instrument");
+    addTrack(type, type === "drum" ? "드럼" : type === "audio" ? "오디오" : "악기");
   }
 
   return (
     <aside className="panel grid h-full min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg sm:grid-rows-[44px_minmax(0,1fr)_190px]">
       <div className="flex items-center justify-between border-b border-white/10 px-3">
-        <span className="panel-title">Mixer</span>
+        <span className="panel-title">믹서</span>
         <div className="flex items-center gap-1">
-          <button className="studio-icon-button" onClick={() => add("drum")} title="Add drum track" aria-label="Add drum track">
+          <button className="studio-icon-button" onClick={() => add("drum")} title="드럼 트랙 추가" aria-label="드럼 트랙 추가">
             <Drum size={14} />
           </button>
           <button
             className="studio-icon-button"
             onClick={() => add("instrument")}
-            title="Add instrument track"
-            aria-label="Add instrument track"
+            title="악기 트랙 추가"
+            aria-label="악기 트랙 추가"
           >
             <Keyboard size={14} />
           </button>
-          <button className="studio-icon-button" onClick={() => add("audio")} title="Add audio track" aria-label="Add audio track">
+          <button className="studio-icon-button" onClick={() => add("audio")} title="오디오 트랙 추가" aria-label="오디오 트랙 추가">
             <Plus size={14} />
           </button>
         </div>
@@ -90,16 +90,16 @@ export function MixerPanel() {
                   value={track.name}
                   onChange={(event) => renameTrack(track.id, event.target.value)}
                   onClick={(event) => event.stopPropagation()}
-                  aria-label={`${track.name} track name`}
+                  aria-label={`${track.name} 트랙 이름`}
                 />
                 <button
                   className="studio-icon-button h-7 w-7"
-                  title="Delete track"
+                  title="트랙 삭제"
                   onClick={(event) => {
                     event.stopPropagation();
                     removeTrack(track.id);
                   }}
-                  aria-label="Delete track"
+                  aria-label="트랙 삭제"
                 >
                   <Trash2 size={13} />
                 </button>
@@ -115,13 +115,13 @@ export function MixerPanel() {
                   value={track.volume}
                   onChange={(event) => setTrackVolume(track.id, Number(event.target.value))}
                   onClick={(event) => event.stopPropagation()}
-                  aria-label={`${track.name} volume`}
+                  aria-label={`${track.name} 음량`}
                 />
                 <span className="text-right text-[11px] font-bold text-slate-400">{Math.round(track.volume * 100)}</span>
               </div>
 
               <div className="mt-2 grid grid-cols-[34px_1fr_34px] items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Pan</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">팬</span>
                 <input
                   type="range"
                   min={-1}
@@ -130,7 +130,7 @@ export function MixerPanel() {
                   value={track.pan}
                   onChange={(event) => setTrackPan(track.id, Number(event.target.value))}
                   onClick={(event) => event.stopPropagation()}
-                  aria-label={`${track.name} pan`}
+                  aria-label={`${track.name} 팬`}
                 />
                 <span className="text-right text-[11px] font-bold text-slate-400">{track.pan.toFixed(1)}</span>
               </div>
@@ -144,10 +144,10 @@ export function MixerPanel() {
                     event.stopPropagation();
                     toggleMute(track.id);
                   }}
-                  title={`Mute ${track.name}`}
-                  aria-label={`Mute ${track.name}`}
+                  title={`${track.name} 음소거`}
+                  aria-label={`${track.name} 음소거`}
                 >
-                  Mute
+                  음소거
                 </button>
                 <button
                   className={`h-7 rounded-md text-[11px] font-black ${
@@ -157,10 +157,10 @@ export function MixerPanel() {
                     event.stopPropagation();
                     toggleSolo(track.id);
                   }}
-                  title={`Solo ${track.name}`}
-                  aria-label={`Solo ${track.name}`}
+                  title={`${track.name} 솔로`}
+                  aria-label={`${track.name} 솔로`}
                 >
-                  Solo
+                  솔로
                 </button>
               </div>
             </div>
@@ -170,14 +170,14 @@ export function MixerPanel() {
 
       <div className="hidden border-t border-white/10 p-2 sm:block">
         <div className="mb-2 flex items-center justify-between">
-          <span className="panel-title">Sessions</span>
-          <button className="studio-icon-button h-7 w-7" onClick={refreshProjects} title="Refresh sessions" aria-label="Refresh sessions">
+          <span className="panel-title">세션</span>
+          <button className="studio-icon-button h-7 w-7" onClick={refreshProjects} title="세션 새로고침" aria-label="세션 새로고침">
             <RefreshCcw size={13} />
           </button>
         </div>
         <div className="max-h-[138px] space-y-1 overflow-y-auto">
           {projects.length === 0 ? (
-            <div className="rounded-md border border-white/10 bg-black/20 px-2 py-3 text-xs text-slate-500">No saved sessions</div>
+            <div className="rounded-md border border-white/10 bg-black/20 px-2 py-3 text-xs text-slate-500">저장된 세션이 없습니다</div>
           ) : (
             projects.map((savedProject) => (
               <div key={savedProject.id} className="flex items-center gap-1 rounded-md bg-white/[0.045] p-1">
@@ -190,9 +190,9 @@ export function MixerPanel() {
                 </button>
                 <button
                   className="studio-icon-button h-7 w-7"
-                  title="Delete session"
+                  title="세션 삭제"
                   onClick={() => handleDelete(savedProject.id)}
-                  aria-label="Delete session"
+                  aria-label="세션 삭제"
                 >
                   <Trash2 size={12} />
                 </button>

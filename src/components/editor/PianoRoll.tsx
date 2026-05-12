@@ -14,7 +14,7 @@ const ROW_HEIGHT = 18;
 const NOTE_BEAT_WIDTH = 52;
 
 function pitchName(pitch: number) {
-  const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const names = ["도", "도#", "레", "레#", "미", "파", "파#", "솔", "솔#", "라", "라#", "시"];
   return `${names[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
 }
 
@@ -170,8 +170,8 @@ export function PianoRoll({ clip }: PianoRollProps) {
                 <span className="pointer-events-none px-1">{pitchName(note.pitch)}</span>
                 <button
                   className="absolute right-0 top-0 h-full w-2 cursor-ew-resize bg-black/20 hover:bg-black/35"
-                  title="Resize note"
-                  aria-label="Resize note"
+                  title="노트 길이 조절"
+                  aria-label="노트 길이 조절"
                   onPointerDown={(event) => beginResize(note, event)}
                 />
               </div>

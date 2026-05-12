@@ -18,14 +18,14 @@ export function LessonPanel() {
   return (
     <aside className="panel flex min-h-0 flex-col rounded-lg">
       <div className="flex h-11 items-center justify-between border-b border-white/10 px-3">
-        <span className="panel-title">Lesson</span>
+        <span className="panel-title">레슨</span>
         {lesson ? <span className="text-xs font-bold text-meter-green">{summary.percent}%</span> : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="space-y-3">
           <div>
-            <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Start Lesson</div>
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">레슨 시작</div>
             <div className="space-y-2">
               {LESSONS.map((item) => (
                 <button
@@ -55,12 +55,12 @@ export function LessonPanel() {
           {lesson ? (
             <>
               <div className="rounded-md border border-white/10 bg-black/20 p-3">
-                <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Current Goal</div>
+                <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">현재 목표</div>
                 <div className="mt-2 text-sm font-semibold leading-5 text-slate-200">{lesson.goal}</div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Missions</div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">미션</div>
                 <div className="space-y-2">
                   {lesson.missions.map((mission) => {
                     const result = summary.results.find((item) => item.missionId === mission.id);
@@ -92,7 +92,7 @@ export function LessonPanel() {
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Rubric</div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">평가 기준</div>
                 <div className="space-y-2">
                   {lesson.rubric.criteria.map((criterion) => (
                     <div key={criterion.id} className="rounded-md border border-white/10 bg-black/20 p-3">

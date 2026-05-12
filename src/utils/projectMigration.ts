@@ -37,7 +37,7 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
     id: clip.id ?? makeId("clip"),
     trackId,
     type,
-    name: clip.name ?? (type === "midi" ? "MIDI Clip" : type === "loop" ? "Loop Clip" : "Audio Clip"),
+    name: clip.name ?? (type === "midi" ? "미디 클립" : type === "loop" ? "루프 클립" : "오디오 클립"),
     startBeat: Math.max(0, Number(clip.startBeat ?? 0)),
     lengthBeats: Math.max(0.25, Number(clip.lengthBeats ?? 4)),
     color: clip.color ?? TRACK_COLORS[fallbackIndex % TRACK_COLORS.length],
@@ -64,7 +64,7 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
 function normalizeTrack(track: Partial<Track>, index: number): Track {
   const type = normalizeTrackType(track.type);
   const id = track.id ?? makeId("track");
-  const name = track.name ?? (type === "drum" ? "Drums" : type === "audio" ? "Audio" : "Instrument");
+  const name = track.name ?? (type === "drum" ? "드럼" : type === "audio" ? "오디오" : "악기");
   return {
     id,
     name,
@@ -85,7 +85,7 @@ export function normalizeProject(project: Project): Project {
   return {
     id: loose.id ?? makeId("project"),
     version: CURRENT_PROJECT_VERSION,
-    name: loose.name?.trim() || "Untitled Session",
+    name: loose.name?.trim() || "새 프로젝트",
     bpm: Math.round(Math.max(40, Math.min(220, Number(loose.bpm ?? 120)))),
     timeSignature: Array.isArray(loose.timeSignature) ? loose.timeSignature : [4, 4],
     tracks: (loose.tracks ?? []).map(normalizeTrack),

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { measureClipPeak } from "../../audio/clipAudio";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
+import { clipTypeLabel, statusLabel } from "../../utils/labels";
 import { AudioWaveform } from "../audio/AudioWaveform";
 import { PianoRoll } from "./PianoRoll";
 
@@ -52,12 +53,12 @@ export function ClipEditor() {
       <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)] border-x-0 border-b-0">
         <div className="flex min-h-10 items-center justify-between gap-2 border-b border-white/10 px-3 py-1">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="panel-title">Piano Roll</span>
+            <span className="panel-title">피아노롤</span>
             <span className="truncate text-sm font-bold text-slate-200">{selectedClip.name}</span>
           </div>
           <button className="studio-button" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
             <Trash2 size={14} />
-            {selectedClip.locked ? "Locked" : "Delete"}
+            {selectedClip.locked ? "잠김" : "삭제"}
           </button>
         </div>
         <PianoRoll clip={selectedClip} />
@@ -70,13 +71,13 @@ export function ClipEditor() {
       <div className="min-h-0 overflow-hidden">
         <div className="flex min-h-10 items-center justify-between gap-2 border-b border-white/10 px-3 py-1">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="panel-title">Clip Editor</span>
+            <span className="panel-title">클립 편집기</span>
             <span className="truncate text-sm font-bold text-slate-200">
-              {selectedClip ? selectedClip.name : selectedTrack ? selectedTrack.name : "No selection"}
+              {selectedClip ? selectedClip.name : selectedTrack ? selectedTrack.name : "선택 없음"}
             </span>
           </div>
           <button className="studio-button" onClick={() => addMidiClip(selectedTrackId)}>
-            MIDI Clip
+            미디 클립
           </button>
         </div>
 
@@ -87,7 +88,7 @@ export function ClipEditor() {
                 <span className="h-8 w-2 rounded-full" style={{ backgroundColor: selectedClip.color }} />
                 <div className="min-w-0">
                   <div className="truncate text-lg font-black text-slate-100">{selectedClip.name}</div>
-                  <div className="text-xs uppercase tracking-[0.12em] text-slate-500">{selectedClip.type}</div>
+                  <div className="text-xs uppercase tracking-[0.12em] text-slate-500">{clipTypeLabel(selectedClip.type)}</div>
                 </div>
               </div>
               {selectedClip.type === "audio" ? (
@@ -97,7 +98,7 @@ export function ClipEditor() {
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-xs font-bold text-slate-400">
-                  Start
+                  시작
                   <input
                     className="mt-1 h-9 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                     type="number"
@@ -109,7 +110,7 @@ export function ClipEditor() {
                   />
                 </label>
                 <label className="text-xs font-bold text-slate-400">
-                  Length
+                  길이
                   <input
                     className="mt-1 h-9 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                     type="number"
@@ -123,24 +124,24 @@ export function ClipEditor() {
               </div>
             </div>
           ) : (
-            <div className="text-sm font-semibold text-slate-500">Select a clip</div>
+            <div className="text-sm font-semibold text-slate-500">클립을 선택하세요</div>
           )}
         </div>
       </div>
 
       <div className="min-h-0 overflow-y-auto border-t border-white/10 p-3 lg:border-l lg:border-t-0">
-        <span className="panel-title">Inspector</span>
+        <span className="panel-title">속성</span>
         {selectedClip ? (
           <div className="mt-3 space-y-3 text-sm">
             <div className="rounded-md border border-white/10 bg-white/[0.045] p-3">
-              <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Clip</div>
+              <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">클립</div>
               <div className="mt-1 font-bold text-slate-100">{selectedClip.name}</div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-400">
-                <span>Start {selectedClip.startBeat}</span>
-                <span>Length {selectedClip.lengthBeats}</span>
-                <span>Type {selectedClip.type}</span>
-                <span>{selectedClip.notes?.length ?? 0} notes</span>
-                {selectedClip.locked ? <span>Locked</span> : null}
+                <span>시작 {selectedClip.startBeat}</span>
+                <span>길이 {selectedClip.lengthBeats}</span>
+                <span>종류 {clipTypeLabel(selectedClip.type)}</span>
+                <span>노트 {selectedClip.notes?.length ?? 0}개</span>
+                {selectedClip.locked ? <span>잠김</span> : null}
               </div>
               {selectedClip.instructions ? (
                 <div className="mt-3 rounded-md bg-meter-amber/10 p-2 text-xs leading-5 text-amber-100">
@@ -151,14 +152,14 @@ export function ClipEditor() {
             {selectedClip.type === "audio" ? (
               <div className="rounded-md border border-white/10 bg-white/[0.045] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Audio</div>
+                  <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">오디오</div>
                   <div className="text-[11px] font-semibold text-slate-500">
-                    {selectedClip.audioAssetId ? "IndexedDB asset" : selectedClip.audioUrl ? "Legacy data URL" : "Missing source"}
+                    {selectedClip.audioAssetId ? "저장된 오디오" : selectedClip.audioUrl ? "이전 형식 오디오" : "소스 없음"}
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <label className="text-xs font-bold text-slate-400">
-                    Trim Start
+                    앞부분 자르기
                     <input
                       className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                       type="number"
@@ -172,7 +173,7 @@ export function ClipEditor() {
                     />
                   </label>
                   <label className="text-xs font-bold text-slate-400">
-                    Trim End
+                    뒷부분 자르기
                     <input
                       className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                       type="number"
@@ -186,7 +187,7 @@ export function ClipEditor() {
                     />
                   </label>
                   <label className="text-xs font-bold text-slate-400">
-                    Gain
+                    음량 보정
                     <input
                       className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                       type="number"
@@ -199,7 +200,7 @@ export function ClipEditor() {
                     />
                   </label>
                   <label className="text-xs font-bold text-slate-400">
-                    Fade In
+                    페이드 인
                     <input
                       className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                       type="number"
@@ -213,7 +214,7 @@ export function ClipEditor() {
                     />
                   </label>
                   <label className="text-xs font-bold text-slate-400">
-                    Fade Out
+                    페이드 아웃
                     <input
                       className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                       type="number"
@@ -230,7 +231,7 @@ export function ClipEditor() {
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button className="studio-button w-full" onClick={splitSelectedAudioClip} disabled={selectedClip.locked}>
                     <Scissors size={14} />
-                    Split
+                    나누기
                   </button>
                   <button
                     className="studio-button w-full"
@@ -238,19 +239,19 @@ export function ClipEditor() {
                     disabled={selectedClip.locked || normalizeStatus === "working"}
                   >
                     <Wand2 size={14} />
-                    {normalizeStatus === "working" ? "Working" : normalizeStatus === "done" ? "Normalized" : "Normalize"}
+                    {statusLabel(normalizeStatus, "정규화")}
                   </button>
                 </div>
               </div>
             ) : null}
             <button className="studio-button w-full" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
               <Trash2 size={14} />
-              {selectedClip.locked ? "Locked Clip" : "Delete Clip"}
+              {selectedClip.locked ? "잠긴 클립" : "클립 삭제"}
             </button>
           </div>
         ) : (
           <div className="mt-3 rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">
-            {selectedTrack ? `${selectedTrack.name} selected` : "Nothing selected"}
+            {selectedTrack ? `${selectedTrack.name} 선택됨` : "선택된 항목 없음"}
           </div>
         )}
       </div>

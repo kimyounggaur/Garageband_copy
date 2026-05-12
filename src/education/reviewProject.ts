@@ -1,5 +1,6 @@
-import type { Clip, Project, Track, TrackRole } from "../types/project";
 import { analyzeProjectNotes, getTheoryHint } from "../assist/musicTheory";
+import type { Clip, Project, Track, TrackRole } from "../types/project";
+import { trackRoleLabel } from "../utils/labels";
 import { evaluateLesson, getProjectEndBeat } from "./evaluateMission";
 import { getLessonById } from "./lessons";
 import type { Assignment, Lesson, ReviewItem, ReviewNextAction, ReviewRubricCheck, ReviewRubricStatus, ReviewScore, ReviewSummary } from "./types";
@@ -9,16 +10,16 @@ const MIN_CLIP_BEATS = 1;
 const MIN_MIDI_NOTES = 6;
 
 function roleLabel(track: Track) {
-  return track.role ?? track.type;
+  return trackRoleLabel(track.role ?? track.type);
 }
 
 function trackRole(track: Track): TrackRole {
   if (track.role) return track.role;
   const lower = track.name.toLowerCase();
-  if (track.type === "drum" || lower.includes("beat") || lower.includes("drum")) return "beat";
-  if (track.type === "audio" || lower.includes("record")) return "recording";
-  if (lower.includes("bass")) return "bass";
-  if (lower.includes("chord") || lower.includes("key") || lower.includes("pad")) return "harmony";
+  if (track.type === "drum" || lower.includes("beat") || lower.includes("drum") || track.name.includes("비트") || track.name.includes("드럼")) return "beat";
+  if (track.type === "audio" || lower.includes("record") || track.name.includes("녹음")) return "recording";
+  if (lower.includes("bass") || track.name.includes("베이스")) return "bass";
+  if (lower.includes("chord") || lower.includes("key") || lower.includes("pad") || track.name.includes("화성")) return "harmony";
   return "melody";
 }
 
@@ -81,6 +82,10 @@ function missingCheck(id: string, label: string, detail: string): ReviewRubricCh
   return { id, label, completed: false, detail };
 }
 
+function clipList(items: Clip[]) {
+  return items.map((clip) => `${clip.name}(${clip.lengthBeats}박)`).join(", ");
+}
+
 function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
   const items: ReviewItem[] = [];
   const allClips = clips(project);
@@ -105,9 +110,9 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
     autoCheck: true,
     message:
       endBeat >= MIN_PROJECT_BEATS
-        ? `${bars}마디예요. 제출 길이는 충분합니다.`
-        : `지금은 ${bars}마디예요. 8마디까지 늘려보세요.`,
-    detail: `현재 ${endBeat} / ${MIN_PROJECT_BEATS} beats`
+        ? `${bars}마디입니다. 제출 길이가 충분합니다.`
+        : `지금은 ${bars}마디입니다. 8마디까지 늘려보세요.`,
+    detail: `현재 ${endBeat} / ${MIN_PROJECT_BEATS}박`
   });
 
   items.push({
@@ -118,9 +123,9 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
     autoCheck: true,
     message:
       activeTracks.length >= 2
-        ? `${activeTracks.length}개 트랙이 소리를 내고 있어요.`
+        ? `${activeTracks.length}개 트랙이 소리를 내고 있습니다.`
         : "비트, 베이스, 멜로디 중 하나를 더 추가해보세요.",
-    detail: `Active tracks: ${activeTracks.length} / ${project.tracks.length}`
+    detail: `활성 트랙 ${activeTracks.length} / 전체 ${project.tracks.length}`
   });
 
   if (emptyTracks.length > 0) {
@@ -130,7 +135,7 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
       severity: "info",
       category: "tracks",
       autoCheck: true,
-      message: `${emptyTracks.length}개 빈 트랙이 있어요. 필요 없으면 정리해도 됩니다.`,
+      message: `${emptyTracks.length}개 빈 트랙이 있습니다. 필요 없으면 정리해도 됩니다.`,
       detail: emptyTracks.map((track) => `${track.name}(${roleLabel(track)})`).join(", ")
     });
   }
@@ -143,9 +148,9 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
     autoCheck: true,
     message:
       tinyClips.length === 0
-        ? "너무 짧게 잘린 클립은 보이지 않아요."
-        : `${tinyClips.length}개 클립이 아주 짧아요. 실수로 잘렸는지 확인해보세요.`,
-    detail: tinyClips.map((clip) => `${clip.name}(${clip.lengthBeats}b)`).join(", ") || "No tiny clips"
+        ? "너무 짧게 남은 클립은 보이지 않습니다."
+        : `${tinyClips.length}개 클립이 아주 짧습니다. 실수로 남겨졌는지 확인해보세요.`,
+    detail: clipList(tinyClips) || "짧은 클립 없음"
   });
 
   items.push({
@@ -156,11 +161,11 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
     autoCheck: true,
     message:
       hasBeat && hasBass && hasMelody
-        ? "드럼, 베이스, 멜로디가 모두 들려요."
+        ? "드럼, 베이스, 멜로디가 모두 들립니다."
         : hasBeat && (hasBass || hasMelody)
-          ? "기본 반주는 좋아요. 빠진 역할을 하나 더 넣으면 탄탄해집니다."
+          ? "기본 반주는 좋습니다. 빠진 역할을 하나 더 넣으면 완성도가 올라갑니다."
           : "먼저 드럼 비트를 기준으로 잡아보세요.",
-    detail: `Drums ${hasBeat ? "yes" : "no"}, bass ${hasBass ? "yes" : "no"}, melody ${hasMelody ? "yes" : "no"}`
+    detail: `드럼 ${hasBeat ? "있음" : "없음"}, 베이스 ${hasBass ? "있음" : "없음"}, 멜로디 ${hasMelody ? "있음" : "없음"}`
   });
 
   items.push({
@@ -171,19 +176,19 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
     autoCheck: true,
     message:
       repeats >= 2 || sections >= 2
-        ? "반복되는 구간이 보여요. 곡의 흐름이 잡혔습니다."
-        : "좋은 부분을 한 번 더 반복하면 곡처럼 들려요.",
-    detail: `Repeated long loops: ${repeats}, sections: ${sections}`
+        ? "반복되는 구간이 보여서 곡의 흐름이 또렷합니다."
+        : "좋은 부분을 한 번 더 반복하면 곡처럼 들립니다.",
+    detail: `긴 반복 루프 ${repeats}개, 구간 ${sections}개`
   });
 
   items.push({
     id: "midi-notes",
-    title: "MIDI 노트",
+    title: "미디 노트",
     severity: notes >= MIN_MIDI_NOTES ? "good" : "warning",
     category: "midi",
     autoCheck: true,
-    message: notes >= MIN_MIDI_NOTES ? `${notes}개 노트가 있어요.` : `MIDI 노트를 ${MIN_MIDI_NOTES - notes}개 더 넣어보세요.`,
-    detail: `${notes} / ${MIN_MIDI_NOTES} notes`
+    message: notes >= MIN_MIDI_NOTES ? `${notes}개 노트가 있습니다.` : `미디 노트를 ${MIN_MIDI_NOTES - notes}개 더 넣어보세요.`,
+    detail: `${notes} / ${MIN_MIDI_NOTES}개`
   });
 
   items.push({
@@ -192,8 +197,8 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
     severity: hasAudio ? "good" : lesson?.id === "recording-layer" ? "warning" : "info",
     category: "audio",
     autoCheck: true,
-    message: hasAudio ? "직접 녹음하거나 업로드한 오디오가 있어요." : "직접 만든 소리를 넣으면 더 개성 있어요.",
-    detail: `${audioClipCount(project)} audio clips`
+    message: hasAudio ? "직접 녹음하거나 업로드한 오디오가 있습니다." : "직접 만든 소리를 넣으면 더 개성이 생깁니다.",
+    detail: `오디오 클립 ${audioClipCount(project)}개`
   });
 
   const lessonResults = evaluateLesson(project, lesson);
@@ -207,8 +212,8 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
       autoCheck: true,
       message:
         incomplete.length === 0
-          ? "레슨 미션을 모두 완료했어요."
-          : `${incomplete.length}개 미션이 남았어요. Lesson 모드에서 힌트를 확인해보세요.`,
+          ? "레슨 미션을 모두 완료했습니다."
+          : `${incomplete.length}개 미션이 남았습니다. 레슨 모드에서 힌트를 확인해보세요.`,
       detail: lessonResults.map((result) => `${result.missionId}: ${result.summary}`).join("; ")
     });
   }
@@ -223,7 +228,7 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
       category: "midi",
       autoCheck: true,
       message: theoryHint,
-      detail: `Pitch classes: ${noteAnalysis.pitchClassNames.join(", ") || "none"}`
+      detail: `사용한 음: ${noteAnalysis.pitchClassNames.join(", ") || "없음"}`
     });
   }
 
@@ -271,8 +276,8 @@ function defaultRubric(project: Project): Lesson["rubric"] {
         title: "정리",
         levels: [
           { label: "시작", description: "클립이 배치되어 있다." },
-          { label: "성장", description: "짧게 잘린 클립과 빈 트랙을 확인했다." },
-          { label: "완성", description: "제출 전 체크를 끝냈다." }
+          { label: "성장", description: "짧게 남은 클립과 빈 트랙을 확인했다." },
+          { label: "완성", description: "제출 전 체크를 통과했다." }
         ]
       }
     ]
@@ -298,7 +303,7 @@ function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assig
     if (criterion.id === "rhythm") {
       autoChecks = [
         hasBeat
-          ? goodCheck("beat-track", "비트가 있음", "드럼 또는 beat 역할 트랙이 소리를 냅니다.")
+          ? goodCheck("beat-track", "비트가 있음", "드럼 또는 비트 역할 트랙이 소리를 냅니다.")
           : missingCheck("beat-track", "비트가 있음", "드럼 루프나 비트 트랙을 추가하세요."),
         repeats >= 1
           ? goodCheck("rhythm-repeat", "반복이 있음", "긴 루프가 반복 구간을 만듭니다.")
@@ -324,11 +329,11 @@ function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assig
     } else if (criterion.id === "creativity") {
       autoChecks = [
         notes >= MIN_MIDI_NOTES || audioCount > 0
-          ? goodCheck("custom-sound", "직접 만든 요소", "MIDI 노트 또는 오디오 클립이 있습니다.")
-          : missingCheck("custom-sound", "직접 만든 요소", "MIDI 노트나 녹음을 추가하세요."),
+          ? goodCheck("custom-sound", "직접 만든 요소", "미디 노트 또는 오디오 클립이 있습니다.")
+          : missingCheck("custom-sound", "직접 만든 요소", "미디 노트나 녹음을 추가하세요."),
         audioCount > 0
-          ? goodCheck("audio-layer", "녹음/업로드 활용", "오디오 클립이 포함되어 있습니다.")
-          : missingCheck("audio-layer", "녹음/업로드 활용", "녹음은 선택이지만 개성을 더해줍니다.")
+          ? goodCheck("audio-layer", "녹음/업로드 사용", "오디오 클립이 포함되어 있습니다.")
+          : missingCheck("audio-layer", "녹음/업로드 사용", "녹음은 선택이지만 개성을 더해줍니다.")
       ];
       manualChecks = [
         missingCheck("intent", "표현 의도가 느껴짐", "교사가 듣고 체크합니다."),
@@ -471,7 +476,7 @@ function buildNextAction(
 
   const criterion = rubric.find((item) => !item.completed);
   return {
-    title: criterion ? `${criterion.title} 보완하기` : "Review 다시 확인하기",
+    title: criterion ? `${criterion.title} 보완하기` : "검토 다시 확인하기",
     message: criterion?.autoChecks.find((check) => !check.completed)?.detail ?? "제출 전에 빠진 항목이 있는지 한 번 더 확인해보세요.",
     itemId: criterion?.criterionId
   };

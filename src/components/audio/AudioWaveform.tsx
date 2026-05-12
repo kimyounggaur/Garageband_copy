@@ -133,5 +133,5 @@ export function AudioWaveform({ clip, className, color = "#e2e8f0", showTrim = f
     }
   }, [clip.fadeInSeconds, clip.fadeOutSeconds, clip.gain, clip.trimEndSeconds, clip.trimStartSeconds, color, overview, showTrim, size]);
 
-  return <canvas ref={canvasRef} className={className} aria-label="Audio waveform" />;
+  return <canvas ref={canvasRef} className={className} aria-label="오디오 파형" />;
 }

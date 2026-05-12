@@ -66,7 +66,7 @@ export function AssistPanel() {
   }
 
   function applyChord(suggestion: ChordSuggestion) {
-    const trackId = firstTrackIdFor(project, "harmony") ?? addTrack("instrument", "Chords");
+    const trackId = firstTrackIdFor(project, "harmony") ?? addTrack("instrument", "화성");
     const clipId = addClip(trackId, {
       type: "midi",
       name: suggestion.title,
@@ -81,10 +81,10 @@ export function AssistPanel() {
   }
 
   function applyDrum(suggestion: DrumSuggestion) {
-    const trackId = firstTrackIdFor(project, "beat") ?? addTrack("drum", "Drums");
+    const trackId = firstTrackIdFor(project, "beat") ?? addTrack("drum", "드럼");
     const clipId = addClip(trackId, {
       type: "midi",
-      name: `${suggestion.title} Beat`,
+      name: `${suggestion.title} 비트`,
       startBeat: Math.max(0, currentBeat),
       lengthBeats: 16,
       color: "#38bdf8",
@@ -92,7 +92,7 @@ export function AssistPanel() {
     });
     selectTrack(trackId);
     selectClip(clipId);
-    markApplied(`${suggestion.title} Beat`);
+    markApplied(`${suggestion.title} 비트`);
   }
 
   function applyMelody(suggestion: MelodySuggestion) {
@@ -102,7 +102,7 @@ export function AssistPanel() {
       markApplied(suggestion.title);
       return;
     }
-    const trackId = firstTrackIdFor(project, "melody") ?? addTrack("instrument", "Melody");
+    const trackId = firstTrackIdFor(project, "melody") ?? addTrack("instrument", "멜로디");
     const clipId = addClip(trackId, {
       type: "midi",
       name: suggestion.title,
@@ -117,10 +117,10 @@ export function AssistPanel() {
   }
 
   const tabs: Array<{ id: AssistTab; label: string }> = [
-    { id: "chords", label: "Chords" },
-    { id: "drums", label: "Drums" },
-    { id: "melody", label: "Melody" },
-    { id: "why", label: "Why" }
+    { id: "chords", label: "코드" },
+    { id: "drums", label: "드럼" },
+    { id: "melody", label: "멜로디" },
+    { id: "why", label: "설명" }
   ];
 
   return (
@@ -128,7 +128,7 @@ export function AssistPanel() {
       <div className="flex items-center justify-between border-b border-white/10 p-2">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
           <Sparkles size={14} />
-          Assist
+          창작 보조
         </div>
         <span className="rounded border border-white/10 bg-white/[0.045] px-2 py-1 text-[10px] font-bold text-slate-500">
           {adapter.label}
@@ -151,10 +151,10 @@ export function AssistPanel() {
       <div className="max-h-[420px] overflow-y-auto p-2">
         {lastApplied ? (
           <div className="mb-2 rounded-md border border-meter-green/30 bg-meter-green/10 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">Applied</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">적용됨</div>
             <div className="mt-1 flex items-center justify-between gap-2">
               <div className="min-w-0 truncate text-xs font-black text-green-100">{lastApplied}</div>
-              <button className="studio-icon-button h-7 w-7" title="Undo assist apply" onClick={undoLastApplied}>
+              <button className="studio-icon-button h-7 w-7" title="창작 보조 적용 되돌리기" onClick={undoLastApplied}>
                 <RotateCcw size={13} />
               </button>
             </div>
@@ -173,12 +173,12 @@ export function AssistPanel() {
                   <div className="flex shrink-0 gap-1">
                     <button
                       className="studio-icon-button h-7 w-7"
-                      title="Preview chord progression"
+                      title="코드 진행 미리듣기"
                       onClick={() => void preview(`chord:${suggestion.id}`, suggestion.notes)}
                     >
                       <Play size={13} className={previewingId === `chord:${suggestion.id}` ? "text-meter-cyan" : undefined} />
                     </button>
-                    <button className="studio-icon-button h-7 w-7" title="Apply chord progression" onClick={() => applyChord(suggestion)}>
+                    <button className="studio-icon-button h-7 w-7" title="코드 진행 적용" onClick={() => applyChord(suggestion)}>
                       <Plus size={13} />
                     </button>
                   </div>
@@ -205,12 +205,12 @@ export function AssistPanel() {
                   <div className="flex shrink-0 gap-1">
                     <button
                       className="studio-icon-button h-7 w-7"
-                      title="Preview drum pattern"
+                      title="드럼 패턴 미리듣기"
                       onClick={() => void preview(`drum:${suggestion.id}`, suggestion.notes, true)}
                     >
                       <Play size={13} className={previewingId === `drum:${suggestion.id}` ? "text-meter-cyan" : undefined} />
                     </button>
-                    <button className="studio-icon-button h-7 w-7" title="Apply drum pattern" onClick={() => applyDrum(suggestion)}>
+                    <button className="studio-icon-button h-7 w-7" title="드럼 패턴 적용" onClick={() => applyDrum(suggestion)}>
                       <Plus size={13} />
                     </button>
                   </div>
@@ -224,7 +224,7 @@ export function AssistPanel() {
           <div className="space-y-2">
             {melodySuggestions.length === 0 ? (
               <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">
-                MIDI clip을 하나 만들면 이어쓰기 후보가 나옵니다.
+                미디 클립을 하나 만들면 이어쓰기 후보가 나옵니다.
               </div>
             ) : (
               melodySuggestions.map((suggestion) => (
@@ -240,12 +240,12 @@ export function AssistPanel() {
                     <div className="flex shrink-0 gap-1">
                       <button
                         className="studio-icon-button h-7 w-7"
-                        title="Preview melody continuation"
+                        title="멜로디 이어쓰기 미리듣기"
                         onClick={() => void preview(`melody:${suggestion.id}`, suggestion.notes)}
                       >
                         <Play size={13} className={previewingId === `melody:${suggestion.id}` ? "text-meter-cyan" : undefined} />
                       </button>
-                      <button className="studio-icon-button h-7 w-7" title="Apply melody continuation" onClick={() => applyMelody(suggestion)}>
+                      <button className="studio-icon-button h-7 w-7" title="멜로디 이어쓰기 적용" onClick={() => applyMelody(suggestion)}>
                         <Plus size={13} />
                       </button>
                     </div>

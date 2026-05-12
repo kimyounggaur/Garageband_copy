@@ -1,4 +1,4 @@
-import type { Clip, MidiNote, Project, Track, TrackRole } from "../types/project";
+import type { MidiNote, Project, Track, TrackRole } from "../types/project";
 
 export type ChordSuggestion = {
   id: string;
@@ -35,7 +35,7 @@ export type LearningFeedback = {
   tension: string;
 };
 
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTE_NAMES = ["도", "도#", "레", "레#", "미", "파", "파#", "솔", "솔#", "라", "라#", "시"];
 const CHORD_TONES: Record<string, number[]> = {
   C: [60, 64, 67],
   Am: [57, 60, 64],
@@ -62,8 +62,8 @@ function trackRole(track: Track): TrackRole {
   if (track.type === "drum") return "beat";
   if (track.type === "audio") return "recording";
   const lower = track.name.toLowerCase();
-  if (lower.includes("bass")) return "bass";
-  if (lower.includes("chord") || lower.includes("key") || lower.includes("pad")) return "harmony";
+  if (lower.includes("bass") || track.name.includes("베이스")) return "bass";
+  if (lower.includes("chord") || lower.includes("key") || lower.includes("pad") || track.name.includes("화성")) return "harmony";
   return "melody";
 }
 
@@ -90,9 +90,9 @@ export function suggestChordProgressions(project: Project): ChordSuggestion[] {
   const bpm = project.bpm;
   const baseReason =
     pitchClass === undefined
-      ? "아직 MIDI 음이 적어서 가장 익숙한 C장조 진행으로 시작합니다."
+      ? "아직 미디 음이 적어서 가장 익숙한 C장조 진행으로 시작합니다."
       : `프로젝트에서 ${NOTE_NAMES[pitchClass]} 계열 음이 자주 보여서 C장조 안에서 안정적인 진행을 골랐습니다.`;
-  const energy = bpm >= 125 ? "밝고 빠른 느낌" : bpm <= 90 ? "차분한 느낌" : "자연스러운 팝 느낌";
+  const energy = bpm >= 125 ? "밝고 빠른 느낌" : bpm <= 90 ? "차분한 느낌" : "자연스러운 느낌";
 
   return [
     {
@@ -107,7 +107,7 @@ export function suggestChordProgressions(project: Project): ChordSuggestion[] {
       id: "c-g-am-f",
       title: "C - G - Am - F",
       chords: ["C", "G", "Am", "F"],
-      mood: bpm >= 120 ? "시원한 후렴 느낌" : "부드러운 전개",
+      mood: bpm >= 120 ? "시원한 전개" : "부드러운 전개",
       reason: "시작은 안정적이고 중간에 살짝 올라갔다가 다시 편하게 내려오는 진행입니다.",
       notes: chordNotes(["C", "G", "Am", "F"])
     },
@@ -165,10 +165,10 @@ export function generateDrumSuggestions(): DrumSuggestion[] {
   ];
 
   return [
-    { id: "basic", title: "Basic", description: "킥과 스네어가 분명해서 처음 편곡에 잘 맞아요.", notes: repeatPattern(basic) },
-    { id: "pop", title: "Pop", description: "하이햇이 촘촘해서 밝은 팝 느낌이 납니다.", notes: repeatPattern(pop) },
-    { id: "hiphop", title: "Hiphop", description: "킥 위치가 살짝 밀려서 여유로운 그루브가 생깁니다.", notes: repeatPattern(hiphop) },
-    { id: "dance", title: "Dance", description: "4비트 킥이 계속 나와서 몸이 움직이는 느낌입니다.", notes: repeatPattern(dance) }
+    { id: "basic", title: "기본", description: "킥과 스네어가 분명해서 처음 편곡에 잘 맞아요.", notes: repeatPattern(basic) },
+    { id: "pop", title: "팝", description: "하이햇이 촘촘해서 밝은 팝 느낌이 납니다.", notes: repeatPattern(pop) },
+    { id: "hiphop", title: "힙합", description: "킥 위치가 살짝 밀려서 여유로운 그루브가 생깁니다.", notes: repeatPattern(hiphop) },
+    { id: "dance", title: "댄스", description: "4비트 킥이 계속 나와서 몸이 움직이는 느낌입니다.", notes: repeatPattern(dance) }
   ];
 }
 
@@ -198,7 +198,7 @@ export function continueMelody(project: Project, selectedClipId?: string): Melod
   }
 
   const shapes = [
-    { id: "answer", title: "대답처럼 이어쓰기", intervals: [0, 2, 4, 2, 0, -2, 0, -5] },
+    { id: "answer", title: "대답처럼 이어가기", intervals: [0, 2, 4, 2, 0, -2, 0, -5] },
     { id: "lift", title: "살짝 올라가기", intervals: [0, 2, 4, 5, 7, 5, 4, 0] },
     { id: "calm", title: "차분하게 내려가기", intervals: [0, -2, -3, -5, -3, -2, 0, -7] }
   ];
@@ -219,7 +219,7 @@ export function continueMelody(project: Project, selectedClipId?: string): Melod
       sourceClipId: clip.id,
       startBeat,
       notes: generated,
-      explanation: `마지막 음 ${lastNote ? pitchName(lastNote.pitch) : "C"} 근처에서 시작하고, 기존 리듬 길이를 반복해서 자연스럽게 이어집니다.`
+      explanation: `마지막 음 ${lastNote ? pitchName(lastNote.pitch) : "도"} 근처에서 시작하고, 기존 리듬 길이를 반복해서 자연스럽게 이어집니다.`
     };
   });
 }
@@ -236,10 +236,10 @@ export function explainProject(project: Project, selectedClipId?: string): Learn
   const roles = project.tracks.filter((track) => track.clips.length > 0).map(trackRole);
 
   return {
-    usedNotes: pitchClasses.length > 0 ? `사용한 음은 ${pitchClasses.join(", ")}입니다.` : "아직 분석할 MIDI 음이 많지 않아요.",
+    usedNotes: pitchClasses.length > 0 ? `사용한 음은 ${pitchClasses.join(", ")}입니다.` : "아직 분석할 미디 음이 많지 않아요.",
     repeatedPattern: hasRepeatedDuration ? "비슷한 길이의 음이 반복되어 기억하기 쉬운 패턴이 생깁니다." : "리듬 길이가 다양해서 말하듯이 들립니다.",
     range: range > 18 ? `음역이 ${range}반음이라 넓고 극적으로 들려요.` : range > 0 ? `음역이 ${range}반음이라 안정적으로 들려요.` : "음역은 아직 좁습니다.",
     density: `${density} 짧은 음 ${shortNotes}개, 긴 음 ${longNotes}개가 보여요.`,
-    tension: roles.includes("beat") && roles.includes("bass") ? "비트와 베이스가 안정감을 만들고, 높은 멜로디 음은 살짝 긴장감을 줍니다." : "아직 반주 역할이 적어서 멜로디가 더 도드라지게 들립니다."
+    tension: roles.includes("beat") && roles.includes("bass") ? "비트와 베이스가 안정감을 만들고, 높은 멜로디 음이 살짝 긴장감을 줍니다." : "아직 반주 역할이 적어서 멜로디가 더 앞드러지게 들립니다."
   };
 }

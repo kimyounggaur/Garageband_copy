@@ -3,13 +3,13 @@ import type { LoopCategory, LoopDefinition } from "../types/project";
 export const LOOP_LIBRARY: LoopDefinition[] = [
   {
     id: "drums-grid",
-    name: "Grid Room Kit",
+    name: "그리드 룸 드럼",
     category: "Drums",
     trackType: "drum",
     bpm: 120,
     lengthBeats: 4,
     color: "#38bdf8",
-    description: "Tight four-beat drum groove",
+    description: "단단한 4박 드럼 그루브",
     pattern: [
       { beat: 0, drum: "kick", velocity: 0.95 },
       { beat: 0.5, drum: "hat", velocity: 0.55 },
@@ -23,13 +23,13 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "drums-electro",
-    name: "Electro Pulse",
+    name: "일렉트로 펄스",
     category: "Drums",
     trackType: "drum",
     bpm: 124,
     lengthBeats: 4,
     color: "#22c55e",
-    description: "Club-ready kick and hat pattern",
+    description: "킥과 하이햇이 분명한 댄스 패턴",
     pattern: [
       { beat: 0, drum: "kick", velocity: 0.96 },
       { beat: 0.75, drum: "hat", velocity: 0.5 },
@@ -43,13 +43,13 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "bass-midnight",
-    name: "Midnight Bass",
+    name: "미드나잇 베이스",
     category: "Bass",
     trackType: "instrument",
     bpm: 120,
     lengthBeats: 4,
     color: "#f59e0b",
-    description: "Rounded syncopated bass phrase",
+    description: "부드럽게 당겨지는 베이스 프레이즈",
     pattern: [
       { beat: 0, note: "C2", durationBeats: 0.5, velocity: 0.86 },
       { beat: 0.75, note: "C2", durationBeats: 0.25, velocity: 0.68 },
@@ -60,13 +60,13 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "bass-clean",
-    name: "Clean Octaves",
+    name: "클린 옥타브",
     category: "Bass",
     trackType: "instrument",
     bpm: 110,
     lengthBeats: 4,
     color: "#fb7185",
-    description: "Simple octave bass motion",
+    description: "간단한 옥타브 베이스 움직임",
     pattern: [
       { beat: 0, note: "F1", durationBeats: 0.75, velocity: 0.82 },
       { beat: 1, note: "F2", durationBeats: 0.5, velocity: 0.65 },
@@ -76,13 +76,13 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "synth-glass",
-    name: "Glass Arps",
+    name: "글래스 아르페지오",
     category: "Synth",
     trackType: "instrument",
     bpm: 120,
     lengthBeats: 4,
     color: "#a78bfa",
-    description: "Bright eighth-note arpeggio",
+    description: "밝은 8분음표 아르페지오",
     pattern: [
       { beat: 0, note: "C4", durationBeats: 0.35, velocity: 0.55 },
       { beat: 0.5, note: "E4", durationBeats: 0.35, velocity: 0.54 },
@@ -96,13 +96,13 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "fx-rise",
-    name: "Soft Riser",
+    name: "소프트 라이저",
     category: "FX",
     trackType: "instrument",
     bpm: 120,
     lengthBeats: 4,
     color: "#eab308",
-    description: "Minimal tonal transition",
+    description: "간단한 전환용 음색",
     pattern: [
       { beat: 0, note: "C4", durationBeats: 1, velocity: 0.25 },
       { beat: 1, note: "D4", durationBeats: 1, velocity: 0.32 },

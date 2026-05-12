@@ -15,7 +15,7 @@ import { TransportBar } from "../transport/TransportBar";
 type Status = "idle" | "working" | "done" | "error";
 
 function fileSafeName(name: string) {
-  return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "webband-session";
+  return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "웹밴드-세션";
 }
 
 function isEditableTarget(target: EventTarget | null) {

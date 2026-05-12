@@ -5,6 +5,7 @@ import { AudioAssetsPanel } from "../recording/AudioAssetsPanel";
 import { RecorderPanel } from "../recording/RecorderPanel";
 import { useDawStore } from "../../store/useDawStore";
 import type { LoopCategory } from "../../types/project";
+import { loopCategoryLabel } from "../../utils/labels";
 import { snapBeat } from "../../utils/timeline";
 
 export function SoundLibrary() {
@@ -19,14 +20,14 @@ export function SoundLibrary() {
   return (
     <aside className="panel flex min-h-0 flex-col rounded-lg">
       <div className="flex h-11 items-center justify-between border-b border-white/10 px-3">
-        <span className="panel-title">Library</span>
+        <span className="panel-title">사운드</span>
         <button
           className="studio-icon-button"
-          title="Add MIDI clip"
+          title="미디 클립 추가"
           onClick={() => addMidiClip(selectedTrackId, snapBeat(currentBeat, snapBeats))}
           draggable
           onDragStart={(event) => event.dataTransfer.setData("application/webband-midi", "midi")}
-          aria-label="Add MIDI clip"
+          aria-label="미디 클립 추가"
         >
           <Music2 size={15} />
         </button>
@@ -41,7 +42,7 @@ export function SoundLibrary() {
             }`}
             onClick={() => setCategory(item)}
           >
-            {item}
+            {loopCategoryLabel(item)}
           </button>
         ))}
       </div>
@@ -59,13 +60,13 @@ export function SoundLibrary() {
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-sm font-bold text-slate-100">{loop.name}</span>
                 <span className="flex h-5 items-center rounded bg-white/10 px-1.5 text-[10px] font-bold text-slate-300">
-                  {loop.lengthBeats}b
+                  {loop.lengthBeats}박
                 </span>
               </div>
               <div className="mt-1 text-[11px] text-slate-500">{loop.description}</div>
               <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: loop.color }} />
-                {loop.bpm} BPM
+                {loop.bpm} 템포
               </div>
             </button>
           ))}
@@ -82,7 +83,7 @@ export function SoundLibrary() {
           onDragStart={(event) => event.dataTransfer.setData("application/webband-midi", "midi")}
         >
           <Plus size={15} />
-          MIDI Clip
+          미디 클립
         </button>
       </div>
     </aside>

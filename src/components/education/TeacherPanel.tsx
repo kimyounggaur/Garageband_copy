@@ -1,13 +1,13 @@
 import { ClipboardList, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { assignmentRepository, submissionRepository } from "../../db/studioRepository";
 import { rubricForLesson } from "../../education/assignments";
 import { LESSONS, getLessonById } from "../../education/lessons";
 import type { Assignment, ReviewSummary, Submission } from "../../education/types";
-import { assignmentRepository, submissionRepository } from "../../db/studioRepository";
 import { makeId } from "../../utils/id";
 
 function formatDate(value?: number) {
-  if (!value) return "No due date";
+  if (!value) return "마감 없음";
   return new Intl.DateTimeFormat("ko-KR", {
     month: "short",
     day: "numeric",
@@ -110,7 +110,7 @@ export function TeacherPanel() {
     const assignment: Assignment = {
       id: makeId("assignment"),
       title: trimmedTitle,
-      description: description.trim() || "제출 전 Review를 확인하세요.",
+      description: description.trim() || "제출 전 검토를 확인하세요.",
       lessonId: lessonId || undefined,
       dueDate: dueDate ? new Date(dueDate).getTime() : undefined,
       rubric: rubricForLesson(lessonId || undefined),
@@ -136,8 +136,8 @@ export function TeacherPanel() {
   return (
     <aside className="panel grid min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg">
       <div className="flex items-center justify-between border-b border-white/10 px-3">
-        <span className="panel-title">Teacher View</span>
-        <button className="studio-icon-button h-7 w-7" onClick={() => void refresh()} title="Refresh class data" aria-label="Refresh class data">
+        <span className="panel-title">교사 보기</span>
+        <button className="studio-icon-button h-7 w-7" onClick={() => void refresh()} title="수업 데이터 새로고침" aria-label="수업 데이터 새로고침">
           <RefreshCcw size={13} />
         </button>
       </div>
@@ -145,32 +145,32 @@ export function TeacherPanel() {
       <div className="min-h-0 overflow-y-auto p-3">
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-md border border-white/10 bg-black/20 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Submissions</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">제출물</div>
             <div className="mt-1 text-xl font-black text-slate-100">{dashboard.total}</div>
           </div>
           <div className="rounded-md border border-white/10 bg-black/20 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Avg Score</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">평균 점수</div>
             <div className="mt-1 text-xl font-black text-slate-100">{dashboard.averageScore}%</div>
           </div>
           <div className="rounded-md border border-meter-green/25 bg-meter-green/10 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">Ready</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">제출 가능</div>
             <div className="mt-1 text-xl font-black text-green-100">{dashboard.ready}</div>
           </div>
           <div className="rounded-md border border-meter-amber/25 bg-meter-amber/10 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100/75">Needs Work</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100/75">보완 필요</div>
             <div className="mt-1 text-xl font-black text-amber-100">{dashboard.needsWork}</div>
-            <div className="text-[10px] font-bold text-amber-100/65">{dashboard.openWarnings} warnings</div>
+            <div className="text-[10px] font-bold text-amber-100/65">경고 {dashboard.openWarnings}개</div>
           </div>
         </div>
 
         <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
           <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
             <ClipboardList size={14} />
-            Create Assignment
+            과제 만들기
           </div>
           <div className="space-y-2">
             <label className="block text-xs font-bold text-slate-400">
-              Title
+              제목
               <input
                 className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                 value={title}
@@ -178,7 +178,7 @@ export function TeacherPanel() {
               />
             </label>
             <label className="block text-xs font-bold text-slate-400">
-              Description
+              설명
               <textarea
                 className="mt-1 min-h-16 w-full resize-none rounded border border-white/10 bg-studio-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                 value={description}
@@ -186,13 +186,13 @@ export function TeacherPanel() {
               />
             </label>
             <label className="block text-xs font-bold text-slate-400">
-              Lesson
+              레슨
               <select
                 className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                 value={lessonId}
                 onChange={(event) => setLessonId(event.target.value)}
               >
-                <option value="">Free project</option>
+                <option value="">자유 프로젝트</option>
                 {LESSONS.map((lesson) => (
                   <option key={lesson.id} value={lesson.id}>
                     {lesson.title}
@@ -201,7 +201,7 @@ export function TeacherPanel() {
               </select>
             </label>
             <label className="block text-xs font-bold text-slate-400">
-              Due
+              마감
               <input
                 className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
                 type="datetime-local"
@@ -211,13 +211,13 @@ export function TeacherPanel() {
             </label>
             <button className="studio-button w-full" onClick={() => void handleCreateAssignment()}>
               <Plus size={14} />
-              Create
+              만들기
             </button>
           </div>
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Assignments</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">과제</div>
           <div className="space-y-2">
             {assignments.length === 0 ? (
               <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">
@@ -230,13 +230,13 @@ export function TeacherPanel() {
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-slate-100">{assignment.title}</div>
                       <div className="mt-1 text-[11px] text-slate-500">
-                        {getLessonById(assignment.lessonId)?.title ?? "Free project"} · {formatDate(assignment.dueDate)}
+                        {getLessonById(assignment.lessonId)?.title ?? "자유 프로젝트"} · {formatDate(assignment.dueDate)}
                       </div>
                     </div>
                     <button
                       className="studio-icon-button h-7 w-7"
-                      title="Delete assignment"
-                      aria-label="Delete assignment"
+                      title="과제 삭제"
+                      aria-label="과제 삭제"
                       onClick={() => void handleDeleteAssignment(assignment.id)}
                     >
                       <Trash2 size={12} />
@@ -244,7 +244,7 @@ export function TeacherPanel() {
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-400">{assignment.description}</div>
                   <div className="mt-2 text-[11px] font-bold text-slate-500">
-                    {assignment.rubric.criteria.length} rubric criteria · {submissionCounts[assignment.id] ?? 0} submissions
+                    평가 기준 {assignment.rubric.criteria.length}개 · 제출 {submissionCounts[assignment.id] ?? 0}개
                   </div>
                 </div>
               ))
@@ -253,7 +253,7 @@ export function TeacherPanel() {
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Submissions</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">제출물</div>
           <div className="space-y-2">
             {submissions.length === 0 ? (
               <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">
@@ -286,15 +286,15 @@ export function TeacherPanel() {
                     </div>
                     <div className="mt-2 grid grid-cols-3 gap-1">
                       <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Score</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">점수</div>
                         <div className="mt-1 text-sm font-black text-slate-100">{scoreLabel(submission.reviewSnapshot)}</div>
                       </div>
                       <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Warnings</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">경고</div>
                         <div className="mt-1 text-sm font-black text-slate-100">{warningCount(submission.reviewSnapshot)}</div>
                       </div>
                       <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Mission</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">미션</div>
                         <div className="mt-1 text-sm font-black text-slate-100">
                           {completedMissionCount(submission.reviewSnapshot)}/{submission.reviewSnapshot.missionResults.length || 0}
                         </div>
@@ -306,10 +306,10 @@ export function TeacherPanel() {
                     <div className="mt-2 rounded border border-white/10 bg-white/[0.035] p-2 text-[11px] leading-5 text-slate-400">
                       {diff ? (
                         <>
-                          Review diff · Score {signed(diff.scoreDelta)}% · Warnings {signed(diff.warningDelta)} · Missions {signed(diff.missionDelta)}
+                          변화 · 점수 {signed(diff.scoreDelta)}% · 경고 {signed(diff.warningDelta)} · 미션 {signed(diff.missionDelta)}
                         </>
                       ) : (
-                        "Review diff · 첫 제출이라 비교할 이전 제출이 없습니다."
+                        "변화 · 첫 제출이라 비교할 이전 제출이 없습니다."
                       )}
                     </div>
                     {nextAction ? (

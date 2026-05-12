@@ -2,6 +2,7 @@ import type { PointerEvent } from "react";
 import { Lock } from "lucide-react";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
+import { clipTypeLabel } from "../../utils/labels";
 import { CLIP_HEIGHT, beatToX, snapBeat } from "../../utils/timeline";
 import { AudioWaveform } from "../audio/AudioWaveform";
 
@@ -104,7 +105,7 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
           <span className="truncate text-xs font-black">{clip.name}</span>
         </div>
         <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase opacity-80">
-          <span>{clip.type}</span>
+          <span>{clipTypeLabel(clip.type)}</span>
           <span>{clip.lengthBeats}b</span>
         </div>
       </div>
@@ -112,8 +113,8 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
         className={`absolute right-0 top-0 h-full w-2 bg-black/18 transition hover:bg-black/32 ${
           clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
         }`}
-        title="Resize clip"
-        aria-label="Resize clip"
+        title="클립 길이 조절"
+        aria-label="클립 길이 조절"
         onPointerDown={beginResize}
       />
     </div>
