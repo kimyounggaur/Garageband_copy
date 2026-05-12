@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -78,10 +78,32 @@ function mirrorDist() {
   }
 }
 
+function syncPagesDocs(distRoot = join(root, "dist")) {
+  const docsRoot = join(root, "docs");
+  console.log("> sync docs");
+  mkdirSync(docsRoot, { recursive: true });
+  copyFileSync(join(distRoot, "index.html"), join(docsRoot, "index.html"));
+  const assetsRoot = join(docsRoot, "assets");
+  mkdirSync(assetsRoot, { recursive: true });
+  copyRecursive(join(distRoot, "assets"), assetsRoot);
+  const currentAssets = new Set(readdirSync(join(distRoot, "assets")));
+  for (const entry of readdirSync(assetsRoot)) {
+    if (!currentAssets.has(entry)) {
+      rmSync(join(assetsRoot, entry), { recursive: true, force: true });
+    }
+  }
+  if (existsSync(join(distRoot, "samples"))) {
+    copyRecursive(join(distRoot, "samples"), join(docsRoot, "samples"));
+  }
+  writeFileSync(join(docsRoot, ".nojekyll"), "");
+  console.log("> docs synced");
+}
+
 try {
   run(process.execPath, [join(root, "node_modules", "typescript", "bin", "tsc"), "-b"], root);
   if (process.platform !== "win32") {
     run(process.execPath, [join(root, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], root);
+    syncPagesDocs();
     process.exit(0);
   }
 
@@ -89,7 +111,9 @@ try {
   run(process.execPath, [join(tempRoot, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], tempRoot);
   console.log("> copy dist");
   mirrorDist();
+  syncPagesDocs(join(tempRoot, "dist"));
   console.log("> build complete");
+  process.exitCode = 0;
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
 }
