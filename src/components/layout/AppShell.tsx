@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getAudioEngine } from "../../audio/AudioEngine";
-import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { loadLastProject, projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
-import { ClipEditor } from "../editor/ClipEditor";
-import { LessonPanel } from "../education/LessonPanel";
-import { ReviewPanel } from "../education/ReviewPanel";
-import { TeacherPanel } from "../education/TeacherPanel";
-import { SoundLibrary } from "../library/SoundLibrary";
-import { StudioPanel } from "../studio/StudioPanel";
 import { TransportBar } from "../transport/TransportBar";
 
 type Status = "idle" | "working" | "done" | "error";
+type AudioEngineInstance = import("../../audio/AudioEngine").AudioEngine;
+
+const ClipEditor = lazy(() => import("../editor/ClipEditor").then((module) => ({ default: module.ClipEditor })));
+const LessonPanel = lazy(() => import("../education/LessonPanel").then((module) => ({ default: module.LessonPanel })));
+const ReviewPanel = lazy(() => import("../education/ReviewPanel").then((module) => ({ default: module.ReviewPanel })));
+const SoundLibrary = lazy(() => import("../library/SoundLibrary").then((module) => ({ default: module.SoundLibrary })));
+const StudioPanel = lazy(() => import("../studio/StudioPanel").then((module) => ({ default: module.StudioPanel })));
+const TeacherPanel = lazy(() => import("../education/TeacherPanel").then((module) => ({ default: module.TeacherPanel })));
 
 function fileSafeName(name: string) {
   return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "웹밴드-세션";
@@ -23,12 +23,19 @@ function isEditableTarget(target: EventTarget | null) {
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
+function PanelFallback() {
+  return (
+    <div className="panel flex h-full min-h-[140px] items-center justify-center rounded-lg text-xs font-bold text-slate-500">
+      불러오는 중...
+    </div>
+  );
+}
+
 export function AppShell() {
   const project = useDawStore((state) => state.project);
   const mode = useDawStore((state) => state.mode);
   const isPlaying = useDawStore((state) => state.isPlaying);
   const hydrated = useDawStore((state) => state.hydrated);
-  const setPlaying = useDawStore((state) => state.setPlaying);
   const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
   const loadProjectIntoStore = useDawStore((state) => state.loadProject);
   const setHydrated = useDawStore((state) => state.setHydrated);
@@ -36,8 +43,15 @@ export function AppShell() {
   const [saveStatus, setSaveStatus] = useState<Status>("idle");
   const [exportStatus, setExportStatus] = useState<Status>("idle");
   const [educationView, setEducationView] = useState<"student" | "teacher">("student");
-  const engine = useMemo(() => getAudioEngine(), []);
+  const audioEngineRef = useRef<AudioEngineInstance | null>(null);
   const firstLoadRef = useRef(false);
+
+  async function getLazyAudioEngine() {
+    if (audioEngineRef.current) return audioEngineRef.current;
+    const module = await import("../../audio/AudioEngine");
+    audioEngineRef.current = module.getAudioEngine();
+    return audioEngineRef.current;
+  }
 
   useEffect(() => {
     if (firstLoadRef.current) return;
@@ -65,21 +79,33 @@ export function AppShell() {
   }, [hydrated, project]);
 
   useEffect(() => {
+    let cancelled = false;
     if (isPlaying) {
-      engine.play(
-        useDawStore.getState().project,
-        (beat) => useDawStore.getState().setCurrentBeat(beat),
-        () => useDawStore.getState().setPlaying(false)
-      );
+      void getLazyAudioEngine()
+        .then((engine) => {
+          if (cancelled) {
+            engine.stop();
+            return;
+          }
+          return engine.play(
+            useDawStore.getState().project,
+            (beat) => useDawStore.getState().setCurrentBeat(beat),
+            () => useDawStore.getState().setPlaying(false)
+          );
+        })
+        .catch(() => useDawStore.getState().setPlaying(false));
     } else {
-      engine.stop();
+      audioEngineRef.current?.stop();
       setCurrentBeat(0);
     }
-  }, [engine, isPlaying, setCurrentBeat]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isPlaying, setCurrentBeat]);
 
   useEffect(() => {
-    engine.updateTrackControls(project);
-  }, [engine, project]);
+    audioEngineRef.current?.updateTrackControls(project);
+  }, [project]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -119,6 +145,7 @@ export function AppShell() {
     setExportStatus("working");
     try {
       const currentProject = useDawStore.getState().project;
+      const { downloadBlob, exportProjectToWav } = await import("../../audio/exportProject");
       const blob = await exportProjectToWav(currentProject);
       downloadBlob(blob, `${fileSafeName(currentProject.name)}.wav`);
       setExportStatus("done");
@@ -146,12 +173,16 @@ export function AppShell() {
       />
 
       <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(220px,30dvh)_minmax(360px,1fr)_minmax(300px,38dvh)] gap-2 overflow-auto p-2 lg:grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] lg:grid-rows-none lg:overflow-hidden">
-        <SoundLibrary />
+        <Suspense fallback={<PanelFallback />}>
+          <SoundLibrary />
+        </Suspense>
         <ArrangementTimeline />
-        {renderSidePanel()}
+        <Suspense fallback={<PanelFallback />}>{renderSidePanel()}</Suspense>
       </main>
 
-      <ClipEditor />
+      <Suspense fallback={<PanelFallback />}>
+        <ClipEditor />
+      </Suspense>
     </div>
   );
 }
