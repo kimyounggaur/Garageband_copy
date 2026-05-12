@@ -12,6 +12,7 @@ import {
 import type { StudioRepositories } from "./repositories";
 import type { RepositoryMode } from "../repositories/cloudTypes";
 import { createMockCloudRepositories } from "../repositories/mockCloudRepositories";
+import { createSupabaseRepositories } from "../repositories/supabaseRepositories";
 
 const localProjectRepository = new LocalProjectRepository();
 const localRepositories: StudioRepositories & { projects: LocalProjectRepository } = {
@@ -26,17 +27,21 @@ const localRepositories: StudioRepositories & { projects: LocalProjectRepository
   lessons: new LocalLessonRepository()
 };
 const mockCloudRepositories = createMockCloudRepositories();
+const supabaseRepositories = createSupabaseRepositories();
 const listeners = new Set<(mode: RepositoryMode) => void>();
 
 function readRepositoryMode(): RepositoryMode {
   const mode = globalThis.localStorage?.getItem("webband.repositoryMode");
-  return mode === "mockCloud" ? "mockCloud" : "local";
+  if (mode === "mockCloud" || mode === "supabase") return mode;
+  return "local";
 }
 
 let repositoryMode: RepositoryMode = readRepositoryMode();
 
 function activeRepositories() {
-  return repositoryMode === "mockCloud" ? mockCloudRepositories : localRepositories;
+  if (repositoryMode === "mockCloud") return mockCloudRepositories;
+  if (repositoryMode === "supabase") return supabaseRepositories;
+  return localRepositories;
 }
 
 function routedRepository<TKey extends keyof StudioRepositories>(key: TKey): StudioRepositories[TKey] {

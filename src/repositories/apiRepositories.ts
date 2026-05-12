@@ -14,9 +14,10 @@ import type {
   TeacherProfileRepository
 } from "../db/repositories";
 
-type ApiRepositoryOptions = {
+export type ApiRepositoryOptions = {
   baseUrl: string;
   fetcher?: typeof fetch;
+  getAuthToken?: () => string | undefined;
 };
 
 function joinUrl(baseUrl: string, path: string) {
@@ -25,14 +26,17 @@ function joinUrl(baseUrl: string, path: string) {
 
 async function apiJson<T>(options: ApiRepositoryOptions, path: string, init?: RequestInit): Promise<T> {
   const fetcher = options.fetcher ?? fetch;
+  const token = options.getAuthToken?.();
   const response = await fetcher(joinUrl(options.baseUrl, path), {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {})
     }
   });
   if (!response.ok) throw new Error(`API 요청 실패: ${response.status}`);
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -49,6 +53,11 @@ export class ApiProjectRepository implements ProjectRepository {
   async loadProject(projectId: string) {
     const project = await apiJson<Project | undefined>(this.options, `/projects/${projectId}`);
     return project ? normalizeProject(project) : undefined;
+  }
+
+  async loadLastProject() {
+    const projects = await this.listProjects();
+    return projects[0];
   }
 
   async listProjects() {
@@ -238,9 +247,11 @@ export class ApiAudioAssetRepository implements AudioAssetRepository {
     formData.set("createdAt", String(asset.createdAt));
     formData.set("blob", asset.blob);
     const fetcher = this.options.fetcher ?? fetch;
+    const token = this.options.getAuthToken?.();
     const response = await fetcher(joinUrl(this.options.baseUrl, "/audio-assets"), {
       method: "PUT",
-      body: formData
+      body: formData,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
     });
     if (!response.ok) throw new Error(`API 요청 실패: ${response.status}`);
     return asset;

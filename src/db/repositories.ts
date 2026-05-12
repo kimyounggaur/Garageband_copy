@@ -4,6 +4,7 @@ import type { AudioAsset, Project } from "../types/project";
 export type ProjectRepository = {
   saveProject: (project: Project) => Promise<void>;
   loadProject: (projectId: string) => Promise<Project | undefined>;
+  loadLastProject: () => Promise<Project | undefined>;
   listProjects: () => Promise<Project[]>;
   deleteProject: (projectId: string) => Promise<void>;
 };

@@ -1,14 +1,17 @@
 import type { Assignment, Submission } from "../education/types";
 import type { Project } from "../types/project";
 
-export type RepositoryMode = "local" | "mockCloud";
+export type RepositoryMode = "local" | "mockCloud" | "supabase";
 
 export type CloudRole = "student" | "teacher";
 
 export type CloudIdentity = {
   id: string;
+  email?: string;
   displayName: string;
   role: CloudRole;
+  accessToken?: string;
+  expiresAt?: number;
 };
 
 export type ClassRoom = {
