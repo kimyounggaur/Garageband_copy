@@ -22,6 +22,7 @@ export const Lock = LucideIcons.Lock;
 export const MessageSquare = LucideIcons.MessageSquare;
 export const Mic = LucideIcons.Mic;
 export const Music2 = LucideIcons.Music2;
+export const Pencil = LucideIcons.Pencil;
 export const Play = LucideIcons.Play;
 export const PlayCircle = LucideIcons.PlayCircle;
 export const Plus = LucideIcons.Plus;

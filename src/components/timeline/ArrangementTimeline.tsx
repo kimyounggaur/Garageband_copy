@@ -1,4 +1,5 @@
-import { Plus } from "../icons";
+import { Copy, Keyboard, Pencil, Plus, Trash2, Volume2 } from "../icons";
+import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
 import { trackRoleLabel } from "../../utils/labels";
@@ -13,6 +14,13 @@ import {
   type SnapBeats
 } from "../../utils/timeline";
 import { TrackLane } from "./TrackLane";
+import type { Track } from "../../types/project";
+
+type TrackMenuState = {
+  x: number;
+  y: number;
+  trackId: string;
+};
 
 function snapLabel(snapBeats: number) {
   if (snapBeats === 0.25) return "1/4";
@@ -29,9 +37,17 @@ function getTimelineBeats() {
   return Math.max(DEFAULT_PROJECT_BEATS, Math.ceil(end / 4) * 4);
 }
 
+function menuPosition(clientX: number, clientY: number) {
+  return {
+    x: Math.min(Math.max(clientX, 8), Math.max(8, window.innerWidth - 236)),
+    y: Math.min(Math.max(clientY, 8), Math.max(8, window.innerHeight - 272))
+  };
+}
+
 export function ArrangementTimeline() {
   const timelineViewportRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
+  const [trackMenu, setTrackMenu] = useState<TrackMenuState | undefined>();
   const project = useDawStore((state) => state.project);
   const currentBeat = useDawStore((state) => state.currentBeat);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
@@ -39,11 +55,19 @@ export function ArrangementTimeline() {
   const timelineZoom = useDawStore((state) => state.timelineZoom);
   const preventClipOverlap = useDawStore((state) => state.preventClipOverlap);
   const selectTrack = useDawStore((state) => state.selectTrack);
+  const selectClip = useDawStore((state) => state.selectClip);
   const addTrack = useDawStore((state) => state.addTrack);
+  const addMidiClip = useDawStore((state) => state.addMidiClip);
+  const renameTrack = useDawStore((state) => state.renameTrack);
+  const duplicateTrack = useDawStore((state) => state.duplicateTrack);
+  const removeTrack = useDawStore((state) => state.removeTrack);
+  const toggleMute = useDawStore((state) => state.toggleMute);
+  const toggleSolo = useDawStore((state) => state.toggleSolo);
   const setSnapBeats = useDawStore((state) => state.setSnapBeats);
   const setTimelineZoom = useDawStore((state) => state.setTimelineZoom);
   const setPreventClipOverlap = useDawStore((state) => state.setPreventClipOverlap);
   const totalBeats = useMemo(getTimelineBeats, [project]);
+  const menuTrack = project.tracks.find((track) => track.id === trackMenu?.trackId);
   const bars = Array.from({ length: Math.ceil(totalBeats / 4) }, (_, index) => index + 1);
   const pixelsPerBeat = pixelsPerBeatForZoom(timelineZoom);
   const width = Math.max(totalBeats * pixelsPerBeat, viewportWidth);
@@ -59,6 +83,43 @@ export function ArrangementTimeline() {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!trackMenu) return;
+    const closeMenu = () => setTrackMenu(undefined);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("contextmenu", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("contextmenu", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [trackMenu]);
+
+  function openTrackMenu(event: MouseEvent<HTMLButtonElement>, track: Track) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectTrack(track.id);
+    selectClip(undefined);
+    setTrackMenu({ ...menuPosition(event.clientX, event.clientY), trackId: track.id });
+  }
+
+  function runTrackMenuAction(action: () => void) {
+    setTrackMenu(undefined);
+    action();
+  }
+
+  function renameSelectedTrack(track: Track) {
+    const nextName = window.prompt("트랙 이름을 입력하세요.", track.name)?.trim();
+    if (nextName) renameTrack(track.id, nextName);
+  }
 
   return (
     <section className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
@@ -127,6 +188,7 @@ export function ArrangementTimeline() {
               }`}
               style={{ height: TRACK_HEIGHT }}
               onClick={() => selectTrack(track.id)}
+              onContextMenu={(event) => openTrackMenu(event, track)}
             >
               <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
               <span className="min-w-0">
@@ -137,6 +199,81 @@ export function ArrangementTimeline() {
               </span>
             </button>
           ))}
+          {trackMenu && menuTrack ? (
+            <div
+              className="fixed z-[85] w-56 overflow-hidden rounded-lg border border-white/10 bg-studio-900/98 p-1 text-slate-100 shadow-2xl shadow-black/50 backdrop-blur"
+              style={{ left: trackMenu.x, top: trackMenu.y }}
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              role="menu"
+              aria-label={`${menuTrack.name} 트랙 메뉴`}
+            >
+              <div className="border-b border-white/10 px-2 py-2">
+                <div className="truncate text-xs font-black text-slate-100">{menuTrack.name}</div>
+                <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                  <span>{trackRoleLabel(menuTrack.role ?? menuTrack.type)}</span>
+                  <span>클립 {menuTrack.clips.length}개</span>
+                </div>
+              </div>
+
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                onClick={() => runTrackMenuAction(() => renameSelectedTrack(menuTrack))}
+                role="menuitem"
+              >
+                <Pencil size={14} />
+                트랙 이름 변경
+              </button>
+              <button
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
+                  menuTrack.type === "audio" ? "cursor-not-allowed text-slate-600" : "text-slate-200 hover:bg-white/[0.08]"
+                }`}
+                onClick={() =>
+                  menuTrack.type === "audio" ? undefined : runTrackMenuAction(() => addMidiClip(menuTrack.id, currentBeat))
+                }
+                disabled={menuTrack.type === "audio"}
+                role="menuitem"
+              >
+                <Keyboard size={14} />
+                현재 위치에 MIDI 클립
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                onClick={() => runTrackMenuAction(() => duplicateTrack(menuTrack.id))}
+                role="menuitem"
+              >
+                <Copy size={14} />
+                트랙 복제
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                onClick={() => runTrackMenuAction(() => toggleMute(menuTrack.id))}
+                role="menuitem"
+              >
+                <Volume2 size={14} />
+                {menuTrack.muted ? "음소거 해제" : "트랙 음소거"}
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                onClick={() => runTrackMenuAction(() => toggleSolo(menuTrack.id))}
+                role="menuitem"
+              >
+                <Volume2 size={14} />
+                {menuTrack.solo ? "솔로 해제" : "트랙 솔로"}
+              </button>
+              <button
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
+                  project.tracks.length <= 1 ? "cursor-not-allowed text-slate-600" : "text-red-200 hover:bg-red-500/12"
+                }`}
+                onClick={() => (project.tracks.length <= 1 ? undefined : runTrackMenuAction(() => removeTrack(menuTrack.id)))}
+                disabled={project.tracks.length <= 1}
+                role="menuitem"
+              >
+                <Trash2 size={14} />
+                {project.tracks.length <= 1 ? "마지막 트랙" : "트랙 삭제"}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div ref={timelineViewportRef} className="min-w-0 overflow-auto bg-studio-950/80">

@@ -49,6 +49,7 @@ type DawState = {
   setPreventClipOverlap: (preventClipOverlap: boolean) => void;
   addTrack: (type?: TrackType, name?: string) => string;
   renameTrack: (trackId: string, name: string) => void;
+  duplicateTrack: (trackId: string) => string | undefined;
   removeTrack: (trackId: string) => void;
   addClip: (trackId: string, clip: ClipDraft) => string;
   addLoopClip: (loopId: string, trackId?: string, startBeat?: number) => string;
@@ -539,8 +540,41 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
+  duplicateTrack: (trackId) => {
+    let duplicatedTrackId: string | undefined;
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+
+      duplicatedTrackId = makeId("track");
+      const duplicatedTrack: Track = {
+        ...track,
+        id: duplicatedTrackId,
+        name: `${track.name} 복사`,
+        clips: track.clips.map((clip) => ({
+          ...clip,
+          id: makeId("clip"),
+          trackId: duplicatedTrackId!,
+          locked: false,
+          notes: clip.notes?.map((note) => ({ ...note, id: makeId("note") }))
+        }))
+      };
+
+      return commitProjectChange(
+        state,
+        touch({ ...state.project, tracks: [...state.project.tracks, duplicatedTrack] }),
+        {
+          selectedTrackId: duplicatedTrack.id,
+          selectedClipId: duplicatedTrack.clips[0]?.id
+        }
+      );
+    });
+    return duplicatedTrackId;
+  },
+
   removeTrack: (trackId) => {
     set((state) => {
+      if (state.project.tracks.length <= 1) return state;
       const tracks = state.project.tracks.filter((track) => track.id !== trackId);
       if (tracks.length === state.project.tracks.length) return state;
       return commitProjectChange(state, touch({ ...state.project, tracks }), {
