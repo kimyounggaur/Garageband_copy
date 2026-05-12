@@ -280,14 +280,22 @@ export const LESSONS: Lesson[] = [
   }
 ];
 
-export function getLessonById(lessonId?: string) {
-  return LESSONS.find((lesson) => lesson.id === lessonId);
+let registeredCustomLessons: Lesson[] = [];
+
+export function registerCustomLessons(lessons: Lesson[]) {
+  registeredCustomLessons = lessons;
 }
 
-export function createLessonProject(lessonId: string): Project | undefined {
-  const lesson = getLessonById(lessonId);
-  if (!lesson) return undefined;
+export function getAllLessons() {
+  const customIds = new Set(registeredCustomLessons.map((lesson) => lesson.id));
+  return [...LESSONS.filter((lesson) => !customIds.has(lesson.id)), ...registeredCustomLessons];
+}
 
+export function getLessonById(lessonId?: string) {
+  return getAllLessons().find((lesson) => lesson.id === lessonId);
+}
+
+export function cloneLessonProject(lesson: Lesson, name = `${lesson.title} - 나의 작업`): Project {
   const trackMap = new Map<string, string>();
   const tracks = lesson.templateProject.tracks.map((sourceTrack) => {
     const trackId = makeId("track");
@@ -317,11 +325,16 @@ export function createLessonProject(lessonId: string): Project | undefined {
     ...lesson.templateProject,
     id: makeId("project"),
     version: CURRENT_PROJECT_VERSION,
-    name: `${lesson.title} - 나의 작업`,
+    name,
     lessonId: lesson.id,
     lessonProgress: {},
     tracks: tracksWithClips,
     createdAt: timestamp,
     updatedAt: timestamp
   };
+}
+
+export function createLessonProject(lessonId: string): Project | undefined {
+  const lesson = getLessonById(lessonId);
+  return lesson ? cloneLessonProject(lesson) : undefined;
 }

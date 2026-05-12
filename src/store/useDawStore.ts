@@ -410,6 +410,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       id: makeId("project"),
       name: assignment.title,
       assignmentId: assignment.id,
+      classId: assignment.classId,
       lessonId: assignment.lessonId,
       createdAt: now(),
       updatedAt: now()

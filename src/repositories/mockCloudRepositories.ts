@@ -1,12 +1,28 @@
-import type { Assignment, Submission } from "../education/types";
+import type { Assignment, ClassRoom, Enrollment, Lesson, StudentProfile, Submission, TeacherProfile } from "../education/types";
 import type { AudioAsset, Project } from "../types/project";
 import { normalizeProject } from "../utils/projectMigration";
 import { db } from "../db/projectsDb";
-import type { AssignmentRepository, AudioAssetRepository, ProjectRepository, StudioRepositories, SubmissionRepository } from "../db/repositories";
+import type {
+  AssignmentRepository,
+  AudioAssetRepository,
+  ClassRoomRepository,
+  EnrollmentRepository,
+  LessonRepository,
+  ProjectRepository,
+  StudioRepositories,
+  StudentProfileRepository,
+  SubmissionRepository,
+  TeacherProfileRepository
+} from "../db/repositories";
 
 const PROJECTS_KEY = "webband.mockCloud.projects";
 const ASSIGNMENTS_KEY = "webband.mockCloud.assignments";
 const SUBMISSIONS_KEY = "webband.mockCloud.submissions";
+const CLASSROOMS_KEY = "webband.mockCloud.classRooms";
+const STUDENTS_KEY = "webband.mockCloud.students";
+const TEACHERS_KEY = "webband.mockCloud.teachers";
+const ENROLLMENTS_KEY = "webband.mockCloud.enrollments";
+const LESSONS_KEY = "webband.mockCloud.lessons";
 const LAST_PROJECT_KEY = "webband.mockCloud.lastProjectId";
 const AUDIO_PROJECT_PREFIX = "mock-cloud:";
 
@@ -113,6 +129,21 @@ export class MockCloudSubmissionRepository implements SubmissionRepository {
     return submission;
   }
 
+  async updateSubmissionFeedback(submissionId: string, feedback: string, status: Submission["status"] = "reviewed") {
+    await mockLatency();
+    const submissions = readJson<Submission[]>(SUBMISSIONS_KEY, []);
+    const submission = submissions.find((item) => item.id === submissionId);
+    if (!submission) return undefined;
+    const updated: Submission = {
+      ...submission,
+      status,
+      teacherFeedback: feedback,
+      teacherFeedbackUpdatedAt: Date.now()
+    };
+    writeJson(SUBMISSIONS_KEY, [updated, ...submissions.filter((item) => item.id !== submissionId)]);
+    return updated;
+  }
+
   async listSubmissions() {
     await mockLatency();
     return readJson<Submission[]>(SUBMISSIONS_KEY, []).sort((left, right) => right.submittedAt - left.submittedAt);
@@ -123,6 +154,151 @@ export class MockCloudSubmissionRepository implements SubmissionRepository {
     return readJson<Submission[]>(SUBMISSIONS_KEY, [])
       .filter((submission) => submission.assignmentId === assignmentId)
       .sort((left, right) => right.submittedAt - left.submittedAt);
+  }
+}
+
+export class MockCloudClassRoomRepository implements ClassRoomRepository {
+  async saveClassRoom(classRoom: ClassRoom) {
+    await mockLatency();
+    const classRooms = readJson<ClassRoom[]>(CLASSROOMS_KEY, []);
+    writeJson(CLASSROOMS_KEY, [classRoom, ...classRooms.filter((item) => item.id !== classRoom.id)]);
+    return classRoom;
+  }
+
+  async loadClassRoom(classRoomId: string) {
+    await mockLatency();
+    return readJson<ClassRoom[]>(CLASSROOMS_KEY, []).find((classRoom) => classRoom.id === classRoomId);
+  }
+
+  async listClassRooms() {
+    await mockLatency();
+    return readJson<ClassRoom[]>(CLASSROOMS_KEY, []).sort((left, right) => right.updatedAt - left.updatedAt);
+  }
+
+  async deleteClassRoom(classRoomId: string) {
+    await mockLatency();
+    writeJson(
+      CLASSROOMS_KEY,
+      readJson<ClassRoom[]>(CLASSROOMS_KEY, []).filter((classRoom) => classRoom.id !== classRoomId)
+    );
+    writeJson(
+      ENROLLMENTS_KEY,
+      readJson<Enrollment[]>(ENROLLMENTS_KEY, []).filter((enrollment) => enrollment.classId !== classRoomId)
+    );
+  }
+}
+
+export class MockCloudStudentProfileRepository implements StudentProfileRepository {
+  async saveStudent(student: StudentProfile) {
+    await mockLatency();
+    const students = readJson<StudentProfile[]>(STUDENTS_KEY, []);
+    writeJson(STUDENTS_KEY, [student, ...students.filter((item) => item.id !== student.id)]);
+    return student;
+  }
+
+  async loadStudent(studentId: string) {
+    await mockLatency();
+    return readJson<StudentProfile[]>(STUDENTS_KEY, []).find((student) => student.id === studentId);
+  }
+
+  async listStudents() {
+    await mockLatency();
+    return readJson<StudentProfile[]>(STUDENTS_KEY, []).sort((left, right) => right.updatedAt - left.updatedAt);
+  }
+
+  async deleteStudent(studentId: string) {
+    await mockLatency();
+    writeJson(
+      STUDENTS_KEY,
+      readJson<StudentProfile[]>(STUDENTS_KEY, []).filter((student) => student.id !== studentId)
+    );
+    writeJson(
+      ENROLLMENTS_KEY,
+      readJson<Enrollment[]>(ENROLLMENTS_KEY, []).filter((enrollment) => enrollment.studentId !== studentId)
+    );
+  }
+}
+
+export class MockCloudTeacherProfileRepository implements TeacherProfileRepository {
+  async saveTeacher(teacher: TeacherProfile) {
+    await mockLatency();
+    const teachers = readJson<TeacherProfile[]>(TEACHERS_KEY, []);
+    writeJson(TEACHERS_KEY, [teacher, ...teachers.filter((item) => item.id !== teacher.id)]);
+    return teacher;
+  }
+
+  async loadTeacher(teacherId: string) {
+    await mockLatency();
+    return readJson<TeacherProfile[]>(TEACHERS_KEY, []).find((teacher) => teacher.id === teacherId);
+  }
+
+  async listTeachers() {
+    await mockLatency();
+    return readJson<TeacherProfile[]>(TEACHERS_KEY, []).sort((left, right) => right.updatedAt - left.updatedAt);
+  }
+
+  async deleteTeacher(teacherId: string) {
+    await mockLatency();
+    writeJson(
+      TEACHERS_KEY,
+      readJson<TeacherProfile[]>(TEACHERS_KEY, []).filter((teacher) => teacher.id !== teacherId)
+    );
+  }
+}
+
+export class MockCloudEnrollmentRepository implements EnrollmentRepository {
+  async saveEnrollment(enrollment: Enrollment) {
+    await mockLatency();
+    const enrollments = readJson<Enrollment[]>(ENROLLMENTS_KEY, []);
+    writeJson(ENROLLMENTS_KEY, [enrollment, ...enrollments.filter((item) => item.id !== enrollment.id)]);
+    return enrollment;
+  }
+
+  async listEnrollments() {
+    await mockLatency();
+    return readJson<Enrollment[]>(ENROLLMENTS_KEY, []).sort((left, right) => right.joinedAt - left.joinedAt);
+  }
+
+  async listEnrollmentsForClass(classRoomId: string) {
+    await mockLatency();
+    return readJson<Enrollment[]>(ENROLLMENTS_KEY, [])
+      .filter((enrollment) => enrollment.classId === classRoomId)
+      .sort((left, right) => right.joinedAt - left.joinedAt);
+  }
+
+  async deleteEnrollment(enrollmentId: string) {
+    await mockLatency();
+    writeJson(
+      ENROLLMENTS_KEY,
+      readJson<Enrollment[]>(ENROLLMENTS_KEY, []).filter((enrollment) => enrollment.id !== enrollmentId)
+    );
+  }
+}
+
+export class MockCloudLessonRepository implements LessonRepository {
+  async saveLesson(lesson: Lesson) {
+    await mockLatency();
+    const lessons = readJson<Lesson[]>(LESSONS_KEY, []);
+    writeJson(LESSONS_KEY, [lesson, ...lessons.filter((item) => item.id !== lesson.id)]);
+    return lesson;
+  }
+
+  async loadLesson(lessonId: string) {
+    await mockLatency();
+    return readJson<Lesson[]>(LESSONS_KEY, []).find((lesson) => lesson.id === lessonId);
+  }
+
+  async listLessons() {
+    await mockLatency();
+    return readJson<Lesson[]>(LESSONS_KEY, []).sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
+  }
+
+  async deleteLesson(lessonId: string) {
+    await mockLatency();
+    writeJson(
+      LESSONS_KEY,
+      readJson<Lesson[]>(LESSONS_KEY, []).filter((lesson) => lesson.id !== lessonId)
+    );
   }
 }
 
@@ -172,6 +348,11 @@ export function createMockCloudRepositories(): StudioRepositories & { projects: 
     projects: new MockCloudProjectRepository(),
     assignments: new MockCloudAssignmentRepository(),
     submissions: new MockCloudSubmissionRepository(),
-    audioAssets: new MockCloudAudioAssetRepository()
+    audioAssets: new MockCloudAudioAssetRepository(),
+    classRooms: new MockCloudClassRoomRepository(),
+    students: new MockCloudStudentProfileRepository(),
+    teachers: new MockCloudTeacherProfileRepository(),
+    enrollments: new MockCloudEnrollmentRepository(),
+    lessons: new MockCloudLessonRepository()
   };
 }

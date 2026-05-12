@@ -1,8 +1,9 @@
-import { RefreshCcw, Trash2 } from "lucide-react";
+import { Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { audioAssetRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { AudioAsset } from "../../types/project";
+import { snapBeat } from "../../utils/timeline";
 
 type AssetStatus = "idle" | "working" | "done" | "error";
 
@@ -22,6 +23,10 @@ function formatSize(blob: Blob) {
 
 export function AudioAssetsPanel() {
   const project = useDawStore((state) => state.project);
+  const addAudioClip = useDawStore((state) => state.addAudioClip);
+  const currentBeat = useDawStore((state) => state.currentBeat);
+  const selectedTrackId = useDawStore((state) => state.selectedTrackId);
+  const snapBeats = useDawStore((state) => state.snapBeats);
   const [assets, setAssets] = useState<AudioAsset[]>([]);
   const [status, setStatus] = useState<AssetStatus>("idle");
   const usedAssetIds = useMemo(() => {
@@ -80,6 +85,10 @@ export function AudioAssetsPanel() {
     }
   }
 
+  function insertAsset(asset: AudioAsset) {
+    addAudioClip(selectedTrackId, snapBeat(currentBeat, snapBeats), asset.name, undefined, asset.durationSeconds, asset.id);
+  }
+
   useEffect(() => {
     void refresh();
   }, [project.id, project.updatedAt]);
@@ -88,16 +97,16 @@ export function AudioAssetsPanel() {
     <div className="rounded-md border border-white/10 bg-black/20 p-2">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Audio Assets</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">샘플 라이브러리</div>
           <div className="text-[11px] font-semibold text-slate-500">
-            {assets.length} files · {assets.filter((asset) => !usedAssetIds.has(asset.id)).length} unused
+            파일 {assets.length}개 · 미사용 {assets.filter((asset) => !usedAssetIds.has(asset.id)).length}개
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button className="studio-icon-button h-7 w-7" onClick={() => void refresh()} title="Refresh audio assets" aria-label="Refresh audio assets">
+          <button className="studio-icon-button h-7 w-7" onClick={() => void refresh()} title="샘플 새로고침" aria-label="샘플 새로고침">
             <RefreshCcw size={13} />
           </button>
-          <button className="studio-icon-button h-7 w-7" onClick={() => void cleanUnusedAssets()} title="Clean unused audio assets" aria-label="Clean unused audio assets">
+          <button className="studio-icon-button h-7 w-7" onClick={() => void cleanUnusedAssets()} title="미사용 샘플 정리" aria-label="미사용 샘플 정리">
             <Trash2 size={13} />
           </button>
         </div>
@@ -105,14 +114,14 @@ export function AudioAssetsPanel() {
 
       {status === "error" ? (
         <div className="mb-2 rounded border border-meter-rose/30 bg-meter-rose/10 p-2 text-[11px] font-semibold text-rose-100">
-          오디오 asset 작업을 완료하지 못했어요.
+          오디오 샘플 작업을 완료하지 못했어요.
         </div>
       ) : null}
 
       <div className="max-h-40 space-y-1 overflow-y-auto">
         {assets.length === 0 ? (
           <div className="rounded-md border border-white/10 bg-white/[0.045] p-2 text-xs text-slate-500">
-            저장된 오디오가 아직 없습니다.
+            저장된 샘플이 아직 없습니다.
           </div>
         ) : (
           assets.map((asset) => {
@@ -129,14 +138,17 @@ export function AudioAssetsPanel() {
                       )
                     }
                     onBlur={(event) => void renameAsset(asset, event.target.value)}
-                    aria-label={`${asset.name} audio asset name`}
+                    aria-label={`${asset.name} 샘플 이름`}
                   />
+                  <button className="studio-icon-button h-7 w-7" onClick={() => insertAsset(asset)} title="타임라인에 삽입" aria-label={`${asset.name} 삽입`}>
+                    <Plus size={12} />
+                  </button>
                   <button
                     className="studio-icon-button h-7 w-7"
                     onClick={() => void deleteAsset(asset)}
                     disabled={used}
-                    title={used ? "Asset is used by a clip" : "Delete audio asset"}
-                    aria-label={`Delete ${asset.name}`}
+                    title={used ? "클립에서 사용 중입니다" : "샘플 삭제"}
+                    aria-label={`${asset.name} 삭제`}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -144,7 +156,7 @@ export function AudioAssetsPanel() {
                 <div className="mt-1 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
                   <span>{formatDuration(asset.durationSeconds)}</span>
                   <span>{formatSize(asset.blob)}</span>
-                  <span className={used ? "text-meter-green" : "text-meter-amber"}>{used ? "Used" : "Unused"}</span>
+                  <span className={used ? "text-meter-green" : "text-meter-amber"}>{used ? "사용 중" : "미사용"}</span>
                 </div>
               </div>
             );

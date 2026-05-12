@@ -23,7 +23,7 @@ export type ExternalAiAssistProvider = Partial<Omit<CreativeAssistAdapter, "id" 
 
 export const ruleBasedAssistAdapter: CreativeAssistAdapter = {
   id: "rules",
-  label: "Rules",
+  label: "규칙 기반",
   suggestChords: suggestChordProgressions,
   suggestDrums: generateDrumSuggestions,
   continueMelody,
@@ -33,7 +33,7 @@ export const ruleBasedAssistAdapter: CreativeAssistAdapter = {
 export function createExternalAiAssistAdapter(provider?: ExternalAiAssistProvider): CreativeAssistAdapter {
   return {
     id: "external-ai",
-    label: "AI Adapter",
+    label: "AI 연결",
     suggestChords: (project) => provider?.suggestChords?.(project) ?? ruleBasedAssistAdapter.suggestChords(project),
     suggestDrums: (project) => provider?.suggestDrums?.(project) ?? ruleBasedAssistAdapter.suggestDrums(project),
     continueMelody: (project, selectedClipId) =>

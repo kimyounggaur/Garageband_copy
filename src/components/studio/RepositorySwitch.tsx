@@ -5,7 +5,7 @@ import type { RepositoryMode } from "../../repositories/cloudTypes";
 import { useDawStore } from "../../store/useDawStore";
 
 function modeLabel(mode: RepositoryMode) {
-  return mode === "mockCloud" ? "Cloud Mock" : "Local";
+  return mode === "mockCloud" ? "모의 클라우드" : "로컬";
 }
 
 export function RepositorySwitch() {
@@ -34,24 +34,24 @@ export function RepositorySwitch() {
             mode === "local" ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
           }`}
           onClick={() => void changeMode("local")}
-          title="Use local storage"
+          title="로컬 저장소 사용"
         >
           <HardDrive size={13} />
-          Local
+          로컬
         </button>
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-black transition ${
             mode === "mockCloud" ? "bg-meter-amber text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
           }`}
           onClick={() => void changeMode("mockCloud")}
-          title="Use cloud mock storage"
+          title="모의 클라우드 저장소 사용"
         >
           <Cloud size={13} />
-          Cloud
+          클라우드
         </button>
       </div>
       <div className="mt-1 truncate px-1 text-[10px] font-semibold text-slate-500">
-        {status === "syncing" ? "Switching..." : status === "error" ? "Switch failed" : `${modeLabel(mode)} storage`}
+        {status === "syncing" ? "전환 중..." : status === "error" ? "전환 실패" : `${modeLabel(mode)} 저장소`}
       </div>
     </div>
   );

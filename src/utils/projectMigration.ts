@@ -18,10 +18,22 @@ function nonNegative(value: unknown, fallback = 0) {
 
 function inferRole(type: TrackType, name = ""): TrackRole {
   const lower = name.toLowerCase();
-  if (type === "drum" || lower.includes("beat") || lower.includes("drum")) return "beat";
-  if (type === "audio" || lower.includes("record")) return "recording";
-  if (lower.includes("bass")) return "bass";
-  if (lower.includes("chord") || lower.includes("key") || lower.includes("pad") || lower.includes("harmony")) return "harmony";
+  if (type === "drum" || lower.includes("beat") || lower.includes("drum") || name.includes("비트") || name.includes("드럼")) {
+    return "beat";
+  }
+  if (type === "audio" || lower.includes("record") || name.includes("녹음")) return "recording";
+  if (lower.includes("bass") || name.includes("베이스")) return "bass";
+  if (
+    lower.includes("chord") ||
+    lower.includes("key") ||
+    lower.includes("pad") ||
+    lower.includes("harmony") ||
+    name.includes("건반") ||
+    name.includes("화성") ||
+    name.includes("코드")
+  ) {
+    return "harmony";
+  }
   return "melody";
 }
 
@@ -91,6 +103,8 @@ export function normalizeProject(project: Project): Project {
     tracks: (loose.tracks ?? []).map(normalizeTrack),
     lessonId: loose.lessonId,
     assignmentId: loose.assignmentId,
+    classId: loose.classId,
+    studentId: loose.studentId,
     lessonProgress: loose.lessonProgress ?? {},
     createdAt: Number(loose.createdAt ?? timestamp),
     updatedAt: Number(loose.updatedAt ?? timestamp)

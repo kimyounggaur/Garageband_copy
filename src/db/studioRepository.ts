@@ -1,4 +1,14 @@
-import { LocalAssignmentRepository, LocalAudioAssetRepository, LocalProjectRepository, LocalSubmissionRepository } from "./localRepositories";
+import {
+  LocalAssignmentRepository,
+  LocalAudioAssetRepository,
+  LocalClassRoomRepository,
+  LocalEnrollmentRepository,
+  LocalLessonRepository,
+  LocalProjectRepository,
+  LocalStudentProfileRepository,
+  LocalSubmissionRepository,
+  LocalTeacherProfileRepository
+} from "./localRepositories";
 import type { StudioRepositories } from "./repositories";
 import type { RepositoryMode } from "../repositories/cloudTypes";
 import { createMockCloudRepositories } from "../repositories/mockCloudRepositories";
@@ -8,7 +18,12 @@ const localRepositories: StudioRepositories & { projects: LocalProjectRepository
   projects: localProjectRepository,
   assignments: new LocalAssignmentRepository(),
   submissions: new LocalSubmissionRepository(),
-  audioAssets: new LocalAudioAssetRepository()
+  audioAssets: new LocalAudioAssetRepository(),
+  classRooms: new LocalClassRoomRepository(),
+  students: new LocalStudentProfileRepository(),
+  teachers: new LocalTeacherProfileRepository(),
+  enrollments: new LocalEnrollmentRepository(),
+  lessons: new LocalLessonRepository()
 };
 const mockCloudRepositories = createMockCloudRepositories();
 const listeners = new Set<(mode: RepositoryMode) => void>();
@@ -41,13 +56,23 @@ export const studioRepositories: StudioRepositories = {
   projects: routedRepository("projects"),
   assignments: routedRepository("assignments"),
   submissions: routedRepository("submissions"),
-  audioAssets: routedRepository("audioAssets")
+  audioAssets: routedRepository("audioAssets"),
+  classRooms: routedRepository("classRooms"),
+  students: routedRepository("students"),
+  teachers: routedRepository("teachers"),
+  enrollments: routedRepository("enrollments"),
+  lessons: routedRepository("lessons")
 };
 
 export const projectRepository = studioRepositories.projects;
 export const assignmentRepository = studioRepositories.assignments;
 export const submissionRepository = studioRepositories.submissions;
 export const audioAssetRepository = studioRepositories.audioAssets;
+export const classRoomRepository = studioRepositories.classRooms;
+export const studentRepository = studioRepositories.students;
+export const teacherRepository = studioRepositories.teachers;
+export const enrollmentRepository = studioRepositories.enrollments;
+export const lessonRepository = studioRepositories.lessons;
 
 export function getRepositoryMode() {
   return repositoryMode;

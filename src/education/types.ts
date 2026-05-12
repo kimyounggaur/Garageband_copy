@@ -2,6 +2,7 @@ import type { Project, TrackRole } from "../types/project";
 
 export type StudioMode = "studio" | "lesson" | "review";
 export type LessonDifficulty = "starter" | "builder" | "challenge";
+export type SubmissionStatus = "draft" | "submitted" | "resubmitted" | "needsWork" | "reviewed";
 
 export type MissionCheck =
   | { type: "minTrackClipBeats"; role: TrackRole; beats: number }
@@ -39,9 +40,24 @@ export type Assignment = {
   title: string;
   description: string;
   lessonId?: string;
+  classId?: string;
+  teacherId?: string;
+  assignedStudentIds?: string[];
   dueDate?: number;
   rubric: Rubric;
   createdAt: number;
+  updatedAt?: number;
+};
+
+export type AssignmentDraft = {
+  title: string;
+  description: string;
+  lessonId?: string;
+  classId?: string;
+  teacherId?: string;
+  assignedStudentIds?: string[];
+  dueDate?: number;
+  rubric?: Rubric;
 };
 
 export type Lesson = {
@@ -53,6 +69,55 @@ export type Lesson = {
   templateProject: Project;
   missions: Mission[];
   rubric: Rubric;
+  custom?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+  authorId?: string;
+};
+
+export type LessonDraft = {
+  title: string;
+  goal: string;
+  difficulty: LessonDifficulty;
+  estimatedMinutes: number;
+  templateProject: Project;
+  missions: Mission[];
+  rubric: Rubric;
+  authorId?: string;
+};
+
+export type TeacherProfile = {
+  id: string;
+  name: string;
+  email?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type StudentProfile = {
+  id: string;
+  name: string;
+  studentCode?: string;
+  email?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type ClassRoom = {
+  id: string;
+  title: string;
+  code: string;
+  description?: string;
+  teacherId?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type Enrollment = {
+  id: string;
+  classId: string;
+  studentId: string;
+  joinedAt: number;
 };
 
 export type MissionEvaluation = {
@@ -129,8 +194,16 @@ export type ReviewSummary = {
 export type Submission = {
   id: string;
   assignmentId: string;
+  classId?: string;
+  studentId?: string;
+  studentName?: string;
   projectId: string;
   submittedAt: number;
+  status?: SubmissionStatus;
+  attemptNumber?: number;
   reviewSnapshot: ReviewSummary;
   wavExportName?: string;
+  packageFileNames?: string[];
+  teacherFeedback?: string;
+  teacherFeedbackUpdatedAt?: number;
 };

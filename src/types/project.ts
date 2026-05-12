@@ -14,6 +14,8 @@ export type Project = {
   tracks: Track[];
   lessonId?: string;
   assignmentId?: string;
+  classId?: string;
+  studentId?: string;
   lessonProgress?: Record<string, MissionProgress>;
   createdAt: number;
   updatedAt: number;
