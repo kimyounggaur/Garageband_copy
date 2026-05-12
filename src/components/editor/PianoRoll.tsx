@@ -12,6 +12,7 @@ const MAX_PITCH = 84;
 const MIN_PITCH = 48;
 const ROW_HEIGHT = 18;
 const NOTE_BEAT_WIDTH = 52;
+const MIN_EDITABLE_BEATS = 32;
 
 function pitchName(pitch: number) {
   const names = ["도", "도#", "레", "레#", "미", "파", "파#", "솔", "솔#", "라", "라#", "시"];
@@ -31,7 +32,8 @@ export function PianoRoll({ clip }: PianoRollProps) {
     return Array.from({ length: MAX_PITCH - MIN_PITCH + 1 }, (_, index) => MAX_PITCH - index);
   }, []);
   const height = pitches.length * ROW_HEIGHT;
-  const width = `max(100%, ${Math.max(clip.lengthBeats * NOTE_BEAT_WIDTH, 640)}px)`;
+  const editableBeats = Math.max(clip.lengthBeats, MIN_EDITABLE_BEATS);
+  const width = `max(100%, ${editableBeats * NOTE_BEAT_WIDTH}px)`;
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -49,11 +51,11 @@ export function PianoRoll({ clip }: PianoRollProps) {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const pitch = clamp(MAX_PITCH - Math.floor(y / ROW_HEIGHT), MIN_PITCH, MAX_PITCH);
-    const startBeat = clamp(snapBeat(x / NOTE_BEAT_WIDTH, snapBeats), 0, Math.max(0, clip.lengthBeats - 0.25));
+    const startBeat = clamp(snapBeat(x / NOTE_BEAT_WIDTH, snapBeats), 0, Math.max(0, editableBeats - 0.25));
     const id = addNote(clip.id, {
       pitch,
       startBeat,
-      durationBeats: Math.min(1, clip.lengthBeats - startBeat),
+      durationBeats: Math.min(1, editableBeats - startBeat),
       velocity: 0.8
     });
     setSelectedNoteId(id);
@@ -74,7 +76,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
       moveNote(
         clip.id,
         note.id,
-        clamp(snapBeat(originalBeat + deltaBeat, snapBeats), 0, Math.max(0, clip.lengthBeats - note.durationBeats)),
+        clamp(snapBeat(originalBeat + deltaBeat, snapBeats), 0, Math.max(0, editableBeats - note.durationBeats)),
         clamp(originalPitch - deltaPitch, MIN_PITCH, MAX_PITCH),
         { recordHistory: false }
       );
@@ -104,7 +106,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
       resizeNote(
         clip.id,
         note.id,
-        clamp(snapBeat(originalDuration + deltaBeat, snapBeats), 0.25, Math.max(0.25, clip.lengthBeats - note.startBeat)),
+        clamp(snapBeat(originalDuration + deltaBeat, snapBeats), 0.25, Math.max(0.25, editableBeats - note.startBeat)),
         { recordHistory: false }
       );
     }

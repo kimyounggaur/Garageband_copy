@@ -613,7 +613,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       type: "midi",
       name: "미디 클립",
       startBeat,
-      lengthBeats: 4,
+      lengthBeats: 16,
       color: "#a78bfa",
       notes: []
     });
@@ -889,24 +889,23 @@ export const useDawStore = create<DawState>((set, get) => ({
     const id = makeId("note");
     set((state) => {
       const clip = findClip(state.project, clipId);
-      if (!clip) return state;
+      if (!clip || clip.type !== "midi" || clip.locked) return state;
       return commitProjectChange(
         state,
         updateClip(state.project, clipId, (item) => {
-          const nextStart = clamp(snapBeat(note.startBeat, state.snapBeats), 0, Math.max(0, item.lengthBeats - 0.25));
+          const nextStart = clamp(snapBeat(note.startBeat, state.snapBeats), 0, 256);
+          const nextDuration = Math.max(0.25, snapBeat(note.durationBeats, state.snapBeats));
+          const nextLength = Math.max(item.lengthBeats, nextStart + nextDuration);
           return {
             ...item,
+            lengthBeats: nextLength,
             notes: [
               ...(item.notes ?? []),
               {
                 ...note,
                 id,
                 startBeat: nextStart,
-                durationBeats: clamp(
-                  Math.max(0.25, snapBeat(note.durationBeats, state.snapBeats)),
-                  0.25,
-                  Math.max(0.25, item.lengthBeats - nextStart)
-                )
+                durationBeats: nextDuration
               }
             ]
           };
@@ -947,14 +946,16 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((state) => {
       const clip = findClip(state.project, clipId);
       const note = clip?.notes?.find((item) => item.id === noteId);
-      if (!clip || !note) return state;
-      const nextStart = clamp(snapBeat(startBeat, state.snapBeats), 0, Math.max(0, clip.lengthBeats - note.durationBeats));
+      if (!clip || clip.locked || !note) return state;
+      const nextStart = clamp(snapBeat(startBeat, state.snapBeats), 0, 256);
       const nextPitch = Math.max(24, Math.min(96, pitch));
-      if (nextStart === note.startBeat && nextPitch === note.pitch) return state;
+      const nextLength = Math.max(clip.lengthBeats, nextStart + note.durationBeats);
+      if (nextStart === note.startBeat && nextPitch === note.pitch && nextLength === clip.lengthBeats) return state;
       return commitProjectChange(
         state,
         updateClip(state.project, clipId, (item) => ({
           ...item,
+          lengthBeats: nextLength,
           notes: (item.notes ?? []).map((currentNote) =>
             currentNote.id === noteId ? { ...currentNote, startBeat: nextStart, pitch: nextPitch } : currentNote
           )
@@ -969,17 +970,19 @@ export const useDawStore = create<DawState>((set, get) => ({
     set((state) => {
       const clip = findClip(state.project, clipId);
       const note = clip?.notes?.find((item) => item.id === noteId);
-      if (!clip || !note) return state;
+      if (!clip || clip.locked || !note) return state;
       const nextDuration = clamp(
         Math.max(0.25, snapBeat(durationBeats, state.snapBeats)),
         0.25,
-        Math.max(0.25, clip.lengthBeats - note.startBeat)
+        Math.max(0.25, 256 - note.startBeat)
       );
-      if (nextDuration === note.durationBeats) return state;
+      const nextLength = Math.max(clip.lengthBeats, note.startBeat + nextDuration);
+      if (nextDuration === note.durationBeats && nextLength === clip.lengthBeats) return state;
       return commitProjectChange(
         state,
         updateClip(state.project, clipId, (item) => ({
           ...item,
+          lengthBeats: nextLength,
           notes: (item.notes ?? []).map((currentNote) =>
             currentNote.id === noteId ? { ...currentNote, durationBeats: nextDuration } : currentNote
           )

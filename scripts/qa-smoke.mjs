@@ -106,6 +106,7 @@ const {
   resolveClipFadeDurations,
   secondsPerBeat
 } = await server.ssrLoadModule("/src/audio/clipAudioMath.ts");
+const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
 
 const goodProject = project({
   tracks: [
@@ -277,6 +278,33 @@ test("오디오 trim/fade/gain 계산이 재생과 내보내기에서 공유 가
   assertApprox(clipGain(clip({ gain: -4 })), 0, "gain 하한");
   assertApprox(clipGain(clip({ gain: Number.NaN })), 1, "잘못된 gain 기본값");
   assertApprox(secondsPerBeat(0), 60, "비정상 BPM 보호");
+});
+
+test("미디 노트 입력이 4박에 갇히지 않고 클립 전체를 확장한다", () => {
+  const store = useDawStore.getState();
+  store.createProject("미디 입력 테스트");
+  const clipId = store.addMidiClip(undefined, 0);
+  let midiClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  assert(midiClip, "새 미디 클립 생성");
+  assertEqual(midiClip.lengthBeats, 16, "새 미디 클립 기본 길이");
+
+  const noteId = store.addNote(clipId, { pitch: 60, startBeat: 24, durationBeats: 2, velocity: 0.8 });
+  midiClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  const addedNote = midiClip.notes.find((item) => item.id === noteId);
+  assertEqual(addedNote.startBeat, 24, "4박 이후 위치에 노트 추가");
+  assertEqual(midiClip.lengthBeats, 26, "노트 추가 시 클립 자동 확장");
+
+  store.moveNote(clipId, noteId, 30, 62);
+  midiClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  const movedNote = midiClip.notes.find((item) => item.id === noteId);
+  assertEqual(movedNote.startBeat, 30, "노트를 뒤쪽 박자로 이동");
+  assertEqual(midiClip.lengthBeats, 32, "노트 이동 시 클립 자동 확장");
+
+  store.resizeNote(clipId, noteId, 4);
+  midiClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  const resizedNote = midiClip.notes.find((item) => item.id === noteId);
+  assertEqual(resizedNote.durationBeats, 4, "노트 길이 확장");
+  assertEqual(midiClip.lengthBeats, 34, "노트 길이 조절 시 클립 자동 확장");
 });
 
 let failed = false;
