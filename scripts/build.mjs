@@ -86,12 +86,6 @@ function syncPagesDocs(distRoot = join(root, "dist")) {
   const assetsRoot = join(docsRoot, "assets");
   mkdirSync(assetsRoot, { recursive: true });
   copyRecursive(join(distRoot, "assets"), assetsRoot);
-  const currentAssets = new Set(readdirSync(join(distRoot, "assets")));
-  for (const entry of readdirSync(assetsRoot)) {
-    if (!currentAssets.has(entry)) {
-      rmSync(join(assetsRoot, entry), { recursive: true, force: true });
-    }
-  }
   if (existsSync(join(distRoot, "samples"))) {
     copyRecursive(join(distRoot, "samples"), join(docsRoot, "samples"));
   }

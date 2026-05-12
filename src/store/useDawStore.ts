@@ -65,6 +65,7 @@ type DawState = {
   splitSelectedAudioClip: () => void;
   moveClip: (clipId: string, startBeat: number, targetTrackId?: string, options?: EditOptions) => void;
   resizeClip: (clipId: string, lengthBeats: number, options?: EditOptions) => void;
+  duplicateClip: (clipId: string) => string | undefined;
   removeClip: (clipId: string) => void;
   selectTrack: (trackId?: string) => void;
   selectClip: (clipId?: string) => void;
@@ -790,6 +791,44 @@ export const useDawStore = create<DawState>((set, get) => ({
         options
       );
     });
+  },
+
+  duplicateClip: (clipId) => {
+    let duplicatedId: string | undefined;
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.clips.some((clip) => clip.id === clipId));
+      const clip = track?.clips.find((item) => item.id === clipId);
+      if (!track || !clip) return state;
+
+      duplicatedId = makeId("clip");
+      const startBeat = state.preventClipOverlap
+        ? resolveNonOverlappingStart(track.clips, undefined, clip.startBeat + clip.lengthBeats, clip.lengthBeats, state.snapBeats)
+        : snapBeat(clip.startBeat + clip.lengthBeats, state.snapBeats);
+      const duplicatedClip: Clip = {
+        ...clip,
+        id: duplicatedId,
+        trackId: track.id,
+        name: `${clip.name} 복사`,
+        startBeat,
+        locked: false,
+        notes: clip.notes?.map((note) => ({ ...note, id: makeId("note") }))
+      };
+
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) =>
+            item.id === track.id ? { ...item, clips: [...item.clips, duplicatedClip] } : item
+          )
+        }),
+        {
+          selectedTrackId: track.id,
+          selectedClipId: duplicatedId
+        }
+      );
+    });
+    return duplicatedId;
   },
 
   removeClip: (clipId) => {
