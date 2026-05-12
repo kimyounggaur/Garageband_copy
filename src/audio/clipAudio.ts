@@ -1,34 +1,17 @@
 import { audioAssetRepository } from "../db/studioRepository";
 import type { Clip } from "../types/project";
+import { resolveClipAudioTiming } from "./clipAudioMath";
+export { clipGain, resolveClipAudioTiming, resolveClipFadeDurations, secondsPerBeat } from "./clipAudioMath";
+export type { ClipAudioTiming, ClipFadeDurations } from "./clipAudioMath";
 
 const MAX_PEAK_CACHE_ENTRIES = 24;
 const MAX_SAMPLES_PER_PEAK_BIN = 2048;
 const peakCache = new Map<string, Promise<PeakOverview>>();
 
-export type ClipAudioTiming = {
-  offsetSeconds: number;
-  durationSeconds: number;
-  sourceDurationSeconds: number;
-};
-
 export type PeakOverview = {
   peaks: Float32Array;
   durationSeconds: number;
 };
-
-export function clipGain(clip: Clip) {
-  const gain = Number(clip.gain ?? 1);
-  return Number.isFinite(gain) ? Math.max(0, gain) : 1;
-}
-
-export function secondsPerBeat(bpm: number) {
-  return 60 / Math.max(1, bpm);
-}
-
-function finiteSeconds(value: number | undefined) {
-  const seconds = Number(value ?? 0);
-  return Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-}
 
 function audioKey(clip: Clip, bins?: number) {
   if (clip.audioAssetId) return `asset:${clip.audioAssetId}:${bins ?? "raw"}`;
@@ -41,21 +24,6 @@ function rememberPeak(key: string, promise: Promise<PeakOverview>) {
   if (peakCache.size <= MAX_PEAK_CACHE_ENTRIES) return;
   const oldestKey = peakCache.keys().next().value as string | undefined;
   if (oldestKey) peakCache.delete(oldestKey);
-}
-
-export function resolveClipAudioTiming(clip: Clip, bpm: number, sourceDurationSeconds: number): ClipAudioTiming {
-  const trimStart = finiteSeconds(clip.trimStartSeconds);
-  const trimEnd = finiteSeconds(clip.trimEndSeconds);
-  const sourceEnd = Math.max(0, sourceDurationSeconds - trimEnd);
-  const offsetSeconds = Math.min(trimStart, sourceEnd);
-  const availableSeconds = Math.max(0, sourceEnd - offsetSeconds);
-  const timelineSeconds = Math.max(0, clip.lengthBeats * secondsPerBeat(bpm));
-
-  return {
-    offsetSeconds,
-    durationSeconds: Math.max(0, Math.min(availableSeconds, timelineSeconds)),
-    sourceDurationSeconds
-  };
 }
 
 export async function getClipAudioBlob(clip: Clip) {

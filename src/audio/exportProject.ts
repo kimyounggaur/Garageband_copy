@@ -1,6 +1,6 @@
 import { getLoopById } from "../data/loops";
 import type { Clip, LoopStep, Project, Track } from "../types/project";
-import { clipGain, getClipAudioBlob, resolveClipAudioTiming } from "./clipAudio";
+import { clipGain, getClipAudioBlob, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
 
 const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
@@ -193,8 +193,7 @@ async function scheduleAudioClip(context: OfflineAudioContext, project: Project,
     if (duration <= 0) return;
 
     source.buffer = decoded;
-    const fadeIn = Math.min(clip.fadeInSeconds ?? 0, duration / 2);
-    const fadeOut = Math.min(clip.fadeOutSeconds ?? 0, duration / 2);
+    const { fadeInSeconds: fadeIn, fadeOutSeconds: fadeOut } = resolveClipFadeDurations(clip, duration);
     gain.gain.setValueAtTime(fadeIn > 0 ? 0 : clipGainValue, start);
     if (fadeIn > 0) {
       gain.gain.linearRampToValueAtTime(clipGainValue, start + fadeIn);

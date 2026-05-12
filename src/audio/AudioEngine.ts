@@ -1,7 +1,7 @@
 import * as Tone from "tone";
 import { getLoopById } from "../data/loops";
 import type { Clip, Project } from "../types/project";
-import { clipGain, createClipAudioUrl, resolveClipAudioTiming } from "./clipAudio";
+import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
 
 type BeatCallback = (beat: number) => void;
 type EndCallback = () => void;
@@ -266,8 +266,9 @@ export class AudioEngine {
 
       const timing = resolveClipAudioTiming(clip, project.bpm, player.buffer.duration);
       if (timing.durationSeconds <= 0) return;
-      player.fadeIn = Math.min(clip.fadeInSeconds ?? 0, timing.durationSeconds / 2);
-      player.fadeOut = Math.min(clip.fadeOutSeconds ?? 0, timing.durationSeconds / 2);
+      const fades = resolveClipFadeDurations(clip, timing.durationSeconds);
+      player.fadeIn = fades.fadeInSeconds;
+      player.fadeOut = fades.fadeOutSeconds;
 
       const id = Tone.Transport.schedule((time) => {
         player.start(time, timing.offsetSeconds, timing.durationSeconds);
