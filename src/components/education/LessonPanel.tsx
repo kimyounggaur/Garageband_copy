@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Lightbulb, PlayCircle } from "lucide-react";
+import { CheckCircle2, Circle, Lightbulb, PlayCircle } from "../icons";
 import { summarizeLesson } from "../../education/evaluateMission";
 import { LESSONS, getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";

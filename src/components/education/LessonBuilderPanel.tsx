@@ -1,4 +1,4 @@
-import { Download, FileInput, Plus } from "lucide-react";
+import { Download, FileInput, Plus } from "../icons";
 import { useState } from "react";
 import { downloadBlob } from "../../audio/exportProject";
 import { lessonRepository } from "../../db/studioRepository";

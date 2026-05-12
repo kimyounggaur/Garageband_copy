@@ -1,5 +1,5 @@
 import type { PointerEvent } from "react";
-import { Lock } from "lucide-react";
+import { Lock } from "../icons";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
 import { clipTypeLabel } from "../../utils/labels";

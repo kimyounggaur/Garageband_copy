@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "../icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
 import { trackRoleLabel } from "../../utils/labels";

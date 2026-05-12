@@ -1,4 +1,4 @@
-import { Mic, Square, Upload } from "lucide-react";
+import { Mic, Square, Upload } from "../icons";
 import { useRef, useState } from "react";
 import { audioAssetRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";

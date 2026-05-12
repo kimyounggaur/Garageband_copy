@@ -1,4 +1,4 @@
-import { Drum, Keyboard, Plus, RefreshCcw, Trash2, Volume2 } from "lucide-react";
+import { Drum, Keyboard, Plus, RefreshCcw, Trash2, Volume2 } from "../icons";
 import { useEffect, useState } from "react";
 import { projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";

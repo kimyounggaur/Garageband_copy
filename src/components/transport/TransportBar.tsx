@@ -12,7 +12,7 @@ import {
   SlidersHorizontal,
   Square,
   Undo2
-} from "lucide-react";
+} from "../icons";
 import type { ReactNode } from "react";
 import type { StudioMode } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";

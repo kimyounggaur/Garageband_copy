@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Download, FileArchive, Info, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Circle, Download, FileArchive, Info, TriangleAlert } from "../icons";
 import { useEffect, useMemo, useState } from "react";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
 import { assignmentRepository } from "../../db/studioRepository";

@@ -1,4 +1,4 @@
-import { Cloud, HardDrive } from "lucide-react";
+import { Cloud, HardDrive } from "../icons";
 import { useEffect, useState } from "react";
 import { getRepositoryMode, projectRepository, setRepositoryMode, subscribeRepositoryMode } from "../../db/studioRepository";
 import type { RepositoryMode } from "../../repositories/cloudTypes";

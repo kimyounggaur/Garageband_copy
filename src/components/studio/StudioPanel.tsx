@@ -1,4 +1,4 @@
-import { GraduationCap, SlidersHorizontal } from "lucide-react";
+import { GraduationCap, SlidersHorizontal } from "../icons";
 import { useState } from "react";
 import { MixerPanel } from "../mixer/MixerPanel";
 import { StudentPanel } from "../education/StudentPanel";

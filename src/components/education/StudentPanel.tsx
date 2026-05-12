@@ -1,4 +1,4 @@
-import { CheckCircle2, Download, FileArchive, History, PlayCircle, RefreshCcw, UserPlus } from "lucide-react";
+import { CheckCircle2, Download, FileArchive, History, PlayCircle, RefreshCcw, UserPlus } from "../icons";
 import { useEffect, useMemo, useState } from "react";
 import { downloadBlob, exportProjectToWav } from "../../audio/exportProject";
 import {

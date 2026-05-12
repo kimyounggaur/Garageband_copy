@@ -1,4 +1,4 @@
-import { Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { Plus, RefreshCcw, Trash2 } from "../icons";
 import { useEffect, useMemo, useState } from "react";
 import { audioAssetRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";

@@ -1,7 +1,6 @@
-import { Drum, Lightbulb, Music2, Play, Plus, RotateCcw, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Drum, Lightbulb, Music2, Play, Plus, RotateCcw, Sparkles } from "../icons";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ruleBasedAssistAdapter } from "../../assist/aiAdapter";
-import { playAssistPreview, stopAssistPreview } from "../../assist/assistPreview";
 import {
   type ChordSuggestion,
   type DrumSuggestion,
@@ -12,6 +11,7 @@ import type { MidiNote } from "../../types/project";
 import { makeId } from "../../utils/id";
 
 type AssistTab = "chords" | "drums" | "melody" | "why";
+type AssistPreviewModule = typeof import("../../assist/assistPreview");
 
 function firstTrackIdFor(project: ReturnType<typeof useDawStore.getState>["project"], role: "beat" | "harmony" | "melody") {
   if (role === "beat") {
@@ -33,6 +33,7 @@ export function AssistPanel() {
   const selectClip = useDawStore((state) => state.selectClip);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const undo = useDawStore((state) => state.undo);
+  const previewModuleRef = useRef<AssistPreviewModule | null>(null);
   const adapter = ruleBasedAssistAdapter;
   const chordSuggestions = useMemo(() => adapter.suggestChords(project) as ChordSuggestion[], [adapter, project]);
   const drumSuggestions = useMemo(() => adapter.suggestDrums(project) as DrumSuggestion[], [adapter, project]);
@@ -43,13 +44,15 @@ export function AssistPanel() {
   const feedback = useMemo(() => adapter.explain(project, selectedClipId), [adapter, project, selectedClipId]);
 
   useEffect(() => {
-    return () => stopAssistPreview();
+    return () => previewModuleRef.current?.stopAssistPreview();
   }, []);
 
   async function preview(id: string, notes: Array<Omit<MidiNote, "id">>, drum = false) {
     setPreviewingId(id);
     try {
-      await playAssistPreview({ bpm: project.bpm, notes, drum });
+      const previewModule = await import("../../assist/assistPreview");
+      previewModuleRef.current = previewModule;
+      await previewModule.playAssistPreview({ bpm: project.bpm, notes, drum });
     } finally {
       window.setTimeout(() => setPreviewingId((current) => (current === id ? undefined : current)), 650);
     }
@@ -57,7 +60,7 @@ export function AssistPanel() {
 
   function markApplied(label: string) {
     setLastApplied(label);
-    stopAssistPreview();
+    previewModuleRef.current?.stopAssistPreview();
   }
 
   function undoLastApplied() {

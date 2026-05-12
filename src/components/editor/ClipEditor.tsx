@@ -1,4 +1,4 @@
-import { Scissors, Trash2, Wand2 } from "lucide-react";
+import { Scissors, Trash2, Wand2 } from "../icons";
 import { useEffect, useMemo, useState } from "react";
 import { measureClipPeak } from "../../audio/clipAudio";
 import { useDawStore } from "../../store/useDawStore";

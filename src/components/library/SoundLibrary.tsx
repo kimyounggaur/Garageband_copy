@@ -1,4 +1,4 @@
-import { Music2, Plus } from "lucide-react";
+import { Music2, Plus } from "../icons";
 import { useState } from "react";
 import { LOOP_CATEGORIES, LOOP_LIBRARY } from "../../data/loops";
 import { AudioAssetsPanel } from "../recording/AudioAssetsPanel";

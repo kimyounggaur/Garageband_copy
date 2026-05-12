@@ -1,4 +1,4 @@
-import { ClipboardList, Download, Eye, MessageSquare, Plus, RefreshCcw, Trash2, UserPlus, Users } from "lucide-react";
+import { ClipboardList, Download, Eye, MessageSquare, Plus, RefreshCcw, Trash2, UserPlus, Users } from "../icons";
 import { useEffect, useMemo, useState } from "react";
 import { downloadBlob } from "../../audio/exportProject";
 import {
