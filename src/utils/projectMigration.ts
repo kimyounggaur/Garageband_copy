@@ -1,5 +1,8 @@
-import { CURRENT_PROJECT_VERSION, type Clip, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
+import { getLoopById } from "../data/loops";
+import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "./id";
+import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
+import { repairBrokenText } from "./textRepair";
 
 type LooseProject = Partial<Project> & {
   tracks?: Partial<Track>[];
@@ -16,12 +19,17 @@ function nonNegative(value: unknown, fallback = 0) {
   return Number.isFinite(numberValue) ? Math.max(0, numberValue) : fallback;
 }
 
+function defaultClipName(type: ClipType, loopId?: string) {
+  if (loopId) return getLoopById(loopId)?.name ?? "루프 클립";
+  return `${clipTypeLabel(type)} 클립`;
+}
+
 function inferRole(type: TrackType, name = ""): TrackRole {
   const lower = name.toLowerCase();
   if (type === "drum" || lower.includes("beat") || lower.includes("drum") || name.includes("비트") || name.includes("드럼")) {
     return "beat";
   }
-  if (type === "audio" || lower.includes("record") || name.includes("녹음")) return "recording";
+  if (type === "audio" || lower.includes("record") || name.includes("녹음") || name.includes("오디오")) return "recording";
   if (lower.includes("bass") || name.includes("베이스")) return "bass";
   if (
     lower.includes("chord") ||
@@ -45,11 +53,14 @@ function normalizeTrackType(value?: string): TrackType {
 function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: number): Clip {
   const type = clip.type === "audio" || clip.type === "loop" || clip.type === "midi" ? clip.type : "midi";
   const gain = Number(clip.gain);
+  const fallbackName = defaultClipName(type, clip.loopId);
+  const instructions = repairBrokenText(clip.instructions, "");
+
   return {
     id: clip.id ?? makeId("clip"),
     trackId,
     type,
-    name: clip.name ?? (type === "midi" ? "미디 클립" : type === "loop" ? "루프 클립" : "오디오 클립"),
+    name: repairBrokenText(clip.name, fallbackName),
     startBeat: Math.max(0, Number(clip.startBeat ?? 0)),
     lengthBeats: Math.max(0.25, Number(clip.lengthBeats ?? 4)),
     color: clip.color ?? TRACK_COLORS[fallbackIndex % TRACK_COLORS.length],
@@ -69,19 +80,21 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
     fadeOutSeconds: nonNegative(clip.fadeOutSeconds),
     loopId: clip.loopId,
     locked: clip.locked ?? false,
-    instructions: clip.instructions
+    instructions: instructions || undefined
   };
 }
 
 function normalizeTrack(track: Partial<Track>, index: number): Track {
   const type = normalizeTrackType(track.type);
   const id = track.id ?? makeId("track");
-  const name = track.name ?? (type === "drum" ? "드럼" : type === "audio" ? "오디오" : "악기");
+  const role = track.role ?? inferRole(type, typeof track.name === "string" ? track.name : "");
+  const fallbackName = role ? trackRoleLabel(role) : trackTypeLabel(type);
+
   return {
     id,
-    name,
+    name: repairBrokenText(track.name, fallbackName),
     type,
-    role: track.role ?? inferRole(type, name),
+    role,
     volume: Math.max(0, Math.min(1, Number(track.volume ?? 0.82))),
     pan: Math.max(-1, Math.min(1, Number(track.pan ?? 0))),
     muted: Boolean(track.muted),
@@ -97,7 +110,7 @@ export function normalizeProject(project: Project): Project {
   return {
     id: loose.id ?? makeId("project"),
     version: CURRENT_PROJECT_VERSION,
-    name: loose.name?.trim() || "새 프로젝트",
+    name: repairBrokenText(loose.name, "새 프로젝트"),
     bpm: Math.round(Math.max(40, Math.min(220, Number(loose.bpm ?? 120)))),
     timeSignature: Array.isArray(loose.timeSignature) ? loose.timeSignature : [4, 4],
     tracks: (loose.tracks ?? []).map(normalizeTrack),

@@ -17,20 +17,20 @@ export function StudioPanel() {
             tab === "mixer" ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
           }`}
           onClick={() => setTab("mixer")}
-          title="Mixer"
+          title="믹서"
         >
           <SlidersHorizontal size={14} />
-          Mixer
+          믹서
         </button>
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-black transition ${
             tab === "class" ? "bg-meter-green text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
           }`}
           onClick={() => setTab("class")}
-          title="Class"
+          title="수업"
         >
           <GraduationCap size={14} />
-          Class
+          수업
         </button>
       </div>
 
