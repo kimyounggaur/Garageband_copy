@@ -132,6 +132,13 @@ const {
   normalizeLiveLoops
 } = await server.ssrLoadModule("/src/audio/liveLoops.ts");
 const {
+  createProjectFileBlob,
+  createStoredZipBlob,
+  normalizeExportOptions,
+  parseProjectFile,
+  resolveExportFileName
+} = await server.ssrLoadModule("/src/audio/exportProject.ts");
+const {
   buildRulerTicks,
   clipTypeRegionColor,
   formatBarBeatTick,
@@ -299,7 +306,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 11, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 12, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -1016,6 +1023,51 @@ test("Phase 10 store actions edit, trigger, and clear live loop cells", () => {
   liveLoops = useDawStore.getState().project.liveLoops;
   assertEqual(liveLoops.cells.some((item) => item.id === cellId), false, "live loop cell is cleared");
   assert(useDawStore.getState().undoStack.length > 0, "phase 10 edits are undoable");
+});
+
+test("Phase 11 export helpers normalize share options and project files", async () => {
+  const shareProject = project({
+    version: 12,
+    name: "My Mix!",
+    cycleEnabled: true,
+    cycleStart: 4,
+    cycleEnd: 12,
+    tracks: [
+      track({
+        id: "beat",
+        name: "Beat",
+        type: "drum",
+        clips: [clip({ id: "loop", trackId: "beat", type: "loop", loopId: "drums-grid" })]
+      })
+    ]
+  });
+
+  const options = normalizeExportOptions(shareProject, { format: "mp3", quality: "high", range: "cycle" });
+  assertEqual(options.requestedFormat, "mp3", "requested MP3 format is kept");
+  assertEqual(options.format, "mp3", "share options keep the requested format before rendering");
+  assertEqual(options.quality, "high", "quality is normalized");
+  assertDeepEqual([options.startBeat, options.endBeat], [4, 12], "cycle range is exported");
+  assertEqual(resolveExportFileName("My Mix!", "webband.json"), "My-Mix.webband.json", "project file name is safe");
+
+  const blob = createProjectFileBlob(shareProject);
+  assertEqual(blob.type, "application/json", "project file blob is JSON");
+  const parsed = await parseProjectFile(blob);
+  assertEqual(parsed.name, "My Mix!", "project file restores the project name");
+  assertEqual(parsed.version, 12, "project file restores the current version");
+});
+
+test("Phase 11 stored ZIP helper creates stem containers with named entries", async () => {
+  const zip = await createStoredZipBlob([
+    { name: "mix.wav", blob: new Blob([new Uint8Array([1, 2, 3])]) },
+    { name: "stems/beat.wav", blob: new Blob(["beat"]) }
+  ]);
+  const bytes = new Uint8Array(await zip.arrayBuffer());
+  const text = new TextDecoder().decode(bytes);
+
+  assertEqual(zip.type, "application/zip", "stem export is a zip blob");
+  assertEqual(String.fromCharCode(bytes[0], bytes[1]), "PK", "zip starts with a PK header");
+  assert(text.includes("mix.wav"), "zip contains the mix filename");
+  assert(text.includes("stems/beat.wav"), "zip contains the stem filename");
 });
 
 test("Phase 0 UI 컨트롤 변환이 노브, 페이더, 미터, LCD에서 일관된 값을 만든다", () => {

@@ -338,7 +338,7 @@ export function TransportBar({
           <Save size={15} />
           <span className="hidden sm:inline">{statusLabel(saveStatus, "Save")}</span>
         </button>
-        <button className="studio-button" onClick={onExport} title="Export WAV">
+        <button className="studio-button" onClick={onExport} title="Share and export">
           <Download size={15} />
           <span className="hidden sm:inline">{statusLabel(exportStatus, "Export")}</span>
         </button>

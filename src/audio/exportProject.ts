@@ -1,21 +1,108 @@
 import { getLoopById } from "../data/loops";
 import type { AutomationParam, Clip, LoopStep, Project, Track } from "../types/project";
-import { automationBaseValue, normalizeTrackAutomation } from "./automation";
-import { clipGain, getClipAudioBlob, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
+import { automationBaseValue, automationValueAtBeat, normalizeTrackAutomation } from "./automation";
+import { clipGain, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudioMath";
 import { normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackAudibleGain } from "./fx";
+import { normalizeProject } from "../utils/projectMigration";
 
 const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
+const MP3_FALLBACK_REASON = "MP3 encoding is not available in this offline renderer; exported WAV audio instead.";
+
+export type ExportAudioFormat = "wav" | "mp3";
+export type ExportQuality = "standard" | "high";
+export type ExportRangeMode = "full" | "cycle";
+
+export type ExportAudioOptions = {
+  format?: ExportAudioFormat;
+  quality?: ExportQuality;
+  range?: ExportRangeMode;
+};
+
+export type ResolvedExportOptions = {
+  requestedFormat: ExportAudioFormat;
+  format: ExportAudioFormat;
+  quality: ExportQuality;
+  range: ExportRangeMode;
+  startBeat: number;
+  endBeat: number;
+};
+
+export type ExportAudioResult = {
+  blob: Blob;
+  fileName: string;
+  format: "wav";
+  requestedFormat: ExportAudioFormat;
+  mimeType: "audio/wav";
+  fallbackReason?: string;
+};
 
 function beatSeconds(project: Project) {
   return 60 / Math.max(1, Number(project.bpm) || 120);
 }
 
-function projectDurationSeconds(project: Project) {
-  const endBeat = project.tracks.flatMap((track) => track.clips).reduce((max, clip) => {
+function projectEndBeat(project: Project) {
+  return project.tracks.flatMap((track) => track.clips).reduce((max, clip) => {
     return Math.max(max, clip.startBeat + clip.lengthBeats);
   }, 16);
-  return Math.max(16, endBeat) * beatSeconds(project) + 1;
+}
+
+function projectDurationSeconds(project: Project, range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">) {
+  return Math.max(0.25, range.endBeat - range.startBeat) * beatSeconds(project) + 1;
+}
+
+function clampBeat(value: unknown, fallback = 0) {
+  const beat = Number(value ?? fallback);
+  return Number.isFinite(beat) ? Math.max(0, beat) : fallback;
+}
+
+function safeBaseName(name: string) {
+  return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "webband-project";
+}
+
+function safeZipEntryName(name: string) {
+  return name
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part) => safeBaseName(part))
+    .filter(Boolean)
+    .join("/");
+}
+
+export function resolveExportFileName(projectName: string, extension: string) {
+  const cleanExtension = extension.replace(/^\.+/, "");
+  return `${safeBaseName(projectName)}.${cleanExtension || "wav"}`;
+}
+
+export function normalizeExportOptions(project: Project, options: ExportAudioOptions = {}): ResolvedExportOptions {
+  const requestedFormat = options.format === "mp3" ? "mp3" : "wav";
+  const quality = options.quality === "high" ? "high" : "standard";
+  const fullEndBeat = Math.max(16, projectEndBeat(project));
+  const cycleStart = clampBeat(project.cycleStart, 0);
+  const cycleEnd = Math.max(cycleStart + 0.25, clampBeat(project.cycleEnd, cycleStart + 8));
+  const useCycle = options.range === "cycle" && project.cycleEnabled && cycleEnd > cycleStart;
+
+  return {
+    requestedFormat,
+    format: requestedFormat,
+    quality,
+    range: useCycle ? "cycle" : "full",
+    startBeat: useCycle ? cycleStart : 0,
+    endBeat: useCycle ? cycleEnd : fullEndBeat
+  };
+}
+
+export function createProjectFileBlob(project: Project) {
+  const normalized = normalizeProject(project);
+  return new Blob([JSON.stringify(normalized, null, 2)], { type: "application/json" });
+}
+
+export async function parseProjectFile(file: Blob) {
+  const parsed = JSON.parse(await file.text());
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Project).tracks)) {
+    throw new Error("Invalid WebBand project file.");
+  }
+  return normalizeProject(parsed as Project);
 }
 
 function midiToFrequency(pitch: number) {
@@ -165,19 +252,22 @@ function scheduleOfflineTrackAutomation(
   project: Project,
   track: Track,
   graph: OfflineTrackGraph,
-  hasSolo: boolean
+  hasSolo: boolean,
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
 ) {
   const beat = beatSeconds(project);
   normalizeTrackAutomation(track.automation).forEach((entry) => {
     if (entry.points.length === 0) return;
     const target = automationTarget(graph, entry.param);
+    const baseValue = automationBaseValue(track, entry.param);
     target.setValueAtTime(
-      offlineAutomationValue(track, entry.param, automationBaseValue(track, entry.param), hasSolo),
+      offlineAutomationValue(track, entry.param, automationValueAtBeat(track, entry.param, range.startBeat, baseValue), hasSolo),
       0
     );
 
     entry.points.forEach((point, index) => {
-      const time = Math.max(0, point.beat * beat);
+      if (point.beat < range.startBeat || point.beat > range.endBeat) return;
+      const time = Math.max(0, (point.beat - range.startBeat) * beat);
       const value = offlineAutomationValue(track, entry.param, point.value, hasSolo);
       if (index === 0 || point.beat <= entry.points[index - 1].beat) {
         target.setValueAtTime(value, time);
@@ -251,7 +341,13 @@ function scheduleDrumStep(context: OfflineAudioContext, output: AudioNode, step:
   }
 }
 
-function scheduleLoopClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
+function scheduleLoopClip(
+  context: OfflineAudioContext,
+  project: Project,
+  output: AudioNode,
+  clip: Clip,
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
+) {
   const loop = getLoopById(clip.loopId);
   if (!loop) return;
   const beat = beatSeconds(project);
@@ -260,7 +356,8 @@ function scheduleLoopClip(context: OfflineAudioContext, project: Project, output
     loop.pattern.forEach((step) => {
       const absoluteBeat = clip.startBeat + offset + step.beat;
       if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
-      const start = absoluteBeat * beat;
+      if (absoluteBeat < range.startBeat || absoluteBeat >= range.endBeat) return;
+      const start = (absoluteBeat - range.startBeat) * beat;
 
       if (step.drum) {
         scheduleDrumStep(context, output, step, start);
@@ -282,12 +379,19 @@ function scheduleLoopClip(context: OfflineAudioContext, project: Project, output
   }
 }
 
-function scheduleMidiDrumClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
+function scheduleMidiDrumClip(
+  context: OfflineAudioContext,
+  project: Project,
+  output: AudioNode,
+  clip: Clip,
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
+) {
   const beat = beatSeconds(project);
   (clip.notes ?? []).forEach((note) => {
     const absoluteBeat = clip.startBeat + note.startBeat;
     if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
-    const start = absoluteBeat * beat;
+    if (absoluteBeat < range.startBeat || absoluteBeat >= range.endBeat) return;
+    const start = (absoluteBeat - range.startBeat) * beat;
     if (note.pitch <= 36) {
       scheduleDrumStep(context, output, { beat: 0, drum: "kick", velocity: note.velocity }, start);
     } else if (note.pitch <= 40) {
@@ -298,16 +402,23 @@ function scheduleMidiDrumClip(context: OfflineAudioContext, project: Project, ou
   });
 }
 
-function scheduleMidiClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
+function scheduleMidiClip(
+  context: OfflineAudioContext,
+  project: Project,
+  output: AudioNode,
+  clip: Clip,
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
+) {
   const beat = beatSeconds(project);
   (clip.notes ?? []).forEach((note) => {
     const absoluteBeat = clip.startBeat + note.startBeat;
     if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
+    if (absoluteBeat < range.startBeat || absoluteBeat >= range.endBeat) return;
     scheduleOscillator(
       context,
       output,
       midiToFrequency(note.pitch),
-      absoluteBeat * beat,
+      (absoluteBeat - range.startBeat) * beat,
       note.durationBeats * beat,
       note.velocity * 0.26,
       "triangle"
@@ -315,8 +426,15 @@ function scheduleMidiClip(context: OfflineAudioContext, project: Project, output
   });
 }
 
-async function scheduleAudioClip(context: OfflineAudioContext, project: Project, output: AudioNode, clip: Clip) {
+async function scheduleAudioClip(
+  context: OfflineAudioContext,
+  project: Project,
+  output: AudioNode,
+  clip: Clip,
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
+) {
   try {
+    const { getClipAudioBlob } = await import("./clipAudio");
     const blob = await getClipAudioBlob(clip);
     if (!blob) return;
     const arrayBuffer = await blob.arrayBuffer();
@@ -324,9 +442,14 @@ async function scheduleAudioClip(context: OfflineAudioContext, project: Project,
     const source = context.createBufferSource();
     const gain = context.createGain();
     const beat = beatSeconds(project);
-    const start = clip.startBeat * beat;
+    const clipEndBeat = clip.startBeat + clip.lengthBeats;
+    if (clipEndBeat <= range.startBeat || clip.startBeat >= range.endBeat) return;
+    const overlapStartBeat = Math.max(clip.startBeat, range.startBeat);
+    const overlapEndBeat = Math.min(clipEndBeat, range.endBeat);
+    const start = (overlapStartBeat - range.startBeat) * beat;
     const timing = resolveClipAudioTiming(clip, project.bpm, decoded.duration);
-    const duration = timing.durationSeconds;
+    const rangeOffsetSeconds = Math.max(0, (overlapStartBeat - clip.startBeat) * beat);
+    const duration = Math.min(timing.durationSeconds - rangeOffsetSeconds, Math.max(0, (overlapEndBeat - overlapStartBeat) * beat));
     const clipGainValue = clipGain(clip);
     if (duration <= 0) return;
 
@@ -344,7 +467,7 @@ async function scheduleAudioClip(context: OfflineAudioContext, project: Project,
       gain.gain.setValueAtTime(clipGainValue, start + duration);
     }
     source.connect(gain).connect(output);
-    source.start(start, timing.offsetSeconds, timing.sourceDurationToPlaySeconds);
+    source.start(start, timing.offsetSeconds + rangeOffsetSeconds * timing.playbackRate, duration * timing.playbackRate);
     source.stop(start + duration);
   } catch {
     // Skip unreadable imported audio while preserving the rest of the export.
@@ -389,8 +512,9 @@ function encodeWav(buffer: AudioBuffer) {
   return new Blob([view], { type: "audio/wav" });
 }
 
-export async function exportProjectToWav(project: Project) {
-  const duration = projectDurationSeconds(project);
+export async function exportProjectToWav(project: Project, options: ExportAudioOptions = {}) {
+  const range = normalizeExportOptions(project, options);
+  const duration = projectDurationSeconds(project, range);
   const context = new OfflineAudioContext(2, Math.ceil(duration * SAMPLE_RATE), SAMPLE_RATE);
   const master = createMasterGraph(context, project);
 
@@ -398,20 +522,170 @@ export async function exportProjectToWav(project: Project) {
   const audioSchedules: Promise<void>[] = [];
   project.tracks.forEach((track) => {
     const trackOutput = connectTrackOutput(context, track, master, hasSolo);
-    scheduleOfflineTrackAutomation(context, project, track, trackOutput, hasSolo);
+    scheduleOfflineTrackAutomation(context, project, track, trackOutput, hasSolo, range);
     track.clips.forEach((clip) => {
-      if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput.input, clip);
+      if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput.input, clip, range);
       if (clip.type === "midi") {
-        if (track.type === "drum" || track.role === "beat") scheduleMidiDrumClip(context, project, trackOutput.input, clip);
-        else scheduleMidiClip(context, project, trackOutput.input, clip);
+        if (track.type === "drum" || track.role === "beat") scheduleMidiDrumClip(context, project, trackOutput.input, clip, range);
+        else scheduleMidiClip(context, project, trackOutput.input, clip, range);
       }
-      if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput.input, clip));
+      if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput.input, clip, range));
     });
   });
 
   await Promise.all(audioSchedules);
   const rendered = await context.startRendering();
   return encodeWav(rendered);
+}
+
+export async function exportProjectAudio(project: Project, options: ExportAudioOptions = {}): Promise<ExportAudioResult> {
+  const resolved = normalizeExportOptions(project, options);
+  const blob = await exportProjectToWav(project, resolved);
+  const fallbackReason = resolved.requestedFormat === "mp3" ? MP3_FALLBACK_REASON : undefined;
+  return {
+    blob,
+    fileName: resolveExportFileName(project.name, "wav"),
+    format: "wav",
+    requestedFormat: resolved.requestedFormat,
+    mimeType: "audio/wav",
+    fallbackReason
+  };
+}
+
+function copyProjectForTrack(project: Project, track: Track): Project {
+  return {
+    ...project,
+    tracks: [{ ...track, solo: false, muted: false }]
+  };
+}
+
+export async function exportProjectStemsZip(project: Project, options: ExportAudioOptions = {}) {
+  const files = await Promise.all(
+    project.tracks.map(async (track, index) => {
+      const blob = await exportProjectToWav(copyProjectForTrack(project, track), { ...options, format: "wav" });
+      return {
+        name: `stems/${String(index + 1).padStart(2, "0")}-${safeBaseName(track.name)}.wav`,
+        blob
+      };
+    })
+  );
+  return createStoredZipBlob(files);
+}
+
+function zipCrcTable() {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < table.length; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+}
+
+const CRC_TABLE = zipCrcTable();
+
+function crc32(bytes: Uint8Array) {
+  let crc = 0xffffffff;
+  for (let index = 0; index < bytes.length; index += 1) {
+    crc = CRC_TABLE[(crc ^ bytes[index]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function bytesPart(bytes: Uint8Array) {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+function uint16(value: number) {
+  const bytes = new Uint8Array(2);
+  new DataView(bytes.buffer).setUint16(0, value, true);
+  return bytesPart(bytes);
+}
+
+function uint32(value: number) {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setUint32(0, value >>> 0, true);
+  return bytesPart(bytes);
+}
+
+function zipLocalHeader(nameBytes: Uint8Array, dataBytes: Uint8Array, crc: number) {
+  return new Blob([
+    uint32(0x04034b50),
+    uint16(20),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint32(crc),
+    uint32(dataBytes.length),
+    uint32(dataBytes.length),
+    uint16(nameBytes.length),
+    uint16(0),
+    bytesPart(nameBytes)
+  ]);
+}
+
+function zipCentralHeader(nameBytes: Uint8Array, dataBytes: Uint8Array, crc: number, offset: number) {
+  return new Blob([
+    uint32(0x02014b50),
+    uint16(20),
+    uint16(20),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint32(crc),
+    uint32(dataBytes.length),
+    uint32(dataBytes.length),
+    uint16(nameBytes.length),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint16(0),
+    uint32(0),
+    uint32(offset),
+    bytesPart(nameBytes)
+  ]);
+}
+
+export async function createStoredZipBlob(files: Array<{ name: string; blob: Blob }>) {
+  const encoder = new TextEncoder();
+  const localParts: BlobPart[] = [];
+  const centralParts: Blob[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const safeName = safeZipEntryName(file.name);
+    if (!safeName) continue;
+    const nameBytes = encoder.encode(safeName);
+    const dataBytes = new Uint8Array(await file.blob.arrayBuffer());
+    const crc = crc32(dataBytes);
+    const localHeader = zipLocalHeader(nameBytes, dataBytes, crc);
+    const centralHeader = zipCentralHeader(nameBytes, dataBytes, crc, offset);
+    localParts.push(localHeader, bytesPart(dataBytes));
+    centralParts.push(centralHeader);
+    offset += 30 + nameBytes.length + dataBytes.length;
+  }
+
+  const centralSize = centralParts.reduce((size, part) => size + part.size, 0);
+  const entryCount = centralParts.length;
+  return new Blob(
+    [
+      ...localParts,
+      ...centralParts,
+      uint32(0x06054b50),
+      uint16(0),
+      uint16(0),
+      uint16(entryCount),
+      uint16(entryCount),
+      uint32(centralSize),
+      uint32(offset),
+      uint16(0)
+    ],
+    { type: "application/zip" }
+  );
 }
 
 export function downloadBlob(blob: Blob, fileName: string) {

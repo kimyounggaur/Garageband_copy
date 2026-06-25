@@ -1,10 +1,14 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, type ChangeEvent, useEffect, useRef, useState } from "react";
 import { loadLastProject, projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
+import { Download, FileArchive, FileInput, Upload } from "../icons";
 import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
 import { TransportBar } from "../transport/TransportBar";
 
 type Status = "idle" | "working" | "done" | "error";
+type ShareFormat = "wav" | "mp3";
+type ShareQuality = "standard" | "high";
+type ShareRange = "full" | "cycle";
 type AudioEngineInstance = import("../../audio/AudioEngine").AudioEngine;
 
 const ClipEditor = lazy(() => import("../editor/ClipEditor").then((module) => ({ default: module.ClipEditor })));
@@ -46,8 +50,14 @@ export function AppShell() {
   const [saveStatus, setSaveStatus] = useState<Status>("idle");
   const [exportStatus, setExportStatus] = useState<Status>("idle");
   const [educationView, setEducationView] = useState<"student" | "teacher">("student");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareFormat, setShareFormat] = useState<ShareFormat>("wav");
+  const [shareQuality, setShareQuality] = useState<ShareQuality>("standard");
+  const [shareRange, setShareRange] = useState<ShareRange>("full");
+  const [shareMessage, setShareMessage] = useState("");
   const audioEngineRef = useRef<AudioEngineInstance | null>(null);
   const firstLoadRef = useRef(false);
+  const projectFileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function getLazyAudioEngine() {
     if (audioEngineRef.current) return audioEngineRef.current;
@@ -209,14 +219,82 @@ export function AppShell() {
   }
 
   async function handleExport() {
+    setShareMessage("");
+    setShareOpen(true);
+  }
+
+  function shareOptions() {
+    return {
+      format: shareFormat,
+      quality: shareQuality,
+      range: shareRange
+    };
+  }
+
+  async function handleExportMix() {
     setExportStatus("working");
+    setShareMessage("");
     try {
       const currentProject = useDawStore.getState().project;
-      const { downloadBlob, exportProjectToWav } = await import("../../audio/exportProject");
-      const blob = await exportProjectToWav(currentProject);
-      downloadBlob(blob, `${fileSafeName(currentProject.name)}.wav`);
+      const { downloadBlob, exportProjectAudio } = await import("../../audio/exportProject");
+      const result = await exportProjectAudio(currentProject, shareOptions());
+      downloadBlob(result.blob, result.fileName);
+      setShareMessage(result.fallbackReason ?? "Mix exported.");
       setExportStatus("done");
     } catch {
+      setShareMessage("Export failed.");
+      setExportStatus("error");
+    }
+  }
+
+  async function handleExportStems() {
+    setExportStatus("working");
+    setShareMessage("");
+    try {
+      const currentProject = useDawStore.getState().project;
+      const { downloadBlob, exportProjectStemsZip, resolveExportFileName } = await import("../../audio/exportProject");
+      const blob = await exportProjectStemsZip(currentProject, shareOptions());
+      downloadBlob(blob, resolveExportFileName(currentProject.name, "stems.zip"));
+      setShareMessage("Stems exported.");
+      setExportStatus("done");
+    } catch {
+      setShareMessage("Stem export failed.");
+      setExportStatus("error");
+    }
+  }
+
+  async function handleExportProjectFile() {
+    setExportStatus("working");
+    setShareMessage("");
+    try {
+      const currentProject = useDawStore.getState().project;
+      const { createProjectFileBlob, downloadBlob, resolveExportFileName } = await import("../../audio/exportProject");
+      await projectRepository.saveProject(currentProject);
+      downloadBlob(createProjectFileBlob(currentProject), resolveExportFileName(currentProject.name, "webband.json"));
+      setShareMessage("Project file exported.");
+      setExportStatus("done");
+    } catch {
+      setShareMessage("Project export failed.");
+      setExportStatus("error");
+    }
+  }
+
+  async function handleProjectFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setExportStatus("working");
+    setShareMessage("");
+    try {
+      await projectRepository.saveProject(useDawStore.getState().project);
+      const { parseProjectFile } = await import("../../audio/exportProject");
+      const importedProject = await parseProjectFile(file);
+      loadProjectIntoStore(importedProject);
+      await projectRepository.saveProject(importedProject);
+      setShareMessage("Project imported.");
+      setExportStatus("done");
+    } catch {
+      setShareMessage("Project import failed.");
       setExportStatus("error");
     }
   }
@@ -227,6 +305,13 @@ export function AppShell() {
     if (mode === "lesson") return <LessonPanel />;
     return <StudentPanel />;
   }
+
+  const exportWorking = exportStatus === "working";
+  const cycleAvailable = Boolean(project.cycleEnabled && (project.cycleEnd ?? 0) > (project.cycleStart ?? 0));
+  const optionClass = (active: boolean) =>
+    `h-8 rounded-md border px-3 text-xs font-bold transition ${
+      active ? "border-accent-sel bg-accent-sel/20 text-white" : "border-graphite-700 bg-graphite-900 text-graphite-300 hover:border-graphite-500"
+    }`;
 
   return (
     <div className="grid h-dvh w-screen min-w-0 grid-rows-[auto_minmax(0,1fr)_minmax(220px,34dvh)] overflow-hidden bg-graphite-975 text-slate-100 lg:grid-rows-[56px_minmax(0,1fr)_260px]">
@@ -249,6 +334,99 @@ export function AppShell() {
       <Suspense fallback={<PanelFallback />}>
         <ClipEditor />
       </Suspense>
+
+      <input
+        ref={projectFileInputRef}
+        type="file"
+        className="hidden"
+        accept=".webband.json,application/json"
+        onChange={(event) => void handleProjectFileChange(event)}
+      />
+
+      {shareOpen ? (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 px-3 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Share"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShareOpen(false);
+          }}
+        >
+          <div className="w-[min(560px,calc(100vw-24px))] rounded-lg border border-graphite-700 bg-graphite-950 p-4 shadow-2xl shadow-black/60">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-white">Share</h2>
+                <div className="text-xs text-graphite-500">{project.name}</div>
+              </div>
+              <button className="studio-button h-8 px-3 text-xs" onClick={() => setShareOpen(false)}>
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-graphite-500">Format</div>
+                <div className="grid grid-cols-2 gap-1">
+                  <button className={optionClass(shareFormat === "wav")} onClick={() => setShareFormat("wav")}>
+                    WAV
+                  </button>
+                  <button className={optionClass(shareFormat === "mp3")} onClick={() => setShareFormat("mp3")}>
+                    MP3
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-graphite-500">Quality</div>
+                <div className="grid grid-cols-2 gap-1">
+                  <button className={optionClass(shareQuality === "standard")} onClick={() => setShareQuality("standard")}>
+                    Standard
+                  </button>
+                  <button className={optionClass(shareQuality === "high")} onClick={() => setShareQuality("high")}>
+                    High
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-graphite-500">Range</div>
+                <div className="grid grid-cols-2 gap-1">
+                  <button className={optionClass(shareRange === "full")} onClick={() => setShareRange("full")}>
+                    Full
+                  </button>
+                  <button
+                    className={optionClass(shareRange === "cycle")}
+                    onClick={() => setShareRange("cycle")}
+                    disabled={!cycleAvailable}
+                  >
+                    Cycle
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button className="studio-button h-10 justify-center" onClick={() => void handleExportMix()} disabled={exportWorking}>
+                <Download size={15} />
+                <span>Mix</span>
+              </button>
+              <button className="studio-button h-10 justify-center" onClick={() => void handleExportStems()} disabled={exportWorking}>
+                <FileArchive size={15} />
+                <span>Stems ZIP</span>
+              </button>
+              <button className="studio-button h-10 justify-center" onClick={() => void handleExportProjectFile()} disabled={exportWorking}>
+                <FileInput size={15} />
+                <span>Project</span>
+              </button>
+              <button className="studio-button h-10 justify-center" onClick={() => projectFileInputRef.current?.click()} disabled={exportWorking}>
+                <Upload size={15} />
+                <span>Import</span>
+              </button>
+            </div>
+
+            <div className="mt-3 min-h-5 text-xs font-semibold text-graphite-400">{exportWorking ? "Working..." : shareMessage}</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

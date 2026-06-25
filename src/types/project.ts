@@ -6,7 +6,7 @@ export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 11;
+export const CURRENT_PROJECT_VERSION = 12;
 
 export type TrackSends = {
   reverb?: number;
