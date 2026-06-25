@@ -1,8 +1,9 @@
 import * as Tone from "tone";
-import { getLoopById } from "../data/loops";
-import type { Clip, Project } from "../types/project";
+import { getLoopById, transposeLoopNote } from "../data/loops";
+import type { Clip, Project, Track } from "../types/project";
 import { normalizeCountInBars, normalizeMasterVolume } from "../utils/transport";
 import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
+import { createInstrumentSynth } from "./instrumentSynth";
 
 type BeatCallback = (beat: number) => void;
 type EndCallback = () => void;
@@ -143,7 +144,7 @@ export class AudioEngine {
 
       track.clips.forEach((clip) => {
         if (clip.type === "loop") {
-          this.scheduleLoopClip(clip, channel);
+          this.scheduleLoopClip(project, clip, channel);
         }
         if (clip.type === "midi") {
           this.scheduleMidiClip(track, clip, channel);
@@ -196,7 +197,7 @@ export class AudioEngine {
     }
   }
 
-  private scheduleLoopClip(clip: Clip, channel: Tone.Channel) {
+  private scheduleLoopClip(project: Project, clip: Clip, channel: Tone.Channel) {
     const loop = getLoopById(clip.loopId);
     if (!loop) return;
 
@@ -248,7 +249,12 @@ export class AudioEngine {
     this.scheduleRepeatedLoop(clip, loop.lengthBeats, (absoluteBeat, step) => {
       if (!step.note) return;
       const id = Tone.Transport.schedule((time) => {
-        synth.triggerAttackRelease(step.note!, beatDuration(step.durationBeats ?? 0.25), time, step.velocity ?? 0.7);
+        synth.triggerAttackRelease(
+          transposeLoopNote(step.note!, loop.key, project.key),
+          beatDuration(step.durationBeats ?? 0.25),
+          time,
+          step.velocity ?? 0.7
+        );
       }, tickTime(absoluteBeat));
       this.scheduledIds.push(id);
     });
@@ -271,16 +277,13 @@ export class AudioEngine {
     }
   }
 
-  private scheduleMidiClip(track: { type: string; role?: string }, clip: Clip, channel: Tone.Channel) {
+  private scheduleMidiClip(track: Pick<Track, "type" | "role" | "instrumentId">, clip: Clip, channel: Tone.Channel) {
     if (track.type === "drum" || track.role === "beat") {
       this.scheduleDrumMidiClip(clip, channel);
       return;
     }
 
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.01, decay: 0.15, sustain: 0.58, release: 0.35 }
-    }).connect(channel);
+    const synth = createInstrumentSynth(track.instrumentId).connect(channel);
     this.nodes.push(synth);
 
     (clip.notes ?? []).forEach((note) => {

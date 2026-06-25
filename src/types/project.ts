@@ -2,8 +2,10 @@ export type TrackType = "drum" | "instrument" | "audio";
 export type TrackRole = "beat" | "bass" | "melody" | "harmony" | "recording";
 export type ClipType = "midi" | "audio" | "loop";
 export type LoopCategory = "Drums" | "Bass" | "Synth" | "FX";
+export type LoopPlaybackType = "midi" | "audio";
+export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 
-export const CURRENT_PROJECT_VERSION = 4;
+export const CURRENT_PROJECT_VERSION = 5;
 
 export type Project = {
   id: string;
@@ -50,6 +52,7 @@ export type Track = {
   name: string;
   type: TrackType;
   role?: TrackRole;
+  instrumentId?: string;
   volume: number;
   pan: number;
   muted: boolean;
@@ -102,7 +105,11 @@ export type LoopDefinition = {
   id: string;
   name: string;
   category: LoopCategory;
+  type: LoopPlaybackType;
   trackType: TrackType;
+  key?: string;
+  genre?: string;
+  mood?: string[];
   bpm: number;
   lengthBeats: number;
   color: string;

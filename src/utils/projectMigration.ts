@@ -1,4 +1,5 @@
 import { getLoopById } from "../data/loops";
+import { normalizeInstrumentId } from "../data/instruments";
 import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "./id";
 import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
@@ -109,6 +110,7 @@ function normalizeTrack(track: Partial<Track>, index: number): Track {
     name: repairBrokenText(track.name, fallbackName),
     type,
     role,
+    instrumentId: normalizeInstrumentId(track.instrumentId, { type, role }),
     volume: Math.max(0, Math.min(1, Number(track.volume ?? 0.82))),
     pan: Math.max(-1, Math.min(1, Number(track.pan ?? 0))),
     muted: Boolean(track.muted),

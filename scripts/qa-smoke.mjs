@@ -123,6 +123,18 @@ const {
   normalizeTimeSignature,
   pitchToTunerReading
 } = await server.ssrLoadModule("/src/utils/transport.ts");
+const {
+  LOOP_LIBRARY,
+  filterLoops,
+  loopMatchSummary,
+  transposeLoopNote
+} = await server.ssrLoadModule("/src/data/loops.ts");
+const {
+  INSTRUMENT_PATCHES,
+  defaultInstrumentForTrack,
+  getInstrumentPatch,
+  instrumentPatchesByCategory
+} = await server.ssrLoadModule("/src/data/instruments.ts");
 const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
 const {
   faderValueToPercent,
@@ -241,7 +253,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 4, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 5, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -253,6 +265,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
   assertEqual(migrated.bpm, 220, "BPM 상한 보정");
   assertEqual(migrated.tracks[0].name, "비트", "깨진 트랙 이름 보정");
   assertEqual(migrated.tracks[0].role, "beat", "드럼 트랙 역할 보정");
+  assertEqual(migrated.tracks[0].instrumentId, "studio-drum-kit", "Phase 3 드럼 트랙 악기 기본값");
   assertEqual(migrated.tracks[0].clips[0].name, "그리드 룸 드럼", "깨진 루프 클립 이름 보정");
   assertEqual(migrated.tracks[0].clips[0].startBeat, 0, "클립 시작 위치 보정");
   assertEqual(migrated.tracks[0].clips[0].lengthBeats, 0.25, "클립 최소 길이 보정");
@@ -308,6 +321,56 @@ test("Phase 2 transport utilities compute LCD modes, tap tempo, tuner pitch, and
   const reading = pitchToTunerReading(440);
   assertEqual(reading.note, "A4", "A4 튜너 노트");
   assertApprox(reading.cents, 0, "A4 튜너 센트");
+});
+
+test("Phase 3 library utilities filter loops, report tempo/key matching, and define instrument patches", () => {
+  assert(LOOP_LIBRARY.every((loop) => loop.key && loop.genre && loop.mood?.length && loop.type), "모든 루프가 브라우저 메타데이터를 가진다");
+
+  const electroLoops = filterLoops({ category: "Drums", genre: "Electronic", query: "electro" });
+  assertDeepEqual(
+    electroLoops.map((loop) => loop.id),
+    ["drums-electro"],
+    "드럼/일렉트로닉/검색 필터"
+  );
+
+  const darkLoops = filterLoops({ mood: "Dark" });
+  assert(darkLoops.some((loop) => loop.id === "bass-midnight"), "무드 필터가 루프를 찾는다");
+  assertEqual(transposeLoopNote("C4", "C", "D"), "D4", "C에서 D로 전조");
+  assertEqual(transposeLoopNote("A#1", "Bb", "C"), "C2", "Bb에서 C로 전조");
+
+  const summary = loopMatchSummary(LOOP_LIBRARY.find((loop) => loop.id === "bass-midnight"), { bpm: 100, key: "D" });
+  assertEqual(summary.needsTempoMatch, true, "템포 보정 필요");
+  assertEqual(summary.needsKeyMatch, true, "키 보정 필요");
+  assertApprox(summary.tempoRatio, 100 / 120, "템포 비율");
+  assertEqual(summary.pitchShift, 2, "키 반음 보정");
+
+  assert(INSTRUMENT_PATCHES.length >= 6, "악기 패치 목록");
+  assertEqual(getInstrumentPatch("classic-electric-piano").category, "Keys", "악기 패치 조회");
+  assertEqual(defaultInstrumentForTrack({ type: "drum", role: "beat" }), "studio-drum-kit", "드럼 기본 패치");
+  assert(instrumentPatchesByCategory().some((group) => group.category === "Synths" && group.patches.length > 0), "카테고리 그룹");
+});
+
+test("Phase 3 store actions select instrument patches and annotate loop tempo/key matching", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 3 library test");
+  const instrumentTrack = useDawStore.getState().project.tracks.find((item) => item.type === "instrument");
+  assert(instrumentTrack, "기본 악기 트랙");
+
+  useDawStore.getState().setTrackInstrument(instrumentTrack.id, "classic-electric-piano");
+  assertEqual(
+    useDawStore.getState().project.tracks.find((item) => item.id === instrumentTrack.id).instrumentId,
+    "classic-electric-piano",
+    "악기 패치 저장"
+  );
+
+  useDawStore.getState().setBpm(100);
+  useDawStore.getState().setProjectKey("D");
+  const loopClipId = useDawStore.getState().addLoopClip("bass-midnight", instrumentTrack.id, 4);
+  const loopClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === loopClipId);
+  assert(loopClip, "루프 클립 생성");
+  assert(loopClip.instructions?.includes("BPM 120 -> 100"), "루프 템포 보정 표시");
+  assert(loopClip.instructions?.includes("Key C -> D"), "루프 키 보정 표시");
+  assertEqual(useDawStore.getState().selectedClipId, loopClipId, "배치된 루프 선택");
 });
 
 test("musicTheory가 사용 음, 음역, 학습 힌트를 분석한다", () => {

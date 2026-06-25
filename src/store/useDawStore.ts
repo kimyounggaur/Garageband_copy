@@ -2,7 +2,9 @@ import { create } from "zustand";
 import { summarizeLesson } from "../education/evaluateMission";
 import { createLessonProject, getLessonById } from "../education/lessons";
 import type { Assignment, StudioMode } from "../education/types";
+import { defaultInstrumentForTrack, normalizeInstrumentId } from "../data/instruments";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
+import { loopMatchSummary } from "../data/loops";
 import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "../utils/id";
 import { loopCategoryLabel } from "../utils/labels";
@@ -117,6 +119,7 @@ type DawState = {
   toggleSolo: (trackId: string) => void;
   setTrackVolume: (trackId: string, volume: number) => void;
   setTrackPan: (trackId: string, pan: number) => void;
+  setTrackInstrument: (trackId: string, instrumentId: string) => void;
   addNote: (clipId: string, note: Omit<MidiNote, "id">) => string;
   addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>) => void;
   moveNote: (clipId: string, noteId: string, startBeat: number, pitch: number, options?: EditOptions) => void;
@@ -173,6 +176,7 @@ function createTrack(type: TrackType, index: number, name?: string, role?: Track
     name: trackName,
     type,
     role: role ?? inferTrackRole(type, trackName),
+    instrumentId: defaultInstrumentForTrack({ type, role: role ?? inferTrackRole(type, trackName) }),
     volume: 0.82,
     pan: 0,
     muted: false,
@@ -867,6 +871,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   addLoopClip: (loopId, trackId, startBeat = 0) => {
     const loop = getLoopById(loopId) ?? LOOP_LIBRARY[0];
     const state = get();
+    const match = loopMatchSummary(loop, state.project);
     const targetTrackId =
       trackId ??
       state.selectedTrackId ??
@@ -880,7 +885,10 @@ export const useDawStore = create<DawState>((set, get) => ({
       lengthBeats: loop.lengthBeats * 2,
       color: loop.color,
       loopId,
-      loopEnabled: true
+      loopEnabled: true,
+      instructions: [match.needsTempoMatch ? match.tempoLabel : undefined, match.needsKeyMatch ? match.keyLabel : undefined]
+        .filter(Boolean)
+        .join(" | ") || undefined
     });
   },
 
@@ -1351,6 +1359,24 @@ export const useDawStore = create<DawState>((set, get) => ({
           ...state.project,
           tracks: state.project.tracks.map((item) =>
             item.id === trackId ? { ...item, pan: nextPan } : item
+          )
+        })
+      );
+    });
+  },
+
+  setTrackInstrument: (trackId, instrumentId) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track || track.type === "audio") return state;
+      const nextInstrumentId = normalizeInstrumentId(instrumentId, track);
+      if (track.instrumentId === nextInstrumentId) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) =>
+            item.id === trackId ? { ...item, instrumentId: nextInstrumentId } : item
           )
         })
       );

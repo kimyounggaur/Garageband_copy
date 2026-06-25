@@ -10,7 +10,7 @@ type AudioEngineInstance = import("../../audio/AudioEngine").AudioEngine;
 const ClipEditor = lazy(() => import("../editor/ClipEditor").then((module) => ({ default: module.ClipEditor })));
 const LessonPanel = lazy(() => import("../education/LessonPanel").then((module) => ({ default: module.LessonPanel })));
 const ReviewPanel = lazy(() => import("../education/ReviewPanel").then((module) => ({ default: module.ReviewPanel })));
-const SoundLibrary = lazy(() => import("../library/SoundLibrary").then((module) => ({ default: module.SoundLibrary })));
+const StudentPanel = lazy(() => import("../education/StudentPanel").then((module) => ({ default: module.StudentPanel })));
 const StudioPanel = lazy(() => import("../studio/StudioPanel").then((module) => ({ default: module.StudioPanel })));
 const TeacherPanel = lazy(() => import("../education/TeacherPanel").then((module) => ({ default: module.TeacherPanel })));
 
@@ -197,11 +197,11 @@ export function AppShell() {
     }
   }
 
-  function renderSidePanel() {
+  function renderEducationPanel() {
     if (educationView === "teacher") return <TeacherPanel />;
     if (mode === "review") return <ReviewPanel />;
     if (mode === "lesson") return <LessonPanel />;
-    return <StudioPanel />;
+    return <StudentPanel />;
   }
 
   return (
@@ -215,12 +215,11 @@ export function AppShell() {
         onEducationViewChange={setEducationView}
       />
 
-      <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(220px,30dvh)_minmax(360px,1fr)_minmax(300px,38dvh)] gap-2 overflow-auto bg-gradient-to-b from-graphite-950 to-graphite-975 p-2 lg:grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] lg:grid-rows-none lg:overflow-hidden">
-        <Suspense fallback={<PanelFallback />}>
-          <SoundLibrary />
-        </Suspense>
+      <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(360px,1fr)_minmax(320px,40dvh)] gap-2 overflow-auto bg-gradient-to-b from-graphite-950 to-graphite-975 p-2 lg:grid-cols-[minmax(0,1fr)_clamp(280px,22vw,420px)] lg:grid-rows-none lg:overflow-hidden">
         <ArrangementTimeline />
-        <Suspense fallback={<PanelFallback />}>{renderSidePanel()}</Suspense>
+        <Suspense fallback={<PanelFallback />}>
+          <StudioPanel mode={mode} lessonContent={renderEducationPanel()} />
+        </Suspense>
       </main>
 
       <Suspense fallback={<PanelFallback />}>
