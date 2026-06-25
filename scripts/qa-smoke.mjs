@@ -120,6 +120,11 @@ const {
   resolveSmartControlMacros
 } = await server.ssrLoadModule("/src/audio/fx.ts");
 const {
+  automationValueAtBeat,
+  normalizeTrackAutomation,
+  trackAutomationEntry
+} = await server.ssrLoadModule("/src/audio/automation.ts");
+const {
   buildRulerTicks,
   clipTypeRegionColor,
   formatBarBeatTick,
@@ -287,7 +292,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 9, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 10, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -308,6 +313,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     { eq: { low: 0, mid: 0, high: 0 }, comp: { threshold: -24, ratio: 2 } },
     "Phase 8 track fx defaults"
   );
+  assertDeepEqual(migrated.tracks[0].automation, [], "Phase 9 automation defaults");
   assertEqual(migrated.tracks[0].clips[0].name, "그리드 룸 드럼", "깨진 루프 클립 이름 보정");
   assertEqual(migrated.tracks[0].clips[0].startBeat, 0, "클립 시작 위치 보정");
   assertEqual(migrated.tracks[0].clips[0].lengthBeats, 0.25, "클립 최소 길이 보정");
@@ -871,6 +877,66 @@ test("Phase 8 store actions save track fx, sends, master fx, and smart controls"
   assertDeepEqual(projectState.master, { volume: 0.7, limiterOn: false, reverb: 0.4, delay: 0.2 }, "master fx is saved");
   assertEqual(projectState.masterVolume, 0.7, "legacy master volume stays in sync");
   assert(useDawStore.getState().undoStack.length > 0, "phase 8 edits are undoable");
+});
+
+test("Phase 9 automation helpers normalize points and interpolate values", () => {
+  const automation = normalizeTrackAutomation([
+    {
+      param: "volume",
+      points: [
+        { id: "late", beat: 8, value: 2 },
+        { id: "early", beat: -2, value: -1 }
+      ]
+    },
+    {
+      param: "pan",
+      points: [
+        { id: "left", beat: 0, value: -1 },
+        { id: "right", beat: 4, value: 1 }
+      ]
+    }
+  ]);
+
+  assertDeepEqual(
+    automation[0].points.map((point) => [point.id, point.beat, point.value]),
+    [
+      ["early", 0, 0],
+      ["late", 8, 1]
+    ],
+    "volume automation is sorted and clamped"
+  );
+  assertApprox(automationValueAtBeat({ automation }, "volume", 4, 0.8), 0.5, "volume automation interpolates");
+  assertApprox(automationValueAtBeat({ automation }, "pan", 2, 0), 0, "pan automation interpolates through center");
+  assertEqual(trackAutomationEntry({ automation }, "pan").points.length, 2, "automation entry is found by param");
+});
+
+test("Phase 9 store actions add, move, delete, and preserve automation in history", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 9 automation test");
+  const trackId = useDawStore.getState().project.tracks[0].id;
+
+  const firstPointId = useDawStore.getState().addAutomationPoint(trackId, "volume", 0, 0.8);
+  const secondPointId = useDawStore.getState().addAutomationPoint(trackId, "volume", 8, 0.2);
+  const panPointId = useDawStore.getState().addAutomationPoint(trackId, "pan", 2, -0.5);
+  useDawStore.getState().updateAutomationPoint(trackId, "volume", secondPointId, { beat: 4, value: 0.4 });
+  useDawStore.getState().removeAutomationPoint(trackId, "pan", panPointId);
+
+  const trackState = useDawStore.getState().project.tracks.find((item) => item.id === trackId);
+  const volumeAutomation = trackAutomationEntry(trackState, "volume");
+  const panAutomation = trackAutomationEntry(trackState, "pan");
+
+  assert(firstPointId && secondPointId, "automation point ids are returned");
+  assertDeepEqual(
+    volumeAutomation.points.map((point) => [point.beat, point.value]),
+    [
+      [0, 0.8],
+      [4, 0.4]
+    ],
+    "volume automation edits are saved and sorted"
+  );
+  assertApprox(automationValueAtBeat(trackState, "volume", 2, trackState.volume), 0.6, "edited automation interpolates");
+  assertEqual(panAutomation.points.length, 0, "removed pan automation leaves an empty lane entry");
+  assert(useDawStore.getState().undoStack.length > 0, "phase 9 edits are undoable");
 });
 
 test("Phase 0 UI 컨트롤 변환이 노브, 페이더, 미터, LCD에서 일관된 값을 만든다", () => {

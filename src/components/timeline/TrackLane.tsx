@@ -1,16 +1,18 @@
 import type { DragEvent } from "react";
 import { useDawStore } from "../../store/useDawStore";
 import type { Track } from "../../types/project";
-import { TRACK_HEIGHT, snapBeat, xToBeat } from "../../utils/timeline";
+import { AUTOMATION_LANE_HEIGHT, TRACK_HEIGHT, snapBeat, xToBeat } from "../../utils/timeline";
+import { AutomationLane } from "./AutomationLane";
 import { ClipBlock } from "./ClipBlock";
 
 type TrackLaneProps = {
   track: Track;
   width: number;
   pixelsPerBeat: number;
+  automationOpen?: boolean;
 };
 
-export function TrackLane({ track, width, pixelsPerBeat }: TrackLaneProps) {
+export function TrackLane({ track, width, pixelsPerBeat, automationOpen = false }: TrackLaneProps) {
   const snapBeats = useDawStore((state) => state.snapBeats);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const selectClip = useDawStore((state) => state.selectClip);
@@ -33,7 +35,7 @@ export function TrackLane({ track, width, pixelsPerBeat }: TrackLaneProps) {
     <div
       className="relative border-b border-white/10"
       style={{
-        height: TRACK_HEIGHT,
+        height: TRACK_HEIGHT + (automationOpen ? AUTOMATION_LANE_HEIGHT : 0),
         width,
         minWidth: "100%",
         backgroundImage:
@@ -53,6 +55,11 @@ export function TrackLane({ track, width, pixelsPerBeat }: TrackLaneProps) {
       {track.clips.map((clip) => (
         <ClipBlock key={clip.id} clip={clip} pixelsPerBeat={pixelsPerBeat} />
       ))}
+      {automationOpen ? (
+        <div className="absolute left-0" style={{ top: TRACK_HEIGHT }}>
+          <AutomationLane track={track} width={width} pixelsPerBeat={pixelsPerBeat} />
+        </div>
+      ) : null}
     </div>
   );
 }

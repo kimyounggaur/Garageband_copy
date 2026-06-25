@@ -1,0 +1,1 @@
+import{P as e,S as n}from"./index-Bx0MATgl.js";import{aN as s}from"./index-CYwCA2ze.js";function c(a){const t=s(a);return new e(n,{oscillator:{type:t.synth.oscillator},envelope:{attack:t.synth.attack,decay:t.synth.decay,sustain:t.synth.sustain,release:t.synth.release}})}export{c};

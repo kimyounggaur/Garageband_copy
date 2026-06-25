@@ -1,5 +1,6 @@
 import { getLoopById } from "../data/loops";
 import { normalizeInstrumentId } from "../data/instruments";
+import { normalizeTrackAutomation } from "../audio/automation";
 import { normalizeDrummerSettings } from "../audio/drummer";
 import { normalizeMasterFx, normalizeTrackFx, normalizeTrackSends } from "../audio/fx";
 import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
@@ -164,6 +165,7 @@ function normalizeTrack(track: Partial<Track>, index: number): Track {
     recordEnabled: type === "audio" ? Boolean(track.recordEnabled) : false,
     sends: normalizeTrackSends(track.sends),
     fx: normalizeTrackFx(track.fx),
+    automation: normalizeTrackAutomation(track.automation),
     color: track.color ?? TRACK_COLORS[index % TRACK_COLORS.length],
     clips: (track.clips ?? []).map((clip, clipIndex) => normalizeClip(clip, id, clipIndex + index))
   };

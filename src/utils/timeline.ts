@@ -1,6 +1,7 @@
 export const BASE_PIXELS_PER_BEAT = 56;
 export const PIXELS_PER_BEAT = BASE_PIXELS_PER_BEAT;
 export const TRACK_HEIGHT = 72;
+export const AUTOMATION_LANE_HEIGHT = 64;
 export const CLIP_HEIGHT = 44;
 export const SNAP_BEAT = 0.25;
 export const SNAP_OPTIONS = [0.25, 0.5, 1, 4] as const;

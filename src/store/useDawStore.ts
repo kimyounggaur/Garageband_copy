@@ -2,6 +2,12 @@ import { create } from "zustand";
 import { summarizeLesson } from "../education/evaluateMission";
 import { createLessonProject, getLessonById } from "../education/lessons";
 import type { Assignment, StudioMode } from "../education/types";
+import {
+  clampAutomationValue,
+  normalizeAutomationPoint,
+  normalizeTrackAutomation,
+  trackAutomationEntry
+} from "../audio/automation";
 import { buildCompedAudioClip, normalizeTakeSections } from "../audio/audioComping";
 import { defaultDrummerSettings, generateDrummerPattern, normalizeDrummerSettings } from "../audio/drummer";
 import {
@@ -18,6 +24,8 @@ import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { loopMatchSummary } from "../data/loops";
 import {
   CURRENT_PROJECT_VERSION,
+  type AutomationParam,
+  type AutomationPoint,
   type AudioTakeSection,
   type Clip,
   type MasterFx,
@@ -74,6 +82,7 @@ type DrummerClipSettings = Partial<
   Pick<Clip, "drummerPreset" | "drummerComplexity" | "drummerLoudness" | "drummerSwing" | "drummerFills">
 >;
 type MidiNoteEdit = { id: string } & Partial<Omit<MidiNote, "id">>;
+type AutomationPointEdit = Partial<Pick<AutomationPoint, "beat" | "value">>;
 
 const HISTORY_LIMIT = 80;
 
@@ -171,6 +180,27 @@ type DawState = {
   setTrackSends: (trackId: string, sends: TrackSends) => void;
   setTrackFx: (trackId: string, fx: TrackFx) => void;
   applyTrackSmartControl: (trackId: string, macro: SmartControlMacro, value: number) => void;
+  addAutomationPoint: (
+    trackId: string,
+    param: AutomationParam,
+    beat: number,
+    value: number,
+    options?: EditOptions
+  ) => string | undefined;
+  updateAutomationPoint: (
+    trackId: string,
+    param: AutomationParam,
+    pointId: string,
+    edit: AutomationPointEdit,
+    options?: EditOptions
+  ) => void;
+  removeAutomationPoint: (trackId: string, param: AutomationParam, pointId: string, options?: EditOptions) => void;
+  setTrackAutomationPoints: (
+    trackId: string,
+    param: AutomationParam,
+    points: AutomationPoint[],
+    options?: EditOptions
+  ) => void;
   setTrackInstrument: (trackId: string, instrumentId: string) => void;
   addNote: (clipId: string, note: Omit<MidiNote, "id">) => string;
   addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>, options?: EditOptions) => void;
@@ -258,6 +288,7 @@ function createTrack(type: TrackType, index: number, name?: string, role?: Track
     recordEnabled: false,
     sends: normalizeTrackSends(),
     fx: normalizeTrackFx(),
+    automation: [],
     color: TRACK_COLORS[index % TRACK_COLORS.length],
     clips: []
   };
@@ -382,6 +413,22 @@ function getValidClipIds(project: Project, clipIds: string[]) {
 
 function snapWithOptions(beat: number, snapBeats: SnapBeats, options?: EditOptions) {
   return options?.snap === false ? Math.max(0, beat) : snapBeat(beat, snapBeats);
+}
+
+function replaceAutomationEntry(track: Track, param: AutomationParam, points: AutomationPoint[]) {
+  const replacement = normalizeTrackAutomation([{ param, points }])[0] ?? { param, points: [] };
+  const automation = normalizeTrackAutomation(track.automation);
+  let replaced = false;
+  const nextAutomation = automation.map((entry) => {
+    if (entry.param !== param) return entry;
+    replaced = true;
+    return replacement;
+  });
+  if (!replaced) nextAutomation.push(replacement);
+  return {
+    ...track,
+    automation: nextAutomation
+  };
 }
 
 function getValidSelection(project: Project, selectedTrackId?: string, selectedClipId?: string, selectedClipIds: string[] = []) {
@@ -1703,6 +1750,98 @@ export const useDawStore = create<DawState>((set, get) => ({
             item.id === trackId ? { ...item, sends: nextSends, fx: nextFx } : item
           )
         })
+      );
+    });
+  },
+
+  addAutomationPoint: (trackId, param, beat, value, options) => {
+    let pointId: string | undefined;
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      pointId = makeId("automation");
+      const entry = trackAutomationEntry(track, param);
+      const point = normalizeAutomationPoint(param, {
+        id: pointId,
+        beat: snapWithOptions(beat, state.snapBeats, options),
+        value
+      });
+      const nextTrack = replaceAutomationEntry(track, param, [...entry.points, point]);
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) => (item.id === trackId ? nextTrack : item))
+        }),
+        undefined,
+        options
+      );
+    });
+    return pointId;
+  },
+
+  updateAutomationPoint: (trackId, param, pointId, edit, options) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      const entry = trackAutomationEntry(track, param);
+      if (!entry.points.some((point) => point.id === pointId)) return state;
+      const points = entry.points.map((point) => {
+        if (point.id !== pointId) return point;
+        return normalizeAutomationPoint(param, {
+          ...point,
+          beat: edit.beat === undefined ? point.beat : snapWithOptions(edit.beat, state.snapBeats, options),
+          value: edit.value === undefined ? point.value : clampAutomationValue(param, edit.value)
+        });
+      });
+      if (JSON.stringify(points) === JSON.stringify(entry.points)) return state;
+      const nextTrack = replaceAutomationEntry(track, param, points);
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) => (item.id === trackId ? nextTrack : item))
+        }),
+        undefined,
+        options
+      );
+    });
+  },
+
+  removeAutomationPoint: (trackId, param, pointId, options) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      const entry = trackAutomationEntry(track, param);
+      const points = entry.points.filter((point) => point.id !== pointId);
+      if (points.length === entry.points.length) return state;
+      const nextTrack = replaceAutomationEntry(track, param, points);
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) => (item.id === trackId ? nextTrack : item))
+        }),
+        undefined,
+        options
+      );
+    });
+  },
+
+  setTrackAutomationPoints: (trackId, param, points, options) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      const nextTrack = replaceAutomationEntry(track, param, points);
+      if (JSON.stringify(track.automation) === JSON.stringify(nextTrack.automation)) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) => (item.id === trackId ? nextTrack : item))
+        }),
+        undefined,
+        options
       );
     });
   },

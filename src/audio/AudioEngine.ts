@@ -1,7 +1,8 @@
 import * as Tone from "tone";
 import { getLoopById, transposeLoopNote } from "../data/loops";
-import type { Clip, Project, Track } from "../types/project";
-import { normalizeCountInBars, normalizeMasterVolume } from "../utils/transport";
+import type { AutomationParam, Clip, Project, Track } from "../types/project";
+import { normalizeCountInBars } from "../utils/transport";
+import { automationBaseValue, normalizeTrackAutomation } from "./automation";
 import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
 import { gainToDb, normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackMute } from "./fx";
 import { createInstrumentSynth } from "./instrumentSynth";
@@ -45,6 +46,11 @@ type TrackFxRuntime = {
   delaySend: Tone.Gain;
 };
 
+type AutomatableParam = {
+  setValueAtTime: (value: number, time: number | string) => unknown;
+  linearRampToValueAtTime: (value: number, time: number | string) => unknown;
+};
+
 export class AudioEngine {
   private channels = new Map<string, TrackFxRuntime>();
   private nodes: Tone.ToneAudioNode[] = [];
@@ -81,6 +87,7 @@ export class AudioEngine {
     this.lengthBeats = this.cycleEnabled ? cycleEnd : projectLength(project);
     this.createMasterOutput(project);
     this.createChannels(project);
+    this.scheduleTrackAutomation(project);
     await this.scheduleProject(project);
     this.scheduleMetronome(project);
     await Tone.loaded();
@@ -205,6 +212,39 @@ export class AudioEngine {
       }
       this.channels.set(track.id, { channel, eq, compressor, reverbSend, delaySend });
       this.nodes.push(channel, eq, compressor, reverbSend, delaySend);
+    });
+  }
+
+  private automationTarget(runtime: TrackFxRuntime, param: AutomationParam): AutomatableParam {
+    if (param === "volume") return runtime.channel.volume as unknown as AutomatableParam;
+    if (param === "pan") return runtime.channel.pan as unknown as AutomatableParam;
+    if (param === "send.reverb") return runtime.reverbSend.gain as unknown as AutomatableParam;
+    return runtime.delaySend.gain as unknown as AutomatableParam;
+  }
+
+  private automationAudioValue(param: AutomationParam, value: number) {
+    return param === "volume" ? gainToDb(value) : value;
+  }
+
+  private scheduleTrackAutomation(project: Project) {
+    project.tracks.forEach((track) => {
+      const runtime = this.channels.get(track.id);
+      if (!runtime) return;
+
+      normalizeTrackAutomation(track.automation).forEach((entry) => {
+        if (entry.points.length === 0) return;
+        const target = this.automationTarget(runtime, entry.param);
+        target.setValueAtTime(this.automationAudioValue(entry.param, automationBaseValue(track, entry.param)), tickTime(0));
+
+        entry.points.forEach((point, index) => {
+          const value = this.automationAudioValue(entry.param, point.value);
+          if (index === 0 || point.beat <= entry.points[index - 1].beat) {
+            target.setValueAtTime(value, tickTime(point.beat));
+            return;
+          }
+          target.linearRampToValueAtTime(value, tickTime(point.beat));
+        });
+      });
     });
   }
 

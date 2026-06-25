@@ -6,7 +6,7 @@ export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 9;
+export const CURRENT_PROJECT_VERSION = 10;
 
 export type TrackSends = {
   reverb?: number;
@@ -30,6 +30,19 @@ export type MasterFx = {
   limiterOn?: boolean;
   reverb?: number;
   delay?: number;
+};
+
+export type AutomationParam = "volume" | "pan" | "send.reverb" | "send.delay";
+
+export type AutomationPoint = {
+  id: string;
+  beat: number;
+  value: number;
+};
+
+export type TrackAutomation = {
+  param: AutomationParam;
+  points: AutomationPoint[];
 };
 
 export type Project = {
@@ -87,6 +100,7 @@ export type Track = {
   recordEnabled?: boolean;
   sends?: TrackSends;
   fx?: TrackFx;
+  automation?: TrackAutomation[];
   color: string;
   clips: Clip[];
 };

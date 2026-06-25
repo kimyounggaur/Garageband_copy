@@ -8,6 +8,7 @@ import {
   MAX_TIMELINE_ZOOM,
   MIN_TIMELINE_ZOOM,
   SNAP_OPTIONS,
+  AUTOMATION_LANE_HEIGHT,
   TRACK_HEIGHT,
   beatToX,
   buildRulerTicks,
@@ -54,6 +55,7 @@ export function ArrangementTimeline() {
   const timelineViewportRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [trackMenu, setTrackMenu] = useState<TrackMenuState | undefined>();
+  const [automationOpenTrackIds, setAutomationOpenTrackIds] = useState<string[]>([]);
   const project = useDawStore((state) => state.project);
   const currentBeat = useDawStore((state) => state.currentBeat);
   const isPlaying = useDawStore((state) => state.isPlaying);
@@ -89,6 +91,7 @@ export function ArrangementTimeline() {
   const cycleEnabled = Boolean(project.cycleEnabled);
   const cycleLeft = beatToX(cycleRange.start, pixelsPerBeat);
   const cycleWidth = Math.max(beatToX(cycleRange.end - cycleRange.start, pixelsPerBeat), pixelsPerBeat * 0.25);
+  const automationOpenSet = useMemo(() => new Set(automationOpenTrackIds), [automationOpenTrackIds]);
 
   useEffect(() => {
     const element = timelineViewportRef.current;
@@ -132,6 +135,16 @@ export function ArrangementTimeline() {
   function runTrackMenuAction(action: () => void) {
     setTrackMenu(undefined);
     action();
+  }
+
+  function toggleAutomationLane(event: MouseEvent<HTMLButtonElement>, trackId: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectTrack(trackId);
+    selectClip(undefined);
+    setAutomationOpenTrackIds((trackIds) =>
+      trackIds.includes(trackId) ? trackIds.filter((id) => id !== trackId) : [...trackIds, trackId]
+    );
   }
 
   function renameSelectedTrack(track: Track) {
@@ -335,25 +348,46 @@ export function ArrangementTimeline() {
           <div className="flex h-12 items-end border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
             트랙
           </div>
-          {project.tracks.map((track) => (
-            <button
-              key={track.id}
-              className={`flex w-full items-center gap-2 border-b border-white/10 px-3 text-left transition ${
-                selectedTrackId === track.id ? "bg-meter-cyan/10" : "hover:bg-white/[0.045]"
-              }`}
-              style={{ height: TRACK_HEIGHT }}
-              onClick={() => selectTrack(track.id)}
-              onContextMenu={(event) => openTrackMenu(event, track)}
-            >
-              <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-bold text-slate-100">{track.name}</span>
-                <span className="block text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                  {trackRoleLabel(track.role ?? track.type)}
-                </span>
-              </span>
-            </button>
-          ))}
+          {project.tracks.map((track) => {
+            const automationOpen = automationOpenSet.has(track.id);
+            return (
+              <div
+                key={track.id}
+                className={`flex w-full items-start border-b border-white/10 transition ${
+                  selectedTrackId === track.id ? "bg-meter-cyan/10" : "hover:bg-white/[0.045]"
+                }`}
+                style={{ height: TRACK_HEIGHT + (automationOpen ? AUTOMATION_LANE_HEIGHT : 0) }}
+              >
+                <button
+                  className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left"
+                  style={{ height: TRACK_HEIGHT }}
+                  onClick={() => selectTrack(track.id)}
+                  onContextMenu={(event) => openTrackMenu(event, track)}
+                >
+                  <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold text-slate-100">{track.name}</span>
+                    <span className="block text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                      {trackRoleLabel(track.role ?? track.type)}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  className={`mr-2 mt-[22px] flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-black transition ${
+                    automationOpen
+                      ? "border-meter-green/70 bg-meter-green/18 text-white"
+                      : "border-white/10 bg-black/20 text-slate-400 hover:border-meter-green/45 hover:text-slate-100"
+                  }`}
+                  onClick={(event) => toggleAutomationLane(event, track.id)}
+                  title={automationOpen ? "Automation lane off" : "Automation lane on"}
+                  aria-pressed={automationOpen}
+                  aria-label={`${track.name} automation lane`}
+                >
+                  A
+                </button>
+              </div>
+            );
+          })}
           {trackMenu && menuTrack ? (
             <div
               className="fixed z-[85] w-56 overflow-hidden rounded-lg border border-white/10 bg-studio-900/98 p-1 text-slate-100 shadow-2xl shadow-black/50 backdrop-blur"
@@ -528,7 +562,13 @@ export function ArrangementTimeline() {
             </div>
 
             {project.tracks.map((track) => (
-              <TrackLane key={track.id} track={track} width={width} pixelsPerBeat={pixelsPerBeat} />
+              <TrackLane
+                key={track.id}
+                track={track}
+                width={width}
+                pixelsPerBeat={pixelsPerBeat}
+                automationOpen={automationOpenSet.has(track.id)}
+              />
             ))}
           </div>
         </div>

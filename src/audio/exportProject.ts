@@ -1,5 +1,6 @@
 import { getLoopById } from "../data/loops";
-import type { Clip, LoopStep, Project, Track } from "../types/project";
+import type { AutomationParam, Clip, LoopStep, Project, Track } from "../types/project";
+import { automationBaseValue, normalizeTrackAutomation } from "./automation";
 import { clipGain, getClipAudioBlob, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
 import { normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackAudibleGain } from "./fx";
 
@@ -46,6 +47,14 @@ type OfflineMasterGraph = {
   input: GainNode;
   reverbInput: GainNode;
   delayInput: GainNode;
+};
+
+type OfflineTrackGraph = {
+  input: GainNode;
+  volume: AudioParam;
+  pan: AudioParam;
+  reverbSend: AudioParam;
+  delaySend: AudioParam;
 };
 
 function createReverbImpulse(context: OfflineAudioContext) {
@@ -96,7 +105,12 @@ function createMasterGraph(context: OfflineAudioContext, project: Project): Offl
   return { input, reverbInput, delayInput };
 }
 
-function connectTrackOutput(context: OfflineAudioContext, track: Track, master: OfflineMasterGraph, hasSolo: boolean) {
+function connectTrackOutput(
+  context: OfflineAudioContext,
+  track: Track,
+  master: OfflineMasterGraph,
+  hasSolo: boolean
+): OfflineTrackGraph {
   const input = context.createGain();
   const low = context.createBiquadFilter();
   const mid = context.createBiquadFilter();
@@ -131,7 +145,47 @@ function connectTrackOutput(context: OfflineAudioContext, track: Track, master: 
   input.connect(low).connect(mid).connect(high).connect(compressor).connect(pan).connect(gain).connect(master.input);
   compressor.connect(reverbSend).connect(master.reverbInput);
   compressor.connect(delaySend).connect(master.delayInput);
-  return input;
+  return { input, volume: gain.gain, pan: pan.pan, reverbSend: reverbSend.gain, delaySend: delaySend.gain };
+}
+
+function automationTarget(graph: OfflineTrackGraph, param: AutomationParam) {
+  if (param === "volume") return graph.volume;
+  if (param === "pan") return graph.pan;
+  if (param === "send.reverb") return graph.reverbSend;
+  return graph.delaySend;
+}
+
+function offlineAutomationValue(track: Track, param: AutomationParam, value: number, hasSolo: boolean) {
+  if (param === "volume") return resolveTrackAudibleGain({ ...track, volume: value }, hasSolo);
+  return value;
+}
+
+function scheduleOfflineTrackAutomation(
+  context: OfflineAudioContext,
+  project: Project,
+  track: Track,
+  graph: OfflineTrackGraph,
+  hasSolo: boolean
+) {
+  const beat = beatSeconds(project);
+  normalizeTrackAutomation(track.automation).forEach((entry) => {
+    if (entry.points.length === 0) return;
+    const target = automationTarget(graph, entry.param);
+    target.setValueAtTime(
+      offlineAutomationValue(track, entry.param, automationBaseValue(track, entry.param), hasSolo),
+      0
+    );
+
+    entry.points.forEach((point, index) => {
+      const time = Math.max(0, point.beat * beat);
+      const value = offlineAutomationValue(track, entry.param, point.value, hasSolo);
+      if (index === 0 || point.beat <= entry.points[index - 1].beat) {
+        target.setValueAtTime(value, time);
+        return;
+      }
+      target.linearRampToValueAtTime(value, time);
+    });
+  });
 }
 
 function scheduleOscillator(
@@ -344,13 +398,14 @@ export async function exportProjectToWav(project: Project) {
   const audioSchedules: Promise<void>[] = [];
   project.tracks.forEach((track) => {
     const trackOutput = connectTrackOutput(context, track, master, hasSolo);
+    scheduleOfflineTrackAutomation(context, project, track, trackOutput, hasSolo);
     track.clips.forEach((clip) => {
-      if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput, clip);
+      if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput.input, clip);
       if (clip.type === "midi") {
-        if (track.type === "drum" || track.role === "beat") scheduleMidiDrumClip(context, project, trackOutput, clip);
-        else scheduleMidiClip(context, project, trackOutput, clip);
+        if (track.type === "drum" || track.role === "beat") scheduleMidiDrumClip(context, project, trackOutput.input, clip);
+        else scheduleMidiClip(context, project, trackOutput.input, clip);
       }
-      if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput, clip));
+      if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput.input, clip));
     });
   });
 
