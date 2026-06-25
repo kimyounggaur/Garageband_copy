@@ -11,10 +11,10 @@ export function StudioPanel() {
 
   return (
     <aside className="grid min-h-0 grid-rows-[38px_auto_minmax(0,1fr)] gap-2 rounded-lg">
-      <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-studio-900/80 p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-lg border border-graphite-700 bg-graphite-900/80 p-1">
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-black transition ${
-            tab === "mixer" ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            tab === "mixer" ? "bg-accent-sel text-graphite-975" : "text-slate-300 hover:bg-white/[0.08]"
           }`}
           onClick={() => setTab("mixer")}
           title="믹서"
@@ -24,7 +24,7 @@ export function StudioPanel() {
         </button>
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-black transition ${
-            tab === "class" ? "bg-meter-green text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            tab === "class" ? "bg-accent-play text-graphite-975" : "text-slate-300 hover:bg-white/[0.08]"
           }`}
           onClick={() => setTab("class")}
           title="수업"

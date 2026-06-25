@@ -5,6 +5,33 @@ export default {
   theme: {
     extend: {
       colors: {
+        graphite: {
+          975: "#0a0c10",
+          950: "#0f1217",
+          900: "#15191f",
+          850: "#1b2027",
+          800: "#222831",
+          750: "#2a313c",
+          700: "#343c49",
+          600: "#475061"
+        },
+        lcd: {
+          bg: "#0b1f1a",
+          text: "#7CFFB2",
+          dim: "#2f6b51"
+        },
+        region: {
+          midi: "#5ec26b",
+          audio: "#46a7e0",
+          drummer: "#e0b341",
+          loop: "#7d8cff"
+        },
+        accent: {
+          play: "#4ade80",
+          record: "#ff4d4d",
+          cycle: "#f6c453",
+          sel: "#7ad7ff"
+        },
         studio: {
           950: "#0c0f14",
           900: "#111722",

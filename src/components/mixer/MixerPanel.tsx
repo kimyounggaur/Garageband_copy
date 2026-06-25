@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import type { Project, TrackType } from "../../types/project";
+import { Fader, Knob, Meter } from "../ui";
 
 function formatDate(value: number) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -51,18 +52,13 @@ export function MixerPanel() {
 
   return (
     <aside className="panel grid h-full min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg sm:grid-rows-[44px_minmax(0,1fr)_190px]">
-      <div className="flex items-center justify-between border-b border-white/10 px-3">
+      <div className="flex items-center justify-between border-b border-graphite-700 px-3">
         <span className="panel-title">믹서</span>
         <div className="flex items-center gap-1">
           <button className="studio-icon-button" onClick={() => add("drum")} title="드럼 트랙 추가" aria-label="드럼 트랙 추가">
             <Drum size={14} />
           </button>
-          <button
-            className="studio-icon-button"
-            onClick={() => add("instrument")}
-            title="악기 트랙 추가"
-            aria-label="악기 트랙 추가"
-          >
+          <button className="studio-icon-button" onClick={() => add("instrument")} title="악기 트랙 추가" aria-label="악기 트랙 추가">
             <Keyboard size={14} />
           </button>
           <button className="studio-icon-button" onClick={() => add("audio")} title="오디오 트랙 추가" aria-label="오디오 트랙 추가">
@@ -78,15 +74,15 @@ export function MixerPanel() {
               key={track.id}
               className={`rounded-md border p-2 transition ${
                 selectedTrackId === track.id
-                  ? "border-meter-cyan bg-meter-cyan/10"
-                  : "border-white/10 bg-white/[0.045] hover:bg-white/[0.065]"
+                  ? "border-accent-sel bg-accent-sel/10"
+                  : "border-graphite-700 bg-graphite-800/70 hover:bg-graphite-750/80"
               }`}
               onClick={() => selectTrack(track.id)}
             >
               <div className="flex items-center gap-2">
                 <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
                 <input
-                  className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none focus:border-white/20 focus:bg-black/20"
+                  className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none focus:border-graphite-700 focus:bg-black/20"
                   value={track.name}
                   onChange={(event) => renameTrack(track.id, event.target.value)}
                   onClick={(event) => event.stopPropagation()}
@@ -105,53 +101,30 @@ export function MixerPanel() {
                 </button>
               </div>
 
-              <div className="mt-2 grid grid-cols-[34px_1fr_34px] items-center gap-2">
-                <Volume2 size={14} className="text-slate-500" />
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={track.volume}
-                  onChange={(event) => setTrackVolume(track.id, Number(event.target.value))}
-                  onClick={(event) => event.stopPropagation()}
-                  aria-label={`${track.name} 음량`}
-                />
-                <span className="text-right text-[11px] font-bold text-slate-400">{Math.round(track.volume * 100)}</span>
-              </div>
-
-              <div className="mt-2 grid grid-cols-[34px_1fr_34px] items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">팬</span>
-                <input
-                  type="range"
-                  min={-1}
-                  max={1}
-                  step={0.01}
-                  value={track.pan}
-                  onChange={(event) => setTrackPan(track.id, Number(event.target.value))}
-                  onClick={(event) => event.stopPropagation()}
-                  aria-label={`${track.name} 팬`}
-                />
-                <span className="text-right text-[11px] font-bold text-slate-400">{track.pan.toFixed(1)}</span>
+              <div className="mt-3 grid grid-cols-[20px_minmax(0,1fr)_52px_10px] items-center gap-2">
+                <Volume2 size={14} className="text-graphite-600" />
+                <Fader label={`${track.name} 볼륨`} value={track.volume} orientation="horizontal" onChange={(value) => setTrackVolume(track.id, value)} />
+                <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.02} onChange={(value) => setTrackPan(track.id, value)} />
+                <Meter label={`${track.name} 레벨`} value={track.muted ? 0 : track.volume} orientation="vertical" />
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
-                  className={`h-7 rounded-md text-[11px] font-black ${
-                    track.muted ? "bg-meter-rose text-studio-950" : "bg-white/[0.075] text-slate-300"
+                  className={`h-7 rounded-md text-[11px] font-black transition ${
+                    track.muted ? "bg-accent-record text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"
                   }`}
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleMute(track.id);
                   }}
-                  title={`${track.name} 음소거`}
-                  aria-label={`${track.name} 음소거`}
+                  title={`${track.name} 뮤트`}
+                  aria-label={`${track.name} 뮤트`}
                 >
-                  음소거
+                  뮤트
                 </button>
                 <button
-                  className={`h-7 rounded-md text-[11px] font-black ${
-                    track.solo ? "bg-meter-amber text-studio-950" : "bg-white/[0.075] text-slate-300"
+                  className={`h-7 rounded-md text-[11px] font-black transition ${
+                    track.solo ? "bg-accent-cycle text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"
                   }`}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -168,7 +141,7 @@ export function MixerPanel() {
         </div>
       </div>
 
-      <div className="hidden border-t border-white/10 p-2 sm:block">
+      <div className="hidden border-t border-graphite-700 p-2 sm:block">
         <div className="mb-2 flex items-center justify-between">
           <span className="panel-title">세션</span>
           <button className="studio-icon-button h-7 w-7" onClick={refreshProjects} title="세션 새로고침" aria-label="세션 새로고침">
@@ -177,23 +150,15 @@ export function MixerPanel() {
         </div>
         <div className="max-h-[138px] space-y-1 overflow-y-auto">
           {projects.length === 0 ? (
-            <div className="rounded-md border border-white/10 bg-black/20 px-2 py-3 text-xs text-slate-500">저장된 세션이 없습니다</div>
+            <div className="rounded-md border border-graphite-700 bg-black/20 px-2 py-3 text-xs text-graphite-600">저장된 세션이 없습니다</div>
           ) : (
             projects.map((savedProject) => (
               <div key={savedProject.id} className="flex items-center gap-1 rounded-md bg-white/[0.045] p-1">
-                <button
-                  className="min-w-0 flex-1 rounded px-2 py-1 text-left hover:bg-white/[0.07]"
-                  onClick={() => handleLoad(savedProject.id)}
-                >
+                <button className="min-w-0 flex-1 rounded px-2 py-1 text-left hover:bg-white/[0.07]" onClick={() => handleLoad(savedProject.id)}>
                   <span className="block truncate text-xs font-bold text-slate-200">{savedProject.name}</span>
-                  <span className="block text-[10px] text-slate-500">{formatDate(savedProject.updatedAt)}</span>
+                  <span className="block text-[10px] text-graphite-600">{formatDate(savedProject.updatedAt)}</span>
                 </button>
-                <button
-                  className="studio-icon-button h-7 w-7"
-                  title="세션 삭제"
-                  onClick={() => handleDelete(savedProject.id)}
-                  aria-label="세션 삭제"
-                >
+                <button className="studio-icon-button h-7 w-7" title="세션 삭제" onClick={() => handleDelete(savedProject.id)} aria-label="세션 삭제">
                   <Trash2 size={12} />
                 </button>
               </div>

@@ -107,6 +107,12 @@ const {
   secondsPerBeat
 } = await server.ssrLoadModule("/src/audio/clipAudioMath.ts");
 const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
+const {
+  faderValueToPercent,
+  formatLcdBeat,
+  knobValueToDegrees,
+  meterLevelToPercent
+} = await server.ssrLoadModule("/src/components/ui/controlMath.ts");
 
 const goodProject = project({
   tracks: [
@@ -278,6 +284,23 @@ test("오디오 trim/fade/gain 계산이 재생과 내보내기에서 공유 가
   assertApprox(clipGain(clip({ gain: -4 })), 0, "gain 하한");
   assertApprox(clipGain(clip({ gain: Number.NaN })), 1, "잘못된 gain 기본값");
   assertApprox(secondsPerBeat(0), 60, "비정상 BPM 보호");
+});
+
+test("Phase 0 UI 컨트롤 변환이 노브, 페이더, 미터, LCD에서 일관된 값을 만든다", () => {
+  assertEqual(knobValueToDegrees(0), -135, "노브 최소 회전각");
+  assertEqual(knobValueToDegrees(0.5), 0, "노브 중앙 회전각");
+  assertEqual(knobValueToDegrees(1), 135, "노브 최대 회전각");
+  assertEqual(knobValueToDegrees(2), 135, "노브 상한 클램프");
+
+  assertEqual(faderValueToPercent(0), 0, "페이더 최소 퍼센트");
+  assertEqual(faderValueToPercent(0.75), 75, "페이더 현재값 퍼센트");
+  assertEqual(faderValueToPercent(-1), 0, "페이더 하한 클램프");
+
+  assertEqual(meterLevelToPercent(0.42), 42, "미터 레벨 퍼센트");
+  assertEqual(meterLevelToPercent(Number.NaN), 0, "미터 비정상 입력 보호");
+
+  assertEqual(formatLcdBeat(0, [4, 4]), "001|1|000", "LCD 시작 위치");
+  assertEqual(formatLcdBeat(7.5, [4, 4]), "002|4|240", "LCD 마디 박자 틱");
 });
 
 test("미디 노트 입력이 4박에 갇히지 않고 클립 전체를 확장한다", () => {

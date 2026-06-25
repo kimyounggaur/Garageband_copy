@@ -25,7 +25,7 @@ function isEditableTarget(target: EventTarget | null) {
 
 function PanelFallback() {
   return (
-    <div className="panel flex h-full min-h-[140px] items-center justify-center rounded-lg text-xs font-bold text-slate-500">
+    <div className="panel flex h-full min-h-[140px] items-center justify-center rounded-lg text-xs font-bold text-graphite-600">
       불러오는 중...
     </div>
   );
@@ -162,7 +162,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="grid h-dvh w-screen min-w-0 grid-rows-[auto_minmax(0,1fr)_minmax(220px,34dvh)] overflow-hidden bg-studio-950 text-slate-100 lg:grid-rows-[56px_minmax(0,1fr)_260px]">
+    <div className="grid h-dvh w-screen min-w-0 grid-rows-[auto_minmax(0,1fr)_minmax(220px,34dvh)] overflow-hidden bg-graphite-975 text-slate-100 lg:grid-rows-[56px_minmax(0,1fr)_260px]">
       <TransportBar
         onSave={handleSave}
         saveStatus={saveStatus}
@@ -172,7 +172,7 @@ export function AppShell() {
         onEducationViewChange={setEducationView}
       />
 
-      <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(220px,30dvh)_minmax(360px,1fr)_minmax(300px,38dvh)] gap-2 overflow-auto p-2 lg:grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] lg:grid-rows-none lg:overflow-hidden">
+      <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(220px,30dvh)_minmax(360px,1fr)_minmax(300px,38dvh)] gap-2 overflow-auto bg-gradient-to-b from-graphite-950 to-graphite-975 p-2 lg:grid-cols-[clamp(220px,14vw,320px)_minmax(0,1fr)_clamp(260px,17vw,380px)] lg:grid-rows-none lg:overflow-hidden">
         <Suspense fallback={<PanelFallback />}>
           <SoundLibrary />
         </Suspense>
