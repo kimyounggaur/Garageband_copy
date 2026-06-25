@@ -1,10 +1,16 @@
 import * as Tone from "tone";
 import { getLoopById } from "../data/loops";
 import type { Clip, Project } from "../types/project";
+import { normalizeCountInBars, normalizeMasterVolume } from "../utils/transport";
 import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
 
 type BeatCallback = (beat: number) => void;
 type EndCallback = () => void;
+type MeterCallback = (level: number) => void;
+type PlayOptions = {
+  countIn?: boolean;
+  onMeter?: MeterCallback;
+};
 
 const PPQ = 192;
 
@@ -39,11 +45,14 @@ export class AudioEngine {
   private nodes: Tone.ToneAudioNode[] = [];
   private scheduledIds: number[] = [];
   private audioUrlCleanups: Array<() => void> = [];
+  private countInTimeouts: number[] = [];
+  private masterOutput?: Tone.Gain;
+  private masterMeter?: Tone.Meter;
   private frameId = 0;
   private lengthBeats = 16;
   private cycleEnabled = false;
 
-  async play(project: Project, onBeat: BeatCallback, onEnded: EndCallback) {
+  async play(project: Project, onBeat: BeatCallback, onEnded: EndCallback, options: PlayOptions = {}) {
     await Tone.start();
     this.stop();
 
@@ -59,15 +68,22 @@ export class AudioEngine {
     Tone.Transport.cancel(0);
 
     this.lengthBeats = this.cycleEnabled ? cycleEnd : projectLength(project);
+    this.createMasterOutput(project);
     this.createChannels(project);
     await this.scheduleProject(project);
+    this.scheduleMetronome(project);
     await Tone.loaded();
-    this.startBeatLoop(onBeat, onEnded);
-    Tone.Transport.start("+0.04");
+    const countInBeats = options.countIn ? normalizeCountInBars(project.countInBars) * Math.max(1, project.timeSignature[0]) : 0;
+    const delaySeconds = countInBeats * (60 / Math.max(1, project.bpm));
+    if (countInBeats > 0) this.scheduleCountInClicks(project, countInBeats);
+    this.startBeatLoop(onBeat, onEnded, options.onMeter);
+    Tone.Transport.start(`+${delaySeconds + 0.04}`);
   }
 
   stop() {
     cancelAnimationFrame(this.frameId);
+    this.countInTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    this.countInTimeouts = [];
     Tone.Transport.stop();
     Tone.Transport.cancel(0);
     Tone.Transport.loop = false;
@@ -77,11 +93,16 @@ export class AudioEngine {
     this.nodes = [];
     this.channels.forEach((channel) => channel.dispose());
     this.channels.clear();
+    this.masterOutput = undefined;
+    this.masterMeter = undefined;
     this.audioUrlCleanups.forEach((cleanup) => cleanup());
     this.audioUrlCleanups = [];
   }
 
   updateTrackControls(project: Project) {
+    if (this.masterOutput) {
+      this.masterOutput.gain.value = normalizeMasterVolume(project.masterVolume);
+    }
     const hasSolo = project.tracks.some((track) => track.solo);
     project.tracks.forEach((track) => {
       const channel = this.channels.get(track.id);
@@ -92,6 +113,13 @@ export class AudioEngine {
     });
   }
 
+  private createMasterOutput(project: Project) {
+    this.masterOutput = new Tone.Gain(normalizeMasterVolume(project.masterVolume)).toDestination();
+    this.masterMeter = new Tone.Meter({ normalRange: true, smoothing: 0.78 });
+    this.masterOutput.connect(this.masterMeter);
+    this.nodes.push(this.masterOutput, this.masterMeter);
+  }
+
   private createChannels(project: Project) {
     const hasSolo = project.tracks.some((track) => track.solo);
     project.tracks.forEach((track) => {
@@ -99,7 +127,9 @@ export class AudioEngine {
         volume: gainToDb(track.volume),
         pan: track.pan,
         mute: hasSolo ? !track.solo : track.muted
-      }).toDestination();
+      });
+      if (this.masterOutput) channel.connect(this.masterOutput);
+      else channel.toDestination();
       this.channels.set(track.id, channel);
       this.nodes.push(channel);
     });
@@ -124,6 +154,46 @@ export class AudioEngine {
       });
     });
     await Promise.all(audioLoads);
+  }
+
+  private createClickSynth() {
+    const synth = new Tone.Synth({
+      oscillator: { type: "square" },
+      envelope: { attack: 0.001, decay: 0.035, sustain: 0, release: 0.025 }
+    });
+    if (this.masterOutput) synth.connect(this.masterOutput);
+    else synth.toDestination();
+    this.nodes.push(synth);
+    return synth;
+  }
+
+  private scheduleMetronome(project: Project) {
+    if (!project.metronomeOn) return;
+    const click = this.createClickSynth();
+    const beatsPerBar = Math.max(1, project.timeSignature[0]);
+    const endBeat = Math.ceil(this.lengthBeats);
+
+    for (let beat = 0; beat <= endBeat; beat += 1) {
+      const id = Tone.Transport.schedule((time) => {
+        const strong = beat % beatsPerBar === 0;
+        click.triggerAttackRelease(strong ? "C6" : "C5", "32n", time, strong ? 0.9 : 0.45);
+      }, tickTime(beat));
+      this.scheduledIds.push(id);
+    }
+  }
+
+  private scheduleCountInClicks(project: Project, countInBeats: number) {
+    const click = this.createClickSynth();
+    const secondsPerBeat = 60 / Math.max(1, project.bpm);
+    const beatsPerBar = Math.max(1, project.timeSignature[0]);
+
+    for (let beat = 0; beat < countInBeats; beat += 1) {
+      const timeoutId = window.setTimeout(() => {
+        const strong = beat % beatsPerBar === 0;
+        click.triggerAttackRelease(strong ? "C6" : "C5", "32n", undefined, strong ? 0.9 : 0.45);
+      }, beat * secondsPerBeat * 1000);
+      this.countInTimeouts.push(timeoutId);
+    }
   }
 
   private scheduleLoopClip(clip: Clip, channel: Tone.Channel) {
@@ -290,13 +360,22 @@ export class AudioEngine {
     }
   }
 
-  private startBeatLoop(onBeat: BeatCallback, onEnded: EndCallback) {
+  private getMasterLevel() {
+    const value = this.masterMeter?.getValue();
+    const level = Array.isArray(value) ? Math.max(...value) : value;
+    const finiteLevel = typeof level === "number" && Number.isFinite(level) ? level : 0;
+    return Math.max(0, Math.min(1, finiteLevel));
+  }
+
+  private startBeatLoop(onBeat: BeatCallback, onEnded: EndCallback, onMeter?: MeterCallback) {
     const loop = () => {
       const beat = Tone.Transport.ticks / PPQ;
       onBeat(beat);
+      onMeter?.(this.getMasterLevel());
       if (!this.cycleEnabled && beat >= this.lengthBeats + 0.1) {
         this.stop();
         onBeat(0);
+        onMeter?.(0);
         onEnded();
         return;
       }

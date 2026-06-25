@@ -90,12 +90,25 @@ export function AppShell() {
           return engine.play(
             useDawStore.getState().project,
             (beat) => useDawStore.getState().setCurrentBeat(beat),
-            () => useDawStore.getState().setPlaying(false)
+            () => {
+              useDawStore.getState().setPlaying(false);
+              useDawStore.getState().setRecording(false);
+              useDawStore.getState().setMasterLevel(0);
+            },
+            {
+              countIn: useDawStore.getState().isRecording,
+              onMeter: (level) => useDawStore.getState().setMasterLevel(level)
+            }
           );
         })
-        .catch(() => useDawStore.getState().setPlaying(false));
+        .catch(() => {
+          useDawStore.getState().setPlaying(false);
+          useDawStore.getState().setRecording(false);
+          useDawStore.getState().setMasterLevel(0);
+        });
     } else {
       audioEngineRef.current?.stop();
+      useDawStore.getState().setMasterLevel(0);
       setCurrentBeat(0);
     }
     return () => {
@@ -109,21 +122,51 @@ export function AppShell() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (isEditableTarget(event.target) || event.altKey || (!event.ctrlKey && !event.metaKey)) return;
+      if (isEditableTarget(event.target) || event.altKey) return;
       const key = event.key.toLowerCase();
-      if (key === "z" && event.shiftKey) {
-        event.preventDefault();
-        useDawStore.getState().redo();
+
+      if (event.ctrlKey || event.metaKey) {
+        if (key === "z" && event.shiftKey) {
+          event.preventDefault();
+          useDawStore.getState().redo();
+          return;
+        }
+        if (key === "z") {
+          event.preventDefault();
+          useDawStore.getState().undo();
+          return;
+        }
+        if (key === "y") {
+          event.preventDefault();
+          useDawStore.getState().redo();
+        }
         return;
       }
-      if (key === "z") {
+
+      if (event.code === "Space") {
         event.preventDefault();
-        useDawStore.getState().undo();
+        const state = useDawStore.getState();
+        state.setPlaying(!state.isPlaying);
+        if (state.isPlaying) state.setRecording(false);
         return;
       }
-      if (key === "y") {
+
+      if (key === "r") {
         event.preventDefault();
-        useDawStore.getState().redo();
+        const state = useDawStore.getState();
+        if (state.isRecording) {
+          state.setPlaying(false);
+          state.setRecording(false);
+          return;
+        }
+        state.setRecording(true);
+        state.setPlaying(true);
+        return;
+      }
+
+      if (key === "enter") {
+        event.preventDefault();
+        useDawStore.getState().setCurrentBeat(0);
       }
     }
 

@@ -3,6 +3,7 @@ import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type T
 import { makeId } from "./id";
 import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
 import { repairBrokenText } from "./textRepair";
+import { normalizeCountInBars, normalizeMasterVolume, normalizeProjectKey, normalizeTimeSignature } from "./transport";
 
 type LooseProject = Partial<Project> & {
   tracks?: Partial<Track>[];
@@ -126,11 +127,15 @@ export function normalizeProject(project: Project): Project {
     version: CURRENT_PROJECT_VERSION,
     name: repairBrokenText(loose.name, "새 프로젝트"),
     bpm: Math.round(Math.max(40, Math.min(220, Number(loose.bpm ?? 120)))),
-    timeSignature: Array.isArray(loose.timeSignature) ? loose.timeSignature : [4, 4],
+    timeSignature: normalizeTimeSignature(loose.timeSignature),
     tracks: (loose.tracks ?? []).map(normalizeTrack),
     cycleStart,
     cycleEnd,
     cycleEnabled: booleanValue(loose.cycleEnabled),
+    key: normalizeProjectKey(loose.key),
+    metronomeOn: booleanValue(loose.metronomeOn),
+    countInBars: normalizeCountInBars(loose.countInBars),
+    masterVolume: normalizeMasterVolume(loose.masterVolume),
     lessonId: loose.lessonId,
     assignmentId: loose.assignmentId,
     classId: loose.classId,

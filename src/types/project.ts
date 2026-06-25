@@ -3,7 +3,7 @@ export type TrackRole = "beat" | "bass" | "melody" | "harmony" | "recording";
 export type ClipType = "midi" | "audio" | "loop";
 export type LoopCategory = "Drums" | "Bass" | "Synth" | "FX";
 
-export const CURRENT_PROJECT_VERSION = 3;
+export const CURRENT_PROJECT_VERSION = 4;
 
 export type Project = {
   id: string;
@@ -15,6 +15,10 @@ export type Project = {
   cycleStart?: number;
   cycleEnd?: number;
   cycleEnabled?: boolean;
+  key?: string;
+  metronomeOn?: boolean;
+  countInBars?: number;
+  masterVolume?: number;
   lessonId?: string;
   assignmentId?: string;
   classId?: string;

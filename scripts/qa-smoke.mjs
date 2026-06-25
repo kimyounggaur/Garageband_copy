@@ -112,6 +112,17 @@ const {
   formatBarBeatTick,
   normalizeCycleRange
 } = await server.ssrLoadModule("/src/utils/timeline.ts");
+const {
+  detectPitchFromBuffer,
+  estimateTapTempo,
+  masterVolumeToDb,
+  nextLcdMode,
+  normalizeCountInBars,
+  normalizeMasterVolume,
+  normalizeProjectKey,
+  normalizeTimeSignature,
+  pitchToTunerReading
+} = await server.ssrLoadModule("/src/utils/transport.ts");
 const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
 const {
   faderValueToPercent,
@@ -230,11 +241,15 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 3, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 4, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
   assertEqual(migrated.cycleEnabled, false, "사이클 토글 기본값");
+  assertEqual(migrated.key, "C", "프로젝트 키 기본값");
+  assertEqual(migrated.metronomeOn, false, "메트로놈 기본값");
+  assertEqual(migrated.countInBars, 0, "카운트인 기본값");
+  assertEqual(migrated.masterVolume, 0.85, "마스터 볼륨 기본값");
   assertEqual(migrated.bpm, 220, "BPM 상한 보정");
   assertEqual(migrated.tracks[0].name, "비트", "깨진 트랙 이름 보정");
   assertEqual(migrated.tracks[0].role, "beat", "드럼 트랙 역할 보정");
@@ -266,6 +281,33 @@ test("Phase 1 타임라인 유틸이 룰러, 사이클, 리전 색상 값을 계
   assertEqual(clipTypeRegionColor("midi"), "#5ec26b", "MIDI 리전 색");
   assertEqual(clipTypeRegionColor("audio"), "#46a7e0", "오디오 리전 색");
   assertEqual(clipTypeRegionColor("loop"), "#7d8cff", "루프 리전 색");
+});
+
+test("Phase 2 transport utilities compute LCD modes, tap tempo, tuner pitch, and master gain", () => {
+  assertEqual(nextLcdMode("beats"), "time", "LCD beats 다음 모드");
+  assertEqual(nextLcdMode("time"), "tuner", "LCD time 다음 모드");
+  assertEqual(nextLcdMode("tuner"), "beats", "LCD tuner 다음 모드");
+
+  assertEqual(normalizeProjectKey("Am"), "Am", "마이너 키 보존");
+  assertEqual(normalizeProjectKey("H"), "C", "잘못된 키 기본값");
+  assertDeepEqual(normalizeTimeSignature([3, 4]), [3, 4], "3/4 박자표 보존");
+  assertDeepEqual(normalizeTimeSignature([13, 3]), [4, 4], "잘못된 박자표 기본값");
+  assertEqual(normalizeCountInBars(9), 2, "카운트인 상한");
+  assertEqual(normalizeCountInBars(-1), 0, "카운트인 하한");
+  assertEqual(normalizeMasterVolume(2), 1, "마스터 볼륨 상한");
+  assertEqual(normalizeMasterVolume(-1), 0, "마스터 볼륨 하한");
+
+  assertApprox(estimateTapTempo([0, 500, 1000, 1500]), 120, "탭템포 120BPM");
+  assertApprox(masterVolumeToDb(1), 0, "마스터 볼륨 1은 0dB");
+  assertApprox(masterVolumeToDb(0.5), -6.020599913279624, "마스터 볼륨 0.5 dB");
+  assertEqual(masterVolumeToDb(0), -60, "마스터 볼륨 0은 뮤트 근사");
+
+  const sampleRate = 44100;
+  const samples = Float32Array.from({ length: 4096 }, (_, index) => Math.sin((Math.PI * 2 * 440 * index) / sampleRate));
+  assertApprox(detectPitchFromBuffer(samples, sampleRate) ?? 0, 440, "A4 피치 검출", 2);
+  const reading = pitchToTunerReading(440);
+  assertEqual(reading.note, "A4", "A4 튜너 노트");
+  assertApprox(reading.cents, 0, "A4 튜너 센트");
 });
 
 test("musicTheory가 사용 음, 음역, 학습 힌트를 분석한다", () => {
@@ -423,6 +465,45 @@ test("Phase 1 store actions edit cycle, multi selection, left resize, loops, and
   );
   assertEqual(startsAfterMove[firstClipId], startsBeforeMove[firstClipId] + 2, "group move first clip");
   assertEqual(startsAfterMove[secondClipId], startsBeforeMove[secondClipId] + 2, "group move second clip");
+});
+
+test("Phase 2 store actions control transport settings and transient recording UI", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 2 transport test");
+
+  assertEqual(useDawStore.getState().lcdMode, "beats", "LCD 기본 모드");
+  assertEqual(useDawStore.getState().isRecording, false, "녹음 기본값");
+  assertEqual(useDawStore.getState().masterLevel, 0, "마스터 미터 기본값");
+  assertEqual(useDawStore.getState().project.key, "C", "키 기본값");
+  assertEqual(useDawStore.getState().project.masterVolume, 0.85, "마스터 볼륨 기본값");
+
+  useDawStore.getState().cycleLcdMode();
+  assertEqual(useDawStore.getState().lcdMode, "time", "LCD time 전환");
+  useDawStore.getState().cycleLcdMode();
+  assertEqual(useDawStore.getState().lcdMode, "tuner", "LCD tuner 전환");
+
+  useDawStore.getState().setRecording(true);
+  useDawStore.getState().toggleMetronome(true);
+  useDawStore.getState().setCountInBars(2);
+  useDawStore.getState().setProjectKey("Am");
+  useDawStore.getState().setTimeSignature([3, 4]);
+  useDawStore.getState().setMasterVolume(0.42);
+  useDawStore.getState().setMasterLevel(0.64);
+  useDawStore.getState().setTunerReading({ note: "A4", cents: 0, frequency: 440 });
+
+  assertEqual(useDawStore.getState().isRecording, true, "녹음 상태 토글");
+  assertEqual(useDawStore.getState().project.metronomeOn, true, "메트로놈 상태 저장");
+  assertEqual(useDawStore.getState().project.countInBars, 2, "카운트인 저장");
+  assertEqual(useDawStore.getState().project.key, "Am", "키 저장");
+  assertDeepEqual(useDawStore.getState().project.timeSignature, [3, 4], "박자표 저장");
+  assertEqual(useDawStore.getState().project.masterVolume, 0.42, "마스터 볼륨 저장");
+  assertEqual(useDawStore.getState().masterLevel, 0.64, "마스터 미터 갱신");
+  assertEqual(useDawStore.getState().tunerReading.note, "A4", "튜너 읽기 저장");
+
+  useDawStore.getState().tapTempo(0);
+  useDawStore.getState().tapTempo(500);
+  useDawStore.getState().tapTempo(1000);
+  assertEqual(useDawStore.getState().project.bpm, 120, "탭템포 BPM 반영");
 });
 
 test("duplicateTrack이 트랙과 클립을 편집 가능한 복사본으로 만든다", () => {

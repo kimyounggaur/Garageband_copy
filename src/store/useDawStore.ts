@@ -8,6 +8,16 @@ import { makeId } from "../utils/id";
 import { loopCategoryLabel } from "../utils/labels";
 import { normalizeProject } from "../utils/projectMigration";
 import {
+  estimateTapTempo,
+  nextLcdMode,
+  normalizeCountInBars,
+  normalizeMasterVolume,
+  normalizeProjectKey,
+  normalizeTimeSignature,
+  type LcdMode,
+  type TunerReading
+} from "../utils/transport";
+import {
   MAX_TIMELINE_ZOOM,
   MIN_TIMELINE_ZOOM,
   SNAP_BEAT,
@@ -30,6 +40,10 @@ type DawState = {
   mode: StudioMode;
   isPlaying: boolean;
   currentBeat: number;
+  lcdMode: LcdMode;
+  isRecording: boolean;
+  masterLevel: number;
+  tunerReading?: TunerReading;
   selectedTrackId?: string;
   selectedClipId?: string;
   selectedClipIds: string[];
@@ -40,6 +54,7 @@ type DawState = {
   snapBeats: SnapBeats;
   timelineZoom: number;
   preventClipOverlap: boolean;
+  tapTempoTimes: number[];
   createProject: (name?: string) => void;
   loadProject: (project: Project) => void;
   renameProject: (name: string) => void;
@@ -58,6 +73,16 @@ type DawState = {
   setPreventClipOverlap: (preventClipOverlap: boolean) => void;
   setCycleRange: (startBeat: number, endBeat: number, options?: EditOptions) => void;
   toggleCycle: (enabled?: boolean) => void;
+  cycleLcdMode: () => void;
+  setRecording: (isRecording: boolean) => void;
+  toggleMetronome: (metronomeOn?: boolean) => void;
+  setCountInBars: (countInBars: number) => void;
+  setProjectKey: (key: string) => void;
+  setTimeSignature: (timeSignature: [number, number]) => void;
+  setMasterVolume: (masterVolume: number) => void;
+  setMasterLevel: (masterLevel: number) => void;
+  setTunerReading: (reading?: TunerReading) => void;
+  tapTempo: (timestampMs?: number) => void;
   addTrack: (type?: TrackType, name?: string) => string;
   renameTrack: (trackId: string, name: string) => void;
   duplicateTrack: (trackId: string) => string | undefined;
@@ -216,6 +241,10 @@ function createInitialProject(): Project {
     cycleStart: 0,
     cycleEnd: 8,
     cycleEnabled: false,
+    key: "C",
+    metronomeOn: false,
+    countInBars: 0,
+    masterVolume: 0.85,
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -358,6 +387,10 @@ export const useDawStore = create<DawState>((set, get) => ({
   mode: "studio",
   isPlaying: false,
   currentBeat: 0,
+  lcdMode: "beats",
+  isRecording: false,
+  masterLevel: 0,
+  tunerReading: undefined,
   selectedTrackId: undefined,
   selectedClipId: undefined,
   selectedClipIds: [],
@@ -368,6 +401,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   snapBeats: SNAP_BEAT,
   timelineZoom: 1,
   preventClipOverlap: true,
+  tapTempoTimes: [],
 
   createProject: (name = "새 프로젝트") => {
     const project = createInitialProject();
@@ -376,6 +410,11 @@ export const useDawStore = create<DawState>((set, get) => ({
       mode: "studio",
       isPlaying: false,
       currentBeat: 0,
+      lcdMode: "beats",
+      isRecording: false,
+      masterLevel: 0,
+      tunerReading: undefined,
+      tapTempoTimes: [],
       selectedTrackId: undefined,
       selectedClipId: undefined,
       selectedClipIds: [],
@@ -392,6 +431,11 @@ export const useDawStore = create<DawState>((set, get) => ({
       mode: migratedProject.lessonId ? "lesson" : "studio",
       isPlaying: false,
       currentBeat: 0,
+      lcdMode: "beats",
+      isRecording: false,
+      masterLevel: 0,
+      tunerReading: undefined,
+      tapTempoTimes: [],
       selectedTrackId: migratedProject.tracks[0]?.id,
       selectedClipId: migratedProject.tracks[0]?.clips[0]?.id,
       selectedClipIds: migratedProject.tracks[0]?.clips[0]?.id ? [migratedProject.tracks[0].clips[0].id] : [],
@@ -417,6 +461,11 @@ export const useDawStore = create<DawState>((set, get) => ({
       mode: project.lessonId ? "lesson" : "studio",
       isPlaying: false,
       currentBeat: 0,
+      lcdMode: "beats",
+      isRecording: false,
+      masterLevel: 0,
+      tunerReading: undefined,
+      tapTempoTimes: [],
       selectedTrackId: project.tracks[0]?.id,
       selectedClipId: project.tracks[0]?.clips[0]?.id,
       selectedClipIds: project.tracks[0]?.clips[0]?.id ? [project.tracks[0].clips[0].id] : [],
@@ -434,6 +483,11 @@ export const useDawStore = create<DawState>((set, get) => ({
       mode: "lesson",
       isPlaying: false,
       currentBeat: 0,
+      lcdMode: "beats",
+      isRecording: false,
+      masterLevel: 0,
+      tunerReading: undefined,
+      tapTempoTimes: [],
       selectedTrackId: project.tracks[0]?.id,
       selectedClipId: project.tracks[0]?.clips[0]?.id,
       selectedClipIds: project.tracks[0]?.clips[0]?.id ? [project.tracks[0].clips[0].id] : [],
@@ -461,6 +515,11 @@ export const useDawStore = create<DawState>((set, get) => ({
       mode: assignment.lessonId ? "lesson" : "studio",
       isPlaying: false,
       currentBeat: 0,
+      lcdMode: "beats",
+      isRecording: false,
+      masterLevel: 0,
+      tunerReading: undefined,
+      tapTempoTimes: [],
       selectedTrackId: nextProject.tracks[0]?.id,
       selectedClipId: nextProject.tracks[0]?.clips[0]?.id,
       selectedClipIds: nextProject.tracks[0]?.clips[0]?.id ? [nextProject.tracks[0].clips[0].id] : [],
@@ -596,6 +655,104 @@ export const useDawStore = create<DawState>((set, get) => ({
           cycleEnd: Math.max((state.project.cycleStart ?? 0) + 0.25, state.project.cycleEnd ?? 8),
           cycleEnabled: nextEnabled
         })
+      );
+    });
+  },
+
+  cycleLcdMode: () => set((state) => ({ lcdMode: nextLcdMode(state.lcdMode) })),
+
+  setRecording: (isRecording) => set({ isRecording }),
+
+  toggleMetronome: (metronomeOn) => {
+    set((state) => {
+      const nextMetronomeOn = metronomeOn ?? !state.project.metronomeOn;
+      if (state.project.metronomeOn === nextMetronomeOn) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          metronomeOn: nextMetronomeOn
+        })
+      );
+    });
+  },
+
+  setCountInBars: (countInBars) => {
+    set((state) => {
+      const nextCountInBars = normalizeCountInBars(countInBars);
+      if (state.project.countInBars === nextCountInBars) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          countInBars: nextCountInBars
+        })
+      );
+    });
+  },
+
+  setProjectKey: (key) => {
+    set((state) => {
+      const nextKey = normalizeProjectKey(key);
+      if (state.project.key === nextKey) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          key: nextKey
+        })
+      );
+    });
+  },
+
+  setTimeSignature: (timeSignature) => {
+    set((state) => {
+      const nextTimeSignature = normalizeTimeSignature(timeSignature);
+      if (state.project.timeSignature[0] === nextTimeSignature[0] && state.project.timeSignature[1] === nextTimeSignature[1]) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          timeSignature: nextTimeSignature
+        })
+      );
+    });
+  },
+
+  setMasterVolume: (masterVolume) => {
+    set((state) => {
+      const nextMasterVolume = normalizeMasterVolume(masterVolume);
+      if (state.project.masterVolume === nextMasterVolume) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          masterVolume: nextMasterVolume
+        })
+      );
+    });
+  },
+
+  setMasterLevel: (masterLevel) => set({ masterLevel: clamp(masterLevel, 0, 1) }),
+
+  setTunerReading: (tunerReading) => set({ tunerReading }),
+
+  tapTempo: (timestampMs = Date.now()) => {
+    set((state) => {
+      const recentTaps = [...state.tapTempoTimes, timestampMs]
+        .filter((timestamp) => timestampMs - timestamp <= 3000)
+        .slice(-5);
+      const bpm = estimateTapTempo(recentTaps);
+      if (!bpm || bpm === state.project.bpm) {
+        return { tapTempoTimes: recentTaps };
+      }
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          bpm
+        }),
+        { tapTempoTimes: recentTaps }
       );
     });
   },

@@ -36,7 +36,7 @@ export function LcdDisplay({
 }: LcdDisplayProps) {
   const displayValue =
     value ?? (mode === "time" ? formatTime(currentBeat, bpm) : mode === "tuner" ? "--" : formatLcdBeat(currentBeat, timeSignature));
-  const displayDetail = detail ?? (mode === "beats" ? `${bpm} BPM · ${timeSignature.join("/")}` : mode === "time" ? "time" : "tuner");
+  const displayDetail = detail ?? (mode === "beats" ? `${bpm} BPM | ${timeSignature.join("/")}` : mode === "time" ? "time" : "tuner");
 
   return (
     <button
