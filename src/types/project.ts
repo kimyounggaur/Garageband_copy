@@ -6,7 +6,7 @@ export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 7;
+export const CURRENT_PROJECT_VERSION = 8;
 
 export type Project = {
   id: string;
@@ -59,8 +59,16 @@ export type Track = {
   pan: number;
   muted: boolean;
   solo: boolean;
+  recordEnabled?: boolean;
   color: string;
   clips: Clip[];
+};
+
+export type AudioTakeSection = {
+  id: string;
+  takeId: string;
+  startBeat: number;
+  lengthBeats: number;
 };
 
 export type Clip = {
@@ -77,10 +85,15 @@ export type Clip = {
   trimStartSeconds?: number;
   trimEndSeconds?: number;
   gain?: number;
+  playbackRate?: number;
+  pitchSemitones?: number;
   fadeInSeconds?: number;
   fadeOutSeconds?: number;
   fadeInBeats?: number;
   fadeOutBeats?: number;
+  takeIds?: string[];
+  activeTakeId?: string;
+  takeSections?: AudioTakeSection[];
   loopId?: string;
   loopEnabled?: boolean;
   locked?: boolean;

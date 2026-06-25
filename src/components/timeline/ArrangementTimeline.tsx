@@ -1,4 +1,4 @@
-import { Copy, Drum, Keyboard, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
+import { Circle, Copy, Drum, Keyboard, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
 import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
@@ -70,6 +70,7 @@ export function ArrangementTimeline() {
   const renameTrack = useDawStore((state) => state.renameTrack);
   const duplicateTrack = useDawStore((state) => state.duplicateTrack);
   const removeTrack = useDawStore((state) => state.removeTrack);
+  const setTrackRecordEnabled = useDawStore((state) => state.setTrackRecordEnabled);
   const toggleMute = useDawStore((state) => state.toggleMute);
   const toggleSolo = useDawStore((state) => state.toggleSolo);
   const setSnapBeats = useDawStore((state) => state.setSnapBeats);
@@ -428,6 +429,16 @@ export function ArrangementTimeline() {
                 <Volume2 size={14} />
                 {menuTrack.solo ? "솔로 해제" : "트랙 솔로"}
               </button>
+              {menuTrack.type === "audio" ? (
+                <button
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                  onClick={() => runTrackMenuAction(() => setTrackRecordEnabled(menuTrack.id))}
+                  role="menuitem"
+                >
+                  <Circle size={14} fill={menuTrack.recordEnabled ? "currentColor" : "none"} />
+                  {menuTrack.recordEnabled ? "Record disable" : "Record enable"}
+                </button>
+              ) : null}
               <button
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
                   project.tracks.length <= 1 ? "cursor-not-allowed text-slate-600" : "text-red-200 hover:bg-red-500/12"

@@ -2,11 +2,12 @@ import { create } from "zustand";
 import { summarizeLesson } from "../education/evaluateMission";
 import { createLessonProject, getLessonById } from "../education/lessons";
 import type { Assignment, StudioMode } from "../education/types";
+import { buildCompedAudioClip, normalizeTakeSections } from "../audio/audioComping";
 import { defaultDrummerSettings, generateDrummerPattern, normalizeDrummerSettings } from "../audio/drummer";
 import { defaultInstrumentForTrack, normalizeInstrumentId } from "../data/instruments";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { loopMatchSummary } from "../data/loops";
-import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type ProjectScale, type Track, type TrackRole, type TrackType } from "../types/project";
+import { CURRENT_PROJECT_VERSION, type AudioTakeSection, type Clip, type MidiNote, type Project, type ProjectScale, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "../utils/id";
 import { loopCategoryLabel } from "../utils/labels";
 import { normalizePianoRollScale } from "../utils/pianoRoll";
@@ -34,7 +35,18 @@ import {
 type ClipDraft = Omit<Clip, "id" | "trackId"> & Partial<Pick<Clip, "id" | "trackId">>;
 type EditOptions = { recordHistory?: boolean; snap?: boolean };
 type ClipAudioSettings = Partial<
-  Pick<Clip, "trimStartSeconds" | "trimEndSeconds" | "gain" | "fadeInSeconds" | "fadeOutSeconds" | "fadeInBeats" | "fadeOutBeats">
+  Pick<
+    Clip,
+    | "trimStartSeconds"
+    | "trimEndSeconds"
+    | "gain"
+    | "playbackRate"
+    | "pitchSemitones"
+    | "fadeInSeconds"
+    | "fadeOutSeconds"
+    | "fadeInBeats"
+    | "fadeOutBeats"
+  >
 >;
 type DrummerClipSettings = Partial<
   Pick<Clip, "drummerPreset" | "drummerComplexity" | "drummerLoudness" | "drummerSwing" | "drummerFills">
@@ -93,6 +105,7 @@ type DawState = {
   setTunerReading: (reading?: TunerReading) => void;
   tapTempo: (timestampMs?: number) => void;
   addTrack: (type?: TrackType, name?: string) => string;
+  setTrackRecordEnabled: (trackId: string, enabled?: boolean) => void;
   renameTrack: (trackId: string, name: string) => void;
   duplicateTrack: (trackId: string) => string | undefined;
   removeTrack: (trackId: string) => void;
@@ -109,6 +122,10 @@ type DawState = {
     audioAssetId?: string
   ) => string;
   updateClipAudioSettings: (clipId: string, settings: ClipAudioSettings) => void;
+  addAudioTake: (clipId: string, audioAssetId: string, options?: { activate?: boolean }) => void;
+  setClipActiveTake: (clipId: string, takeId: string) => void;
+  setClipTakeSections: (clipId: string, sections: AudioTakeSection[]) => void;
+  createCompedAudioClip: (clipId: string) => string | undefined;
   updateDrummerClip: (clipId: string, settings: DrummerClipSettings, options?: EditOptions) => void;
   splitSelectedAudioClip: () => void;
   moveClip: (clipId: string, startBeat: number, targetTrackId?: string, options?: EditOptions) => void;
@@ -212,6 +229,7 @@ function createTrack(type: TrackType, index: number, name?: string, role?: Track
     pan: 0,
     muted: false,
     solo: false,
+    recordEnabled: false,
     color: TRACK_COLORS[index % TRACK_COLORS.length],
     clips: []
   };
@@ -820,6 +838,29 @@ export const useDawStore = create<DawState>((set, get) => ({
     return track.id;
   },
 
+  setTrackRecordEnabled: (trackId, enabled) => {
+    set((state) => {
+      const target = state.project.tracks.find((track) => track.id === trackId);
+      if (!target || target.type !== "audio") return state;
+      const nextEnabled = enabled ?? !target.recordEnabled;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((track) =>
+            track.type === "audio"
+              ? {
+                  ...track,
+                  recordEnabled: track.id === trackId ? nextEnabled : false
+                }
+              : track
+          )
+        }),
+        { selectedTrackId: trackId }
+      );
+    });
+  },
+
   renameTrack: (trackId, name) => {
     set((state) => {
       const track = state.project.tracks.find((item) => item.id === trackId);
@@ -1006,8 +1047,14 @@ export const useDawStore = create<DawState>((set, get) => ({
       trimStartSeconds: 0,
       trimEndSeconds: 0,
       gain: 1,
+      playbackRate: 1,
+      pitchSemitones: 0,
       fadeInSeconds: 0,
-      fadeOutSeconds: 0
+      fadeOutSeconds: 0,
+      fadeInBeats: 0,
+      fadeOutBeats: 0,
+      takeIds: audioAssetId ? [audioAssetId] : undefined,
+      activeTakeId: audioAssetId
     });
   },
 
@@ -1028,6 +1075,12 @@ export const useDawStore = create<DawState>((set, get) => ({
               ? item.trimEndSeconds
               : nonNegativeNumber(settings.trimEndSeconds, item.trimEndSeconds ?? 0),
           gain: settings.gain === undefined ? item.gain : clampedNumber(settings.gain, 0, 8, item.gain ?? 1),
+          playbackRate:
+            settings.playbackRate === undefined ? item.playbackRate : clampedNumber(settings.playbackRate, 0.25, 4, item.playbackRate ?? 1),
+          pitchSemitones:
+            settings.pitchSemitones === undefined
+              ? item.pitchSemitones
+              : clampedNumber(settings.pitchSemitones, -24, 24, item.pitchSemitones ?? 0),
           fadeInSeconds:
             settings.fadeInSeconds === undefined
               ? item.fadeInSeconds
@@ -1043,6 +1096,94 @@ export const useDawStore = create<DawState>((set, get) => ({
         }))
       );
     });
+  },
+
+  addAudioTake: (clipId, audioAssetId, options) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.type !== "audio" || clip.locked || !audioAssetId) return state;
+      const takeIds = [clip.audioAssetId, ...(clip.takeIds ?? []), audioAssetId].filter(
+        (id, index, list): id is string => typeof id === "string" && id.length > 0 && list.indexOf(id) === index
+      );
+      const activeTakeId = options?.activate ? audioAssetId : clip.activeTakeId ?? takeIds[0];
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          audioAssetId: activeTakeId,
+          takeIds,
+          activeTakeId,
+          takeSections: normalizeTakeSections({ ...item, audioAssetId: activeTakeId, takeIds, activeTakeId })
+        }))
+      );
+    });
+  },
+
+  setClipActiveTake: (clipId, takeId) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.type !== "audio" || clip.locked) return state;
+      const takeIds = [clip.audioAssetId, ...(clip.takeIds ?? [])].filter(
+        (id, index, list): id is string => typeof id === "string" && id.length > 0 && list.indexOf(id) === index
+      );
+      if (!takeIds.includes(takeId)) return state;
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          audioAssetId: takeId,
+          activeTakeId: takeId,
+          takeIds
+        }))
+      );
+    });
+  },
+
+  setClipTakeSections: (clipId, sections) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.type !== "audio" || clip.locked) return state;
+      const takeSections = normalizeTakeSections({ ...clip, takeSections: sections });
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          takeSections
+        }))
+      );
+    });
+  },
+
+  createCompedAudioClip: (clipId) => {
+    let compId: string | undefined;
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.clips.some((clip) => clip.id === clipId));
+      const clip = track?.clips.find((item) => item.id === clipId);
+      if (!track || !clip || clip.type !== "audio") return state;
+      compId = makeId("clip");
+      const desiredStart = clip.startBeat + clip.lengthBeats;
+      const startBeat = state.preventClipOverlap
+        ? resolveNonOverlappingStart(track.clips, undefined, desiredStart, clip.lengthBeats, state.snapBeats)
+        : snapBeat(desiredStart, state.snapBeats);
+      const compClip = buildCompedAudioClip(clip, {
+        id: compId,
+        name: `${clip.name} Comp`,
+        startBeat
+      });
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) => (item.id === track.id ? { ...item, clips: [...item.clips, compClip] } : item))
+        }),
+        {
+          selectedTrackId: track.id,
+          selectedClipId: compId,
+          selectedClipIds: compId ? [compId] : []
+        }
+      );
+    });
+    return compId;
   },
 
   updateDrummerClip: (clipId, settings, options) => {

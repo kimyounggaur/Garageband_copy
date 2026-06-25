@@ -27,6 +27,12 @@ function booleanValue(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function stringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item, index): item is string => typeof item === "string" && item.length > 0 && value.indexOf(item) === index)
+    : undefined;
+}
+
 function normalizeCycle(start: unknown, end: unknown) {
   const cycleStart = nonNegative(start, 0);
   const cycleEnd = Math.max(cycleStart + 0.25, nonNegative(end, 8));
@@ -68,8 +74,20 @@ function normalizeTrackType(value?: string): TrackType {
 function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: number): Clip {
   const type = clip.type === "audio" || clip.type === "loop" || clip.type === "midi" ? clip.type : "midi";
   const gain = Number(clip.gain);
+  const playbackRate = Number(clip.playbackRate);
+  const pitchSemitones = Number(clip.pitchSemitones);
   const fallbackName = defaultClipName(type, clip.loopId);
   const instructions = repairBrokenText(clip.instructions, "");
+  const takeIds = stringList(clip.takeIds);
+  const activeTakeId = typeof clip.activeTakeId === "string" && clip.activeTakeId.length > 0 ? clip.activeTakeId : clip.audioAssetId ?? takeIds?.[0];
+  const takeSections = Array.isArray(clip.takeSections)
+    ? clip.takeSections.map((section, sectionIndex) => ({
+        id: section.id || makeId("take-section"),
+        takeId: typeof section.takeId === "string" && section.takeId.length > 0 ? section.takeId : activeTakeId ?? "",
+        startBeat: Math.max(0, Number(section.startBeat ?? 0)),
+        lengthBeats: Math.max(0.25, Number(section.lengthBeats ?? 0.25))
+      }))
+    : undefined;
   const hasDrummerSettings =
     clip.drummerPreset !== undefined ||
     clip.drummerComplexity !== undefined ||
@@ -105,10 +123,15 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
     trimStartSeconds: nonNegative(clip.trimStartSeconds),
     trimEndSeconds: nonNegative(clip.trimEndSeconds),
     gain: Number.isFinite(gain) ? Math.max(0, gain) : undefined,
+    playbackRate: Number.isFinite(playbackRate) ? Math.max(0.25, Math.min(4, playbackRate)) : undefined,
+    pitchSemitones: Number.isFinite(pitchSemitones) ? Math.max(-24, Math.min(24, pitchSemitones)) : undefined,
     fadeInSeconds: nonNegative(clip.fadeInSeconds),
     fadeOutSeconds: nonNegative(clip.fadeOutSeconds),
     fadeInBeats: nonNegative(clip.fadeInBeats),
     fadeOutBeats: nonNegative(clip.fadeOutBeats),
+    takeIds,
+    activeTakeId,
+    takeSections,
     loopId: clip.loopId,
     loopEnabled: booleanValue(clip.loopEnabled),
     locked: clip.locked ?? false,
@@ -137,6 +160,7 @@ function normalizeTrack(track: Partial<Track>, index: number): Track {
     pan: Math.max(-1, Math.min(1, Number(track.pan ?? 0))),
     muted: Boolean(track.muted),
     solo: Boolean(track.solo),
+    recordEnabled: type === "audio" ? Boolean(track.recordEnabled) : false,
     color: track.color ?? TRACK_COLORS[index % TRACK_COLORS.length],
     clips: (track.clips ?? []).map((clip, clipIndex) => normalizeClip(clip, id, clipIndex + index))
   };

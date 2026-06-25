@@ -193,7 +193,8 @@ async function scheduleAudioClip(context: OfflineAudioContext, project: Project,
     if (duration <= 0) return;
 
     source.buffer = decoded;
-    const { fadeInSeconds: fadeIn, fadeOutSeconds: fadeOut } = resolveClipFadeDurations(clip, duration);
+    source.playbackRate.value = timing.playbackRate;
+    const { fadeInSeconds: fadeIn, fadeOutSeconds: fadeOut } = resolveClipFadeDurations(clip, duration, project.bpm);
     gain.gain.setValueAtTime(fadeIn > 0 ? 0 : clipGainValue, start);
     if (fadeIn > 0) {
       gain.gain.linearRampToValueAtTime(clipGainValue, start + fadeIn);
@@ -205,7 +206,7 @@ async function scheduleAudioClip(context: OfflineAudioContext, project: Project,
       gain.gain.setValueAtTime(clipGainValue, start + duration);
     }
     source.connect(gain).connect(output);
-    source.start(start, timing.offsetSeconds, duration);
+    source.start(start, timing.offsetSeconds, timing.sourceDurationToPlaySeconds);
     source.stop(start + duration);
   } catch {
     // Skip unreadable imported audio while preserving the rest of the export.

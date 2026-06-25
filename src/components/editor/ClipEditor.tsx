@@ -1,8 +1,9 @@
 import { Scissors, Trash2, Wand2 } from "../icons";
 import { useEffect, useMemo, useState } from "react";
 import { measureClipPeak } from "../../audio/clipAudio";
+import { clipTakeIds, normalizeTakeSections } from "../../audio/audioComping";
 import { useDawStore } from "../../store/useDawStore";
-import type { Clip } from "../../types/project";
+import type { AudioTakeSection, Clip } from "../../types/project";
 import { clipTypeLabel, statusLabel } from "../../utils/labels";
 import { AudioWaveform } from "../audio/AudioWaveform";
 import { Drummer } from "../instruments/Drummer";
@@ -18,18 +19,26 @@ function audioValue(value: number | undefined, fallback = 0) {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
+function updateTakeSection(sections: AudioTakeSection[], sectionId: string, edit: Partial<AudioTakeSection>) {
+  return sections.map((section) => (section.id === sectionId ? { ...section, ...edit } : section));
+}
+
 export function ClipEditor() {
   const [normalizeStatus, setNormalizeStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [midiEditorMode, setMidiEditorMode] = useState<"roll" | "touch" | "drummer">("roll");
   const project = useDawStore((state) => state.project);
   const selectedClipId = useDawStore((state) => state.selectedClipId);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
+  const currentBeat = useDawStore((state) => state.currentBeat);
   const snapBeats = useDawStore((state) => state.snapBeats);
   const moveClip = useDawStore((state) => state.moveClip);
   const resizeClip = useDawStore((state) => state.resizeClip);
   const removeClip = useDawStore((state) => state.removeClip);
   const addMidiClip = useDawStore((state) => state.addMidiClip);
   const updateClipAudioSettings = useDawStore((state) => state.updateClipAudioSettings);
+  const setClipActiveTake = useDawStore((state) => state.setClipActiveTake);
+  const setClipTakeSections = useDawStore((state) => state.setClipTakeSections);
+  const createCompedAudioClip = useDawStore((state) => state.createCompedAudioClip);
   const splitSelectedAudioClip = useDawStore((state) => state.splitSelectedAudioClip);
   const clips = useMemo(() => project.tracks.flatMap((track) => track.clips), [project.tracks]);
   const selectedClip = findSelectedClip(clips, selectedClipId);
@@ -132,7 +141,16 @@ export function ClipEditor() {
               </div>
               {selectedClip.type === "audio" ? (
                 <div className="mb-3 h-24 overflow-hidden rounded border border-white/10 bg-studio-950/80">
-                  <AudioWaveform clip={selectedClip} color="#4ade80" showTrim className="h-full w-full" />
+                  <AudioWaveform
+                    clip={selectedClip}
+                    color="#4ade80"
+                    showTrim
+                    editable={!selectedClip.locked}
+                    bpm={project.bpm}
+                    playheadBeat={currentBeat}
+                    className="h-full w-full"
+                    onEdit={(settings) => updateClipAudioSettings(selectedClip.id, settings)}
+                  />
                 </div>
               ) : null}
               <div className="grid grid-cols-2 gap-3">
@@ -267,6 +285,122 @@ export function ClipEditor() {
                     />
                   </label>
                 </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="text-xs font-bold text-slate-400">
+                    Rate
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0.25}
+                      max={4}
+                      step={0.01}
+                      value={audioValue(selectedClip.playbackRate, 1)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) => updateClipAudioSettings(selectedClip.id, { playbackRate: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Pitch
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={-24}
+                      max={24}
+                      step={1}
+                      value={audioValue(selectedClip.pitchSemitones, 0)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) => updateClipAudioSettings(selectedClip.id, { pitchSemitones: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Fade In Beats
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      step={snapBeats}
+                      value={audioValue(selectedClip.fadeInBeats)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) => updateClipAudioSettings(selectedClip.id, { fadeInBeats: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-400">
+                    Fade Out Beats
+                    <input
+                      className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                      type="number"
+                      min={0}
+                      step={snapBeats}
+                      value={audioValue(selectedClip.fadeOutBeats)}
+                      disabled={selectedClip.locked}
+                      onChange={(event) => updateClipAudioSettings(selectedClip.id, { fadeOutBeats: Number(event.target.value) })}
+                    />
+                  </label>
+                </div>
+                {clipTakeIds(selectedClip).length > 0 ? (
+                  <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-2">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Takes</span>
+                      <button className="studio-button h-7 px-2 text-[11px]" onClick={() => createCompedAudioClip(selectedClip.id)} disabled={selectedClip.locked}>
+                        Comp
+                      </button>
+                    </div>
+                    <label className="block text-xs font-bold text-slate-400">
+                      Active Take
+                      <select
+                        className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-xs font-bold text-slate-100 outline-none focus:border-meter-cyan"
+                        value={selectedClip.activeTakeId ?? selectedClip.audioAssetId ?? clipTakeIds(selectedClip)[0]}
+                        disabled={selectedClip.locked}
+                        onChange={(event) => setClipActiveTake(selectedClip.id, event.target.value)}
+                      >
+                        {clipTakeIds(selectedClip).map((takeId, index) => (
+                          <option key={takeId} value={takeId}>
+                            Take {index + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="mt-2 space-y-2">
+                      {normalizeTakeSections(selectedClip).map((section, index, sections) => (
+                        <div key={section.id} className="grid grid-cols-[1fr_64px_64px] gap-2">
+                          <select
+                            className="h-8 rounded border border-white/10 bg-studio-950 px-2 text-xs font-bold text-slate-100 outline-none focus:border-meter-cyan"
+                            value={section.takeId}
+                            disabled={selectedClip.locked}
+                            onChange={(event) => setClipTakeSections(selectedClip.id, updateTakeSection(sections, section.id, { takeId: event.target.value }))}
+                            aria-label={`Take section ${index + 1}`}
+                          >
+                            {clipTakeIds(selectedClip).map((takeId, takeIndex) => (
+                              <option key={takeId} value={takeId}>
+                                Take {takeIndex + 1}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            className="h-8 rounded border border-white/10 bg-studio-950 px-2 text-xs text-slate-100 outline-none focus:border-meter-cyan"
+                            type="number"
+                            min={0}
+                            step={snapBeats}
+                            value={section.startBeat}
+                            disabled={selectedClip.locked}
+                            onChange={(event) => setClipTakeSections(selectedClip.id, updateTakeSection(sections, section.id, { startBeat: Number(event.target.value) }))}
+                            aria-label={`Section ${index + 1} start`}
+                          />
+                          <input
+                            className="h-8 rounded border border-white/10 bg-studio-950 px-2 text-xs text-slate-100 outline-none focus:border-meter-cyan"
+                            type="number"
+                            min={0.25}
+                            step={snapBeats}
+                            value={section.lengthBeats}
+                            disabled={selectedClip.locked}
+                            onChange={(event) => setClipTakeSections(selectedClip.id, updateTakeSection(sections, section.id, { lengthBeats: Number(event.target.value) }))}
+                            aria-label={`Section ${index + 1} length`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button className="studio-button w-full" onClick={splitSelectedAudioClip} disabled={selectedClip.locked}>
                     <Scissors size={14} />

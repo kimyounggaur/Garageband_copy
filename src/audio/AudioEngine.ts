@@ -348,12 +348,14 @@ export class AudioEngine {
 
       const timing = resolveClipAudioTiming(clip, project.bpm, player.buffer.duration);
       if (timing.durationSeconds <= 0) return;
-      const fades = resolveClipFadeDurations(clip, timing.durationSeconds);
+      const fades = resolveClipFadeDurations(clip, timing.durationSeconds, project.bpm);
+      player.playbackRate = timing.playbackRate;
       player.fadeIn = fades.fadeInSeconds;
       player.fadeOut = fades.fadeOutSeconds;
 
       const id = Tone.Transport.schedule((time) => {
-        player.start(time, timing.offsetSeconds, timing.durationSeconds);
+        player.start(time, timing.offsetSeconds, timing.sourceDurationToPlaySeconds);
+        player.stop(time + timing.durationSeconds);
       }, tickTime(clip.startBeat));
       this.scheduledIds.push(id);
     } catch {

@@ -1,9 +1,10 @@
 import type { ClipType, LoopCategory, TrackRole, TrackType } from "../types/project";
 
 export function statusLabel(
-  status: "idle" | "working" | "done" | "error" | "recording" | "saving",
+  status: "idle" | "working" | "done" | "error" | "recording" | "saving" | "counting",
   fallback: string
 ) {
+  if (status === "counting") return "Count-in";
   if (status === "recording") return "녹음 중";
   if (status === "saving") return "저장 중";
   if (status === "working") return "처리 중";

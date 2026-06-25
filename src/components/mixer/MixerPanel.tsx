@@ -1,4 +1,4 @@
-import { Drum, Keyboard, Plus, RefreshCcw, Trash2, Volume2 } from "../icons";
+import { Circle, Drum, Keyboard, Plus, RefreshCcw, Trash2, Volume2 } from "../icons";
 import { useEffect, useState } from "react";
 import { projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
@@ -23,6 +23,7 @@ export function MixerPanel() {
   const removeTrack = useDawStore((state) => state.removeTrack);
   const toggleMute = useDawStore((state) => state.toggleMute);
   const toggleSolo = useDawStore((state) => state.toggleSolo);
+  const setTrackRecordEnabled = useDawStore((state) => state.setTrackRecordEnabled);
   const setTrackVolume = useDawStore((state) => state.setTrackVolume);
   const setTrackPan = useDawStore((state) => state.setTrackPan);
   const loadProjectIntoStore = useDawStore((state) => state.loadProject);
@@ -108,7 +109,25 @@ export function MixerPanel() {
                 <Meter label={`${track.name} 레벨`} value={track.muted ? 0 : track.volume} orientation="vertical" />
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className={`mt-2 grid gap-2 ${track.type === "audio" ? "grid-cols-3" : "grid-cols-2"}`}>
+                {track.type === "audio" ? (
+                  <button
+                    className={`h-7 rounded-md text-[11px] font-black transition ${
+                      track.recordEnabled ? "bg-accent-record text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"
+                    }`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setTrackRecordEnabled(track.id);
+                    }}
+                    title={`${track.name} record enable`}
+                    aria-label={`${track.name} record enable`}
+                  >
+                    <span className="inline-flex items-center justify-center gap-1">
+                      <Circle size={10} fill={track.recordEnabled ? "currentColor" : "none"} />
+                      R
+                    </span>
+                  </button>
+                ) : null}
                 <button
                   className={`h-7 rounded-md text-[11px] font-black transition ${
                     track.muted ? "bg-accent-record text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"

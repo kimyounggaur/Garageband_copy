@@ -102,10 +102,16 @@ const { normalizeProject } = await server.ssrLoadModule("/src/utils/projectMigra
 const { analyzeProjectNotes, getTheoryHint } = await server.ssrLoadModule("/src/assist/musicTheory.ts");
 const {
   clipGain,
+  resolveClipPlaybackRate,
   resolveClipAudioTiming,
   resolveClipFadeDurations,
   secondsPerBeat
 } = await server.ssrLoadModule("/src/audio/clipAudioMath.ts");
+const {
+  buildCompedAudioClip,
+  buildDefaultTakeSections,
+  normalizeTakeSections
+} = await server.ssrLoadModule("/src/audio/audioComping.ts");
 const {
   buildRulerTicks,
   clipTypeRegionColor,
@@ -274,7 +280,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 7, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 8, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -685,6 +691,121 @@ test("오디오 trim/fade/gain 계산이 재생과 내보내기에서 공유 가
   assertApprox(clipGain(clip({ gain: -4 })), 0, "gain 하한");
   assertApprox(clipGain(clip({ gain: Number.NaN })), 1, "잘못된 gain 기본값");
   assertApprox(secondsPerBeat(0), 60, "비정상 BPM 보호");
+});
+
+test("Phase 7 audio math supports beat fades, playback rate, and pitch transpose", () => {
+  const transformedClip = clip({
+    type: "audio",
+    lengthBeats: 4,
+    trimStartSeconds: 1,
+    trimEndSeconds: 2,
+    gain: 0.8,
+    fadeInBeats: 1,
+    fadeOutBeats: 0.5,
+    playbackRate: 1.25,
+    pitchSemitones: 12
+  });
+
+  assertApprox(resolveClipPlaybackRate(transformedClip), 2.5, "pitch transpose multiplies playback rate");
+  const timing = resolveClipAudioTiming(transformedClip, 120, 12);
+  assertApprox(timing.offsetSeconds, 1, "transformed trim offset");
+  assertApprox(timing.playbackRate, 2.5, "timing exposes playback rate");
+  assertApprox(timing.durationSeconds, 2, "timeline duration is limited by clip beats");
+  assertApprox(timing.sourceDurationToPlaySeconds, 5, "source duration accounts for playback rate");
+
+  const fades = resolveClipFadeDurations(transformedClip, timing.durationSeconds, 120);
+  assertApprox(fades.fadeInSeconds, 0.5, "fade in beats convert to seconds");
+  assertApprox(fades.fadeOutSeconds, 0.25, "fade out beats convert to seconds");
+});
+
+test("Phase 7 take folder utilities normalize sections and build comp clips", () => {
+  const sourceClip = clip({
+    id: "take-folder",
+    type: "audio",
+    audioAssetId: "take-a",
+    takeIds: ["take-a", "take-b", "take-c"],
+    activeTakeId: "take-b",
+    lengthBeats: 8,
+    takeSections: [
+      { id: "section-1", takeId: "take-b", startBeat: 0, lengthBeats: 4 },
+      { id: "section-2", takeId: "missing-take", startBeat: 4, lengthBeats: 8 }
+    ]
+  });
+
+  assertDeepEqual(
+    buildDefaultTakeSections(sourceClip).map((section) => [section.takeId, section.startBeat, section.lengthBeats]),
+    [["take-b", 0, 8]],
+    "default take section uses active take"
+  );
+  assertDeepEqual(
+    normalizeTakeSections(sourceClip).map((section) => [section.takeId, section.startBeat, section.lengthBeats]),
+    [
+      ["take-b", 0, 4],
+      ["take-b", 4, 4]
+    ],
+    "take sections clamp length and replace missing take ids"
+  );
+
+  const comp = buildCompedAudioClip(sourceClip, { id: "comp-1", name: "Lead Vocal Comp", startBeat: 12 });
+  assertEqual(comp.id, "comp-1", "comp id is applied");
+  assertEqual(comp.name, "Lead Vocal Comp", "comp name is applied");
+  assertEqual(comp.startBeat, 12, "comp start is applied");
+  assertEqual(comp.audioAssetId, "take-b", "comp points at the active take for preview playback");
+  assertEqual(comp.activeTakeId, "take-b", "comp keeps active take");
+  assertDeepEqual(
+    comp.takeSections.map((section) => [section.takeId, section.startBeat, section.lengthBeats]),
+    [
+      ["take-b", 0, 4],
+      ["take-b", 4, 4]
+    ],
+    "comp preserves normalized take sections"
+  );
+});
+
+test("Phase 7 store actions arm tracks, manage takes, and create comp clips", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 7 audio take test");
+  const audioTrackId = useDawStore.getState().addTrack("audio", "Vocal");
+  const secondAudioTrackId = useDawStore.getState().addTrack("audio", "Guitar");
+
+  useDawStore.getState().setTrackRecordEnabled(audioTrackId, true);
+  let tracks = useDawStore.getState().project.tracks;
+  assertEqual(tracks.find((item) => item.id === audioTrackId).recordEnabled, true, "selected track is record enabled");
+  assertEqual(tracks.find((item) => item.id === secondAudioTrackId).recordEnabled, false, "other audio tracks are disarmed");
+
+  const clipId = useDawStore.getState().addAudioClip(audioTrackId, 0, "Take Folder", undefined, 8, "take-1");
+  let audioClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  assertDeepEqual(audioClip.takeIds, ["take-1"], "first audio asset initializes take folder");
+  assertEqual(audioClip.activeTakeId, "take-1", "first take is active");
+
+  useDawStore.getState().addAudioTake(clipId, "take-2", { activate: true });
+  audioClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  assertDeepEqual(audioClip.takeIds, ["take-1", "take-2"], "new take is appended");
+  assertEqual(audioClip.activeTakeId, "take-2", "new take can become active");
+
+  useDawStore.getState().setClipTakeSections(clipId, [
+    { id: "a", takeId: "take-1", startBeat: 0, lengthBeats: 4 },
+    { id: "b", takeId: "take-2", startBeat: 4, lengthBeats: 4 }
+  ]);
+  const compId = useDawStore.getState().createCompedAudioClip(clipId);
+  const compClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === compId);
+  assert(compClip, "comp clip is created");
+  assertEqual(compClip.name.endsWith("Comp"), true, "comp clip is named");
+  assertDeepEqual(
+    compClip.takeSections.map((section) => [section.takeId, section.startBeat, section.lengthBeats]),
+    [
+      ["take-1", 0, 4],
+      ["take-2", 4, 4]
+    ],
+    "comp clip keeps chosen take sections"
+  );
+
+  useDawStore.getState().updateClipAudioSettings(clipId, { playbackRate: 0.5, pitchSemitones: -12, fadeInBeats: 1 });
+  audioClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  assertEqual(audioClip.playbackRate, 0.5, "playback rate is saved");
+  assertEqual(audioClip.pitchSemitones, -12, "pitch transpose is saved");
+  assertEqual(audioClip.fadeInBeats, 1, "fade beats are saved");
+  assert(useDawStore.getState().undoStack.length > 0, "phase 7 edits are undoable");
 });
 
 test("Phase 0 UI 컨트롤 변환이 노브, 페이더, 미터, LCD에서 일관된 값을 만든다", () => {
