@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="1840" viewBox="0 0 1600 1840" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GarageBand Copy 사용자 매뉴얼 비주얼 맵">
+  <rect width="1600" height="1840" fill="#0a0f18"/>
+  <text x="70" y="110" font-size="58" font-weight="900" fill="#f8fafc">GarageBand Copy 사용자 매뉴얼</text>
+  <text x="70" y="164" font-size="28" font-weight="700" fill="#94a3b8">작곡, 녹음, 믹싱, 수업, 공유까지 한눈에 보는 비주얼 지도</text>
+  <rect x="70" y="214" width="1460" height="56" rx="22" fill="#111827" stroke="#334155"/>
+  <text x="106" y="251" font-size="24" font-weight="900" fill="#38bdf8">추천 순서</text>
+  <text x="250" y="251" font-size="24" font-weight="800" fill="#e5f2ff">새 프로젝트 -> 루프 배치 -> MIDI/오디오 편집 -> 믹서/자동화 -> Share Export</text>
+  
+        <g transform="translate(70 330)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#38bdf8"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">화면 구조</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">상단 Transport, 중앙 Timeline,</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">오른쪽 Studio, 하단 Clip Editor를</text><text x="54" y="236" font-size="24" font-weight="700" fill="#dbeafe">한 화면에서 사용합니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="120" height="16" rx="8" fill="#38bdf8"/>
+        </g>
+      
+        <g transform="translate(826 330)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#5ec26b"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">작곡 흐름</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">BPM/Key 설정 후 루프, MIDI, 오디오를</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">쌓고 Mixer에서 균형을 잡습니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="168" height="16" rx="8" fill="#5ec26b"/>
+        </g>
+      
+        <g transform="translate(70 676)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#818cf8"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">타임라인</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">클립은 색상 블록이며 드래그, 길이 조절, 루프</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">반복, 사이클 구간을 지원합니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="216" height="16" rx="8" fill="#818cf8"/>
+        </g>
+      
+        <g transform="translate(826 676)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#f59e0b"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">루프와 악기</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">Loop Browser와 Library에서 소리를</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">고르고 드래그하거나 + 버튼으로 배치합니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="264" height="16" rx="8" fill="#f59e0b"/>
+        </g>
+      
+        <g transform="translate(70 1022)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#a78bfa"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">편집기</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">Piano Roll, Touch, Drummer,</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">Audio 파형 편집을 선택 클립에 맞춰</text><text x="54" y="236" font-size="24" font-weight="700" fill="#dbeafe">사용합니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="312" height="16" rx="8" fill="#a78bfa"/>
+        </g>
+      
+        <g transform="translate(826 1022)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#fb7185"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">믹서와 자동화</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">볼륨, 팬, FX, Send, Automation</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">포인트로 곡의 움직임을 만듭니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="360" height="16" rx="8" fill="#fb7185"/>
+        </g>
+      
+        <g transform="translate(70 1368)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#2dd4bf"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">Live Loops</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">Scene과 Cell 단위로 루프를 큐잉하고 즉흥</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">연주처럼 실행합니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="408" height="16" rx="8" fill="#2dd4bf"/>
+        </g>
+      
+        <g transform="translate(826 1368)">
+          <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="70" cy="72" r="36" fill="#f0abfc"/>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">Share / Export</text>
+          <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">Mix, Stems ZIP, Project 파일,</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">Import를 한 모달에서 처리합니다.</text>
+          <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
+          <rect x="54" y="250" width="456" height="16" rx="8" fill="#f0abfc"/>
+        </g>
+      
+</svg>

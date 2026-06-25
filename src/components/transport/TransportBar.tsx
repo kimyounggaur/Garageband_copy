@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Circle,
   ClipboardCheck,
   Copy,
@@ -8,6 +9,7 @@ import {
   Mic,
   Pause,
   Play,
+  PlayCircle,
   Redo2,
   Repeat2,
   Rewind,
@@ -326,6 +328,26 @@ export function TransportBar({
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
         <SegmentedToggle value={educationView} options={educationOptions} onChange={onEducationViewChange} ariaLabel="Education view" className="grid-cols-2" />
         <SegmentedToggle value={mode} options={modeOptions} onChange={setMode} ariaLabel="Workspace mode" className="grid-cols-3" />
+        <a
+          className="studio-button"
+          href="./manual/quickstart/garageband-quickstart-user-manual.html"
+          target="_blank"
+          rel="noreferrer"
+          title="퀵스타트 메뉴얼"
+        >
+          <PlayCircle size={15} />
+          <span className="hidden sm:inline">퀵스타트</span>
+        </a>
+        <a
+          className="studio-button"
+          href="./manual/user/garageband-user-manual.html"
+          target="_blank"
+          rel="noreferrer"
+          title="유저 메뉴얼"
+        >
+          <BookOpen size={15} />
+          <span className="hidden sm:inline">유저 메뉴얼</span>
+        </a>
         <button className="studio-button" onClick={() => createProject("New Project")} title="New project">
           <FolderPlus size={15} />
           <span className="hidden sm:inline">New</span>

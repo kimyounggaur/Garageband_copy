@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="930" viewBox="0 0 1600 930" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GarageBand Copy 퀵스타트 지도">
+  <rect width="1600" height="930" fill="#0a0f18"/>
+  <text x="64" y="108" font-size="60" font-weight="900" fill="#f8fafc">GarageBand Copy 퀵스타트</text>
+  <text x="64" y="158" font-size="28" font-weight="800" fill="#9fb3c8">처음 실행부터 WAV와 프로젝트 백업까지 10분 루틴</text>
+  <rect x="64" y="204" width="1472" height="58" rx="22" fill="#111827" stroke="#334155"/>
+  <text x="100" y="242" font-size="24" font-weight="900" fill="#38bdf8">핵심 순서</text>
+  <text x="250" y="242" font-size="24" font-weight="900" fill="#f8fafc">설정 -> 루프 -> 편집 -> 녹음 -> 믹스 -> 공유</text>
+  
+        <g transform="translate(64 292)">
+          <rect width="210" height="260" rx="26" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="54" cy="58" r="34" fill="#38bdf8"/>
+          <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">1</text>
+          <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">설정</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">BPM, Key,</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">박자표를 먼저</text><text x="30" y="194" font-size="21" font-weight="800" fill="#dbeafe">정합니다.</text>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
+          <rect x="30" y="214" width="60" height="13" rx="7" fill="#38bdf8"/>
+        </g>
+      
+        <g transform="translate(312 292)">
+          <rect width="210" height="260" rx="26" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="54" cy="58" r="34" fill="#818cf8"/>
+          <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">2</text>
+          <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">루프</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">드럼과 베이스 루프를</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">배치합니다.</text>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
+          <rect x="30" y="214" width="78" height="13" rx="7" fill="#818cf8"/>
+        </g>
+      
+        <g transform="translate(560 292)">
+          <rect width="210" height="260" rx="26" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="54" cy="58" r="34" fill="#5ec26b"/>
+          <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">3</text>
+          <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">편집</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">MIDI, Touch,</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">Drummer로</text><text x="30" y="194" font-size="21" font-weight="800" fill="#dbeafe">멜로디를 만듭니다.</text>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
+          <rect x="30" y="214" width="96" height="13" rx="7" fill="#5ec26b"/>
+        </g>
+      
+        <g transform="translate(808 292)">
+          <rect width="210" height="260" rx="26" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="54" cy="58" r="34" fill="#f59e0b"/>
+          <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">4</text>
+          <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">녹음</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">Audio 트랙을</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">Arm하고 녹음합니다.</text>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
+          <rect x="30" y="214" width="114" height="13" rx="7" fill="#f59e0b"/>
+        </g>
+      
+        <g transform="translate(1056 292)">
+          <rect width="210" height="260" rx="26" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="54" cy="58" r="34" fill="#fb7185"/>
+          <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">5</text>
+          <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">믹스</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">볼륨, 팬, FX,</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">Automation을</text><text x="30" y="194" font-size="21" font-weight="800" fill="#dbeafe">정리합니다.</text>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
+          <rect x="30" y="214" width="132" height="13" rx="7" fill="#fb7185"/>
+        </g>
+      
+        <g transform="translate(1304 292)">
+          <rect width="210" height="260" rx="26" fill="#111827" stroke="#334155" stroke-width="2"/>
+          <circle cx="54" cy="58" r="34" fill="#e879f9"/>
+          <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">6</text>
+          <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">공유</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">Mix, Stems</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">ZIP, Project</text><text x="30" y="194" font-size="21" font-weight="800" fill="#dbeafe">파일을 내보냅니다.</text>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
+          <rect x="30" y="214" width="150" height="13" rx="7" fill="#e879f9"/>
+        </g>
+      
+</svg>

@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>GarageBand Copy 퀵스타트 사용자 설명서</title>
+  <style>
+    :root { --bg:#0a0f18; --panel:#111827; --ink:#e5edf7; --muted:#8ea3b8; --line:#29364a; --blue:#38bdf8; --green:#5ec26b; --yellow:#fbbf24; --rose:#fb7185; }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); color: var(--ink); font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif; line-height: 1.62; }
+    body { margin: 0; background: radial-gradient(circle at 15% 0%, rgba(56,189,248,.16), transparent 30%), var(--bg); }
+    .page { max-width: 1040px; margin: 0 auto; padding: 46px 28px 72px; }
+    .cover { min-height: 660px; display: grid; align-content: center; gap: 18px; border-bottom: 1px solid var(--line); }
+    .eyebrow { color: var(--blue); font-size: 15px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(42px, 7vw, 80px); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 54px 0 18px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 32px; line-height: 1.2; }
+    h3 { margin: 26px 0 10px; font-size: 22px; }
+    p { margin: 0 0 13px; color: #cbd5e1; }
+    .lead { max-width: 820px; font-size: 22px; color: #dbeafe; }
+    .route { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 24px 0; }
+    .route div { min-height: 74px; border: 1px solid var(--line); border-radius: 12px; background: rgba(17,24,39,.84); padding: 12px; font-weight: 900; color: #f8fafc; }
+    .route span { display: block; color: var(--blue); font-size: 13px; margin-bottom: 4px; }
+    .figure { margin: 24px 0; border: 1px solid var(--line); border-radius: 16px; background: rgba(17,24,39,.86); padding: 16px; break-inside: avoid; }
+    .figure-title { font-weight: 900; font-size: 18px; color: #f8fafc; margin-bottom: 4px; }
+    .art { margin-top: 12px; overflow: hidden; border-radius: 14px; }
+    .art svg { width: 100%; height: auto; display: block; }
+    figcaption { margin-top: 9px; color: var(--muted); font-size: 13px; }
+    .screenshot img { width: 100%; display: block; border: 1px solid var(--line); border-radius: 12px; }
+    .steps { margin: 16px 0 22px; padding: 0; list-style: none; counter-reset: step; }
+    .steps li { position: relative; margin: 9px 0; padding: 13px 16px 13px 54px; border: 1px solid var(--line); border-radius: 12px; background: rgba(15,23,42,.72); color: #dbeafe; break-inside: avoid; }
+    .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 15px; top: 13px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); color: #07111c; font-weight: 900; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .card { border: 1px solid var(--line); border-radius: 13px; background: rgba(17,24,39,.72); padding: 16px; break-inside: avoid; }
+    .card strong { display: block; color: #f8fafc; font-size: 18px; margin-bottom: 6px; }
+    .tip { display: grid; gap: 6px; margin: 18px 0; padding: 15px; border-radius: 14px; border: 1px solid; break-inside: avoid; }
+    .tip strong { font-size: 17px; }
+    .tip span { color: #dbeafe; }
+    .blue { border-color:#38bdf8aa; background:#082f494f; }
+    .green { border-color:#5ec26baa; background:#102a1a80; }
+    .yellow { border-color:#fbbf24aa; background:#2a210a80; }
+    .rose { border-color:#fb7185aa; background:#2a111780; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    th, td { border-bottom: 1px solid var(--line); padding: 11px; text-align: left; vertical-align: top; }
+    th { background: #111827; color: #f8fafc; }
+    td { color: #cbd5e1; }
+    code { border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; background: #0b111b; color: #bfdbfe; }
+    .footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); }
+    @media print {
+      @page { size: A4; margin: 13mm; }
+      body { background:#fff; color:#0f172a; }
+      .page { max-width:none; padding:0; }
+      .cover { min-height:250mm; }
+      h1, h2, h3, .figure-title, .card strong { color:#0f172a; }
+      p, td, .steps li, .tip span, .lead, figcaption { color:#334155 !important; }
+      .eyebrow { color:#0284c7 !important; }
+      .route div { color:#0f172a !important; }
+      .route div span { color:#0284c7 !important; }
+      .figure, .card, .steps li, .route div { background:#fff; border-color:#cbd5e1; }
+      .tip { background:#fff !important; }
+      .figure { page-break-inside: avoid; }
+      h2 { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="cover">
+      <div class="eyebrow">Quick Start User's Manual - Korean</div>
+      <h1>GarageBand Copy<br/>퀵스타트 설명서</h1>
+      <p class="lead">처음 실행한 사용자가 10분 안에 루프를 놓고, MIDI/오디오를 조금 편집하고, 믹스 후 WAV와 프로젝트 파일을 받을 수 있도록 만든 초단기 안내서입니다.</p>
+      <div class="route">
+        <div><span>01</span>설정</div>
+        <div><span>02</span>루프</div>
+        <div><span>03</span>편집</div>
+        <div><span>04</span>녹음</div>
+        <div><span>05</span>믹스</div>
+        <div><span>06</span>공유</div>
+      </div>
+    </section>
+
+    <figure class="figure screenshot"><div class="figure-title">실제 앱 화면 한눈에 보기</div><img src="assets/app-overview.png" alt="GarageBand Copy 앱 전체 화면"/><figcaption>퀵스타트에서는 상단 Transport, 중앙 Timeline, 오른쪽 Loops, 하단 Clip Editor 네 곳만 먼저 익히면 됩니다.</figcaption></figure>
+    
+    <figure class="figure">
+      <div class="figure-title">퀵스타트 화면 지도</div>
+      <p>처음에는 이 세 영역만 기억하세요. 위는 조종석, 가운데는 편곡판, 오른쪽은 소리 재료함입니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="퀵스타트 화면 지도" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    <rect x="42" y="52" width="836" height="50" rx="13" fill="#111827" stroke="#334155"/>
+    
+    <circle cx="80" cy="77" r="32" fill="#38bdf8"/>
+    <text x="80" y="88" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">A</text>
+    <text x="128" y="85" font-size="25" font-weight="900" fill="#f8fafc">상단 Transport</text>
+  
+    <rect x="42" y="124" width="560" height="210" rx="16" fill="#0b111b" stroke="#334155"/>
+    <rect x="42" y="124" width="112" height="210" rx="16" fill="#111827" stroke="#334155"/>
+    <rect x="178" y="168" width="224" height="36" rx="8" fill="#818cf8"/>
+    <rect x="178" y="230" width="224" height="36" rx="8" fill="#818cf8"/>
+    <rect x="406" y="288" width="162" height="36" rx="8" fill="#5ec26b"/>
+    
+    <circle cx="88" cy="370" r="32" fill="#818cf8"/>
+    <text x="88" y="381" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">B</text>
+    <text x="136" y="378" font-size="25" font-weight="900" fill="#f8fafc">Timeline</text>
+  
+    <rect x="626" y="124" width="252" height="210" rx="16" fill="#111827" stroke="#334155"/>
+    <text x="654" y="170" font-size="24" font-weight="800" fill="#e5f2ff">Studio Panel</text><text x="654" y="214" font-size="24" font-weight="800" fill="#e5f2ff">Loops / Library</text><text x="654" y="258" font-size="24" font-weight="800" fill="#e5f2ff">Audio / Smart</text>
+    
+    <circle cx="654" cy="370" r="32" fill="#5ec26b"/>
+    <text x="654" y="381" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">C</text>
+    <text x="702" y="378" font-size="25" font-weight="900" fill="#f8fafc">오른쪽 재료함</text>
+  
+  
+    </svg>
+  </div>
+      <figcaption>하단 Clip Editor는 클립을 클릭한 뒤 세부 편집할 때 사용합니다.</figcaption>
+    </figure>
+  
+
+    <h2>1. 30초 준비: 프로젝트 기본값 정하기</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 1. 곡 설정 체크</div>
+      <p>Transport Bar에서 곡의 속도와 기준 조성을 먼저 정합니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="곡 설정" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#38bdf8"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">1</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">곡 설정</text>
+  
+    <rect x="78" y="134" width="760" height="100" rx="18" fill="#111827" stroke="#334155"/>
+    <rect x="110" y="164" width="112" height="42" rx="12" fill="#06291f" stroke="#38bdf8"/><text x="166" y="191" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">Tempo 120</text><rect x="252" y="164" width="112" height="42" rx="12" fill="#0b111b" stroke="#38bdf8"/><text x="308" y="191" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">4/4</text><rect x="394" y="164" width="112" height="42" rx="12" fill="#0b111b" stroke="#38bdf8"/><text x="450" y="191" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">Key C</text><rect x="536" y="164" width="112" height="42" rx="12" fill="#0b111b" stroke="#38bdf8"/><text x="592" y="191" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">Metro</text><rect x="678" y="164" width="112" height="42" rx="12" fill="#0b111b" stroke="#38bdf8"/><text x="734" y="191" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">Count-in</text>
+    
+    <path d="M 210 274 C 461 274, 461 274, 712 274" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 699 266 L 712 274 L 699 282" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <text x="132" y="332" font-size="24" font-weight="800" fill="#dbeafe">추천 시작값</text><text x="132" y="366" font-size="24" font-weight="800" fill="#dbeafe">Tempo 100-130</text><text x="132" y="400" font-size="24" font-weight="800" fill="#dbeafe">Key C 또는 Am</text><text x="132" y="434" font-size="24" font-weight="800" fill="#dbeafe">Count-in 1 bar</text>
+  
+    </svg>
+  </div>
+      <figcaption>처음에는 Tempo 120, 4/4, Key C로 시작해도 충분합니다.</figcaption>
+    </figure>
+  
+    <ol class="steps"><li><code>New</code>를 눌러 새 프로젝트를 만듭니다.</li><li>프로젝트 이름을 클릭해 곡 제목을 입력합니다.</li><li><code>Tempo</code>를 100-130 사이로 정합니다.</li><li>박자표는 <code>4/4</code>, Key는 <code>C</code> 또는 <code>Am</code>으로 시작합니다.</li><li>녹음할 계획이 있으면 <code>Metro</code>와 <code>Count-in 1 bar</code>를 켭니다.</li></ol>
+    <aside class="tip blue"><strong>빠른 선택</strong><span>EDM/Pop 느낌은 120 BPM, 발라드 느낌은 80-100 BPM, 힙합 느낌은 85-100 BPM으로 시작하면 무난합니다.</span></aside>
+
+    <h2>2. 2분: 드럼과 베이스 루프 배치</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 2. Loop Browser에서 Timeline으로</div>
+      <p>Loops 탭에서 드럼과 베이스를 골라 곡의 기본 리듬을 만듭니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="루프 배치" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#818cf8"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">2</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">루프 배치</text>
+  
+    <rect x="62" y="130" width="246" height="240" rx="18" fill="#111827" stroke="#334155"/>
+    <text x="94" y="178" font-size="22" font-weight="800" fill="#dbeafe">Loop Browser</text><text x="94" y="220" font-size="22" font-weight="800" fill="#dbeafe">검색: drum</text><text x="94" y="262" font-size="22" font-weight="800" fill="#dbeafe">카테고리: Drums</text><text x="94" y="304" font-size="22" font-weight="800" fill="#dbeafe">미리듣기</text>
+    <rect x="430" y="130" width="420" height="240" rx="18" fill="#0b111b" stroke="#334155"/>
+    <rect x="466" y="174" width="250" height="42" rx="9" fill="#818cf8"/>
+    <rect x="466" y="238" width="210" height="42" rx="9" fill="#818cf8"/>
+    <rect x="466" y="302" width="280" height="42" rx="9" fill="#5ec26b"/>
+    
+    <path d="M 310 235 C 388 235, 388 194, 466 194" fill="none" stroke="#818cf8" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 453 186 L 466 194 L 453 202" fill="none" stroke="#818cf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+    <text x="384" y="370" font-size="20" font-weight="800" fill="#f8fafc">드래그하거나 + 버튼</text><text x="384" y="397" font-size="20" font-weight="800" fill="#f8fafc">드럼 -&gt; 베이스 -&gt; 코드 순서</text>
+  
+    </svg>
+  </div>
+      <figcaption>미리듣기 후 + 버튼을 누르거나 Timeline으로 직접 드래그합니다.</figcaption>
+    </figure>
+  
+    <ol class="steps"><li>오른쪽 Studio Panel에서 <code>Loops</code> 탭을 엽니다.</li><li>검색창에 <code>drum</code>을 입력하고 마음에 드는 루프를 미리 듣습니다.</li><li><code>+</code> 버튼을 누르거나 Timeline의 비트 트랙으로 드래그합니다.</li><li>검색창에 <code>bass</code>를 입력하고 베이스 루프를 두 번째 트랙에 놓습니다.</li><li>드럼과 베이스 클립의 시작 위치와 길이를 맞춥니다.</li></ol>
+    <aside class="tip green"><strong>처음 곡 구조</strong><span>4마디 드럼 + 4마디 베이스 + 4마디 코드만 있어도 곡의 뼈대가 생깁니다.</span></aside>
+
+    <h2>3. 2분: MIDI 또는 Drummer로 멜로디 추가</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 3. MIDI 편집 빠른 흐름</div>
+      <p>Piano Roll, Touch, Drummer 중 하나만 써도 멜로디나 리듬 변화를 만들 수 있습니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="MIDI 편집" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#5ec26b"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">3</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">MIDI 편집</text>
+  
+    <rect x="58" y="124" width="804" height="244" rx="18" fill="#0b111b" stroke="#334155"/>
+    <line x1="136" y1="146" x2="136" y2="344" stroke="#273244"/><line x1="206" y1="146" x2="206" y2="344" stroke="#273244"/><line x1="276" y1="146" x2="276" y2="344" stroke="#273244"/><line x1="346" y1="146" x2="346" y2="344" stroke="#273244"/><line x1="416" y1="146" x2="416" y2="344" stroke="#273244"/><line x1="486" y1="146" x2="486" y2="344" stroke="#273244"/><line x1="556" y1="146" x2="556" y2="344" stroke="#273244"/><line x1="626" y1="146" x2="626" y2="344" stroke="#273244"/><line x1="696" y1="146" x2="696" y2="344" stroke="#273244"/><line x1="766" y1="146" x2="766" y2="344" stroke="#273244"/>
+    <line x1="88" y1="160" x2="842" y2="160" stroke="#273244"/><line x1="88" y1="190" x2="842" y2="190" stroke="#273244"/><line x1="88" y1="220" x2="842" y2="220" stroke="#273244"/><line x1="88" y1="250" x2="842" y2="250" stroke="#273244"/><line x1="88" y1="280" x2="842" y2="280" stroke="#273244"/><line x1="88" y1="310" x2="842" y2="310" stroke="#273244"/><line x1="88" y1="340" x2="842" y2="340" stroke="#273244"/>
+    <rect x="182" y="286" width="96" height="22" rx="6" fill="#5ec26b"/>
+    <rect x="314" y="226" width="96" height="22" rx="6" fill="#5ec26b"/>
+    <rect x="446" y="196" width="138" height="22" rx="6" fill="#5ec26b"/>
+    <rect x="628" y="166" width="96" height="22" rx="6" fill="#5ec26b"/>
+    <text x="650" y="248" font-size="26" font-weight="800" fill="#dbeafe">Piano Roll</text><text x="650" y="282" font-size="26" font-weight="800" fill="#dbeafe">Touch</text><text x="650" y="316" font-size="26" font-weight="800" fill="#dbeafe">Drummer</text>
+  
+    </svg>
+  </div>
+      <figcaption>수업/초보자용으로는 Touch의 Chord Strips나 Drummer가 가장 빠릅니다.</figcaption>
+    </figure>
+  
+    <ol class="steps"><li>Timeline에서 악기 트랙을 선택합니다.</li><li>하단 Clip Editor에서 <code>미디 클립</code>을 눌러 새 MIDI 클립을 만듭니다.</li><li><code>Piano Roll</code>에서 노트를 클릭해 입력하거나 <code>Touch</code>를 눌러 키보드/코드 스트립을 사용합니다.</li><li>드럼 패턴을 빠르게 만들려면 Timeline 상단 <code>Drummer</code> 버튼을 누릅니다.</li><li>노트가 어긋나면 Quantize를 적용하고, Key에 맞추려면 Scale Lock을 사용합니다.</li></ol>
+
+    <h2>4. 선택 사항 2분: 오디오 녹음</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 4. Audio 트랙 녹음</div>
+      <p>마이크 녹음이 필요할 때만 이 단계를 진행합니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="오디오 녹음" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#f59e0b"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">4</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">오디오 녹음</text>
+  
+    <rect x="86" y="138" width="748" height="180" rx="18" fill="#0b111b" stroke="#334155"/>
+    <rect x="158" y="223" width="5" height="14" rx="2" fill="#f59e0b"/><rect x="168" y="203.34355291722767" width="5" height="53.31289416554465" rx="2" fill="#f59e0b"/><rect x="178" y="188.49968962287625" width="5" height="83.0006207542475" rx="2" fill="#f59e0b"/><rect x="188" y="182.10270554923378" width="5" height="95.79458890153246" rx="2" fill="#f59e0b"/><rect x="198" y="185.71880550014706" width="5" height="88.5623889997059" rx="2" fill="#f59e0b"/><rect x="208" y="198.4626420917378" width="5" height="63.07471581652443" rx="2" fill="#f59e0b"/><rect x="218" y="217.21407966954544" width="5" height="25.57184066090911" rx="2" fill="#f59e0b"/><rect x="228" y="208.61788766472557" width="5" height="42.76422467054883" rx="2" fill="#f59e0b"/><rect x="238" y="191.97109769237494" width="5" height="76.05780461525012" rx="2" fill="#f59e0b"/><rect x="248" y="182.92126517573104" width="5" height="94.15746964853795" rx="2" fill="#f59e0b"/><rect x="258" y="183.68410473881133" width="5" height="92.63179052237736" rx="2" fill="#f59e0b"/><rect x="268" y="194.07284665161393" width="5" height="71.85430669677214" rx="2" fill="#f59e0b"/><rect x="278" y="211.54396457384405" width="5" height="36.91207085231192" rx="2" fill="#f59e0b"/><rect x="288" y="214.18008048839957" width="5" height="31.63983902320087" rx="2" fill="#f59e0b"/><rect x="298" y="196.06354945252966" width="5" height="67.8729010949407" rx="2" fill="#f59e0b"/><rect x="308" y="184.5420009522357" width="5" height="90.9159980955286" rx="2" fill="#f59e0b"/><rect x="318" y="182.43631188844134" width="5" height="95.12737622311731" rx="2" fill="#f59e0b"/><rect x="328" y="190.2620283824369" width="5" height="79.4759432351262" rx="2" fill="#f59e0b"/><rect x="338" y="206.10314210508798" width="5" height="47.79371578982404" rx="2" fill="#f59e0b"/><rect x="348" y="219.91880406106583" width="5" height="20.162391877868362" rx="2" fill="#f59e0b"/><rect x="358" y="200.69513445353584" width="5" height="58.60973109292832" rx="2" fill="#f59e0b"/><rect x="368" y="186.93247384116154" width="5" height="86.13505231767694" rx="2" fill="#f59e0b"/><rect x="378" y="182.00040153142115" width="5" height="95.99919693715769" rx="2" fill="#f59e0b"/><rect x="388" y="187.10646083777442" width="5" height="85.78707832445114" rx="2" fill="#f59e0b"/><rect x="398" y="201.00051036198218" width="5" height="57.99897927603566" rx="2" fill="#f59e0b"/><rect x="408" y="220.28080220860076" width="5" height="19.438395582798456" rx="2" fill="#f59e0b"/><rect x="418" y="205.77315149010772" width="5" height="48.453697019784556" rx="2" fill="#f59e0b"/><rect x="428" y="190.04483851138355" width="5" height="79.91032297723292" rx="2" fill="#f59e0b"/><rect x="438" y="182.38509841651032" width="5" height="95.22980316697937" rx="2" fill="#f59e0b"/><rect x="448" y="184.669302723488" width="5" height="90.66139455302401" rx="2" fill="#f59e0b"/><rect x="458" y="196.33819855355821" width="5" height="67.32360289288357" rx="2" fill="#f59e0b"/><rect x="468" y="214.53483324055034" width="5" height="30.93033351889932" rx="2" fill="#f59e0b"/><rect x="478" y="211.19596401673232" width="5" height="37.608071966535356" rx="2" fill="#f59e0b"/><rect x="488" y="193.81680096286595" width="5" height="72.36639807426809" rx="2" fill="#f59e0b"/><rect x="498" y="183.58270283293817" width="5" height="92.83459433412366" rx="2" fill="#f59e0b"/><rect x="508" y="182.99933377580555" width="5" height="94.00133244838892" rx="2" fill="#f59e0b"/><rect x="518" y="192.20952288236128" width="5" height="75.58095423527745" rx="2" fill="#f59e0b"/><rect x="528" y="208.9582946427459" width="5" height="42.083410714508226" rx="2" fill="#f59e0b"/><rect x="538" y="216.85503440381896" width="5" height="26.28993119236209" rx="2" fill="#f59e0b"/><rect x="548" y="198.17286534149636" width="5" height="63.654269317007284" rx="2" fill="#f59e0b"/><rect x="558" y="185.56924472016726" width="5" height="88.86151055966548" rx="2" fill="#f59e0b"/><rect x="568" y="182.12997843456924" width="5" height="95.74004313086154" rx="2" fill="#f59e0b"/><rect x="578" y="188.6971188200217" width="5" height="82.6057623599566" rx="2" fill="#f59e0b"/><rect x="588" y="203.66280087313797" width="5" height="52.674398253724085" rx="2" fill="#f59e0b"/><rect x="598" y="222.63709631909344" width="5" height="14.725807361813118" rx="2" fill="#f59e0b"/><rect x="608" y="203.02584498911912" width="5" height="53.94831002176178" rx="2" fill="#f59e0b"/><rect x="618" y="188.304963428818" width="5" height="83.39007314236399" rx="2" fill="#f59e0b"/><rect x="628" y="182.07863685284474" width="5" height="95.8427262943105" rx="2" fill="#f59e0b"/><rect x="638" y="185.87128715772843" width="5" height="88.25742568454315" rx="2" fill="#f59e0b"/><rect x="648" y="198.7543412755299" width="5" height="62.491317448940194" rx="2" fill="#f59e0b"/><rect x="658" y="217.5735782459913" width="5" height="24.852843508017386" rx="2" fill="#f59e0b"/><rect x="668" y="208.2786074850911" width="5" height="43.4427850298178" rx="2" fill="#f59e0b"/><rect x="678" y="191.7351035303363" width="5" height="76.52979293932742" rx="2" fill="#f59e0b"/><rect x="688" y="182.8463366327394" width="5" height="94.3073267345212" rx="2" fill="#f59e0b"/><rect x="698" y="183.78858693541537" width="5" height="92.42282612916925" rx="2" fill="#f59e0b"/><rect x="708" y="194.331158702141" width="5" height="71.33768259571801" rx="2" fill="#f59e0b"/><rect x="718" y="211.89286267937737" width="5" height="36.21427464124526" rx="2" fill="#f59e0b"/><rect x="728" y="213.82601875234135" width="5" height="32.347962495317304" rx="2" fill="#f59e0b"/><rect x="738" y="195.79101074726833" width="5" height="68.41797850546334" rx="2" fill="#f59e0b"/><rect x="748" y="184.4177122579389" width="5" height="91.1645754841222" rx="2" fill="#f59e0b"/><rect x="758" y="182.49070341219266" width="5" height="95.01859317561467" rx="2" fill="#f59e0b"/><rect x="768" y="190.48178318225132" width="5" height="79.03643363549737" rx="2" fill="#f59e0b"/><rect x="778" y="206.43445654175434" width="5" height="47.131086916491334" rx="2" fill="#f59e0b"/><rect x="788" y="219.55704731663837" width="5" height="20.88590536672324" rx="2" fill="#f59e0b"/>
+    <circle cx="146" cy="229" r="34" fill="#fb7185"/>
+    <text x="146" y="239" text-anchor="middle" font-size="22" font-weight="900" fill="#fff">REC</text>
+    <text x="112" y="360" font-size="22" font-weight="800" fill="#dbeafe">Audio 탭</text><text x="112" y="361" font-size="22" font-weight="800" fill="#dbeafe">Track 추가</text><text x="112" y="362" font-size="22" font-weight="800" fill="#dbeafe">Record enable</text><text x="112" y="363" font-size="22" font-weight="800" fill="#dbeafe">Record 버튼</text>
+  
+    </svg>
+  </div>
+      <figcaption>브라우저가 마이크 권한을 물으면 허용해야 녹음할 수 있습니다.</figcaption>
+    </figure>
+  
+    <ol class="steps"><li>오른쪽 <code>Audio</code> 탭을 엽니다.</li><li><code>Track</code> 버튼으로 오디오 트랙을 추가합니다.</li><li>녹음할 트랙의 <code>Record enable</code>을 켭니다.</li><li>상단 Record 버튼을 눌러 녹음하고, Stop으로 끝냅니다.</li><li>하단 파형 편집에서 Trim, Fade, Normalize를 적용합니다.</li></ol>
+
+    <h2>5. 2분: 들리게 믹스하기</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 5. 최소 믹스 체크</div>
+      <p>퀵스타트에서는 볼륨, 팬, 마스터 리미터만 먼저 확인해도 충분합니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="믹스" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#fb7185"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">5</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">믹스</text>
+  
+    <rect x="86" y="126" width="112" height="232" rx="16" fill="#111827" stroke="#334155"/><text x="142" y="160" text-anchor="middle" font-size="18" font-weight="900" fill="#f8fafc">Beat</text><rect x="134" y="190" width="16" height="130" rx="8" fill="#263244"/><rect x="134" y="250" width="16" height="70" rx="8" fill="#fb7185"/><circle cx="120" cy="338" r="12" fill="#38bdf8"/><circle cx="164" cy="338" r="12" fill="#a78bfa"/><rect x="244" y="126" width="112" height="232" rx="16" fill="#111827" stroke="#334155"/><text x="300" y="160" text-anchor="middle" font-size="18" font-weight="900" fill="#f8fafc">Bass</text><rect x="292" y="190" width="16" height="130" rx="8" fill="#263244"/><rect x="292" y="210" width="16" height="110" rx="8" fill="#fb7185"/><circle cx="278" cy="338" r="12" fill="#38bdf8"/><circle cx="322" cy="338" r="12" fill="#a78bfa"/><rect x="402" y="126" width="112" height="232" rx="16" fill="#111827" stroke="#334155"/><text x="458" y="160" text-anchor="middle" font-size="18" font-weight="900" fill="#f8fafc">Keys</text><rect x="450" y="190" width="16" height="130" rx="8" fill="#263244"/><rect x="450" y="234" width="16" height="86" rx="8" fill="#fb7185"/><circle cx="436" cy="338" r="12" fill="#38bdf8"/><circle cx="480" cy="338" r="12" fill="#a78bfa"/><rect x="560" y="126" width="112" height="232" rx="16" fill="#111827" stroke="#334155"/><text x="616" y="160" text-anchor="middle" font-size="18" font-weight="900" fill="#f8fafc">Vox</text><rect x="608" y="190" width="16" height="130" rx="8" fill="#263244"/><rect x="608" y="224" width="16" height="96" rx="8" fill="#fb7185"/><circle cx="594" cy="338" r="12" fill="#38bdf8"/><circle cx="638" cy="338" r="12" fill="#a78bfa"/><rect x="718" y="126" width="112" height="232" rx="16" fill="#111827" stroke="#334155"/><text x="774" y="160" text-anchor="middle" font-size="18" font-weight="900" fill="#f8fafc">Master</text><rect x="766" y="190" width="16" height="130" rx="8" fill="#263244"/><rect x="766" y="200" width="16" height="120" rx="8" fill="#5ec26b"/><circle cx="752" cy="338" r="12" fill="#38bdf8"/><circle cx="796" cy="338" r="12" fill="#a78bfa"/>
+    <text x="152" y="398" font-size="22" font-weight="800" fill="#dbeafe">볼륨 -&gt; 팬 -&gt; FX -&gt; Automation</text><text x="152" y="399" font-size="22" font-weight="800" fill="#dbeafe">Master Limiter 확인</text>
+  
+    </svg>
+  </div>
+      <figcaption>멋진 사운드보다 트랙 간 균형이 먼저입니다.</figcaption>
+    </figure>
+  
+    <ol class="steps"><li>오른쪽 <code>Smart</code> 탭을 엽니다.</li><li>드럼이 너무 크면 비트 트랙 fader를 조금 내립니다.</li><li>베이스는 중앙에 두고, 건반/신스는 살짝 좌우로 펼칩니다.</li><li>보컬/녹음 트랙은 다른 악기보다 조금 앞에 들리게 둡니다.</li><li>Master Limiter를 켜고 전체 피크가 너무 강하지 않은지 확인합니다.</li><li>필요하면 Timeline 트랙의 <code>A</code> 버튼으로 Automation Lane을 열어 볼륨 변화를 만듭니다.</li></ol>
+
+    <h2>6. 1분: WAV와 프로젝트 백업 받기</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 6. Share Export</div>
+      <p>상단 Export 버튼은 Mix, Stems ZIP, Project 파일, Import를 한 번에 처리하는 Share 모달을 엽니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="공유" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#e879f9"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">6</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">공유</text>
+  
+    <rect x="246" y="94" width="430" height="280" rx="24" fill="#111827" stroke="#465568"/>
+    <text x="290" y="142" font-size="34" font-weight="800" fill="#f8fafc">Share</text>
+    <rect x="290" y="168" width="120" height="36" rx="10" fill="#0b111b" stroke="#38bdf8"/><text x="350" y="192" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">WAV</text><rect x="440" y="168" width="120" height="36" rx="10" fill="#0b111b" stroke="#38bdf8"/><text x="500" y="192" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">MP3</text><rect x="290" y="222" width="120" height="36" rx="10" fill="#0b111b" stroke="#38bdf8"/><text x="350" y="246" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">Full</text><rect x="440" y="222" width="120" height="36" rx="10" fill="#0b111b" stroke="#38bdf8"/><text x="500" y="246" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">Cycle</text>
+    <rect x="290" y="286" width="120" height="32" rx="9" fill="#5ec26b" stroke="#465568"/><text x="350" y="308" text-anchor="middle" font-size="16" font-weight="900" fill="#07111c">Mix</text><rect x="440" y="286" width="120" height="32" rx="9" fill="#172033" stroke="#465568"/><text x="500" y="308" text-anchor="middle" font-size="16" font-weight="900" fill="#e5f2ff">Stems ZIP</text><rect x="290" y="332" width="120" height="32" rx="9" fill="#172033" stroke="#465568"/><text x="350" y="354" text-anchor="middle" font-size="16" font-weight="900" fill="#e5f2ff">Project</text><rect x="440" y="332" width="120" height="32" rx="9" fill="#172033" stroke="#465568"/><text x="500" y="354" text-anchor="middle" font-size="16" font-weight="900" fill="#e5f2ff">Import</text>
+    <text x="62" y="334" font-size="20" font-weight="800" fill="#dbeafe">Mix = 완성 WAV</text><text x="62" y="362" font-size="20" font-weight="800" fill="#dbeafe">Stems ZIP = 트랙별 파일</text><text x="62" y="390" font-size="20" font-weight="800" fill="#dbeafe">Project = 백업/이동</text>
+  
+    </svg>
+  </div>
+      <figcaption>MP3를 선택해도 현재 엔진은 WAV로 안전 폴백할 수 있습니다.</figcaption>
+    </figure>
+  
+    <ol class="steps"><li>상단 오른쪽 <code>Export</code>를 누릅니다.</li><li><code>Format</code>은 WAV로 둡니다. 특정 반복 구간만 필요하면 Cycle을 켠 뒤 Range를 Cycle로 선택합니다.</li><li><code>Mix</code>를 눌러 완성 WAV를 받습니다.</li><li>협업이나 교사용 피드백이 필요하면 <code>Stems ZIP</code>도 받습니다.</li><li>나중에 이어서 작업하려면 <code>Project</code>를 눌러 <code>.webband.json</code> 백업을 저장합니다.</li></ol>
+
+    <h2>7. 막힐 때 바로 확인</h2>
+    
+    <figure class="figure">
+      <div class="figure-title">그림 7. 문제 해결 미니맵</div>
+      <p>퀵스타트 중 가장 자주 만나는 문제 세 가지입니다.</p>
+      <div class="art">
+    <svg viewBox="0 0 920 430" role="img" aria-label="문제 해결" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#141b28"/>
+          <stop offset="1" stop-color="#0a0f18"/>
+        </linearGradient>
+      </defs>
+      <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+      
+    
+    <circle cx="72" cy="74" r="32" fill="#fbbf24"/>
+    <text x="72" y="85" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">?</text>
+    <text x="120" y="82" font-size="25" font-weight="900" fill="#f8fafc">문제 해결</text>
+  
+    <rect x="78" y="146" width="236" height="172" rx="18" fill="#111827" stroke="#fb7185"/><text x="104" y="196" font-size="25" font-weight="900" fill="#fb7185">소리 없음</text><text x="104" y="242" font-size="18" font-weight="800" fill="#dbeafe">Mute/Solo,</text><text x="104" y="268" font-size="18" font-weight="800" fill="#dbeafe">Master, 브라우저 탭</text><text x="104" y="294" font-size="18" font-weight="800" fill="#dbeafe">음소거 확인</text><rect x="360" y="146" width="236" height="172" rx="18" fill="#111827" stroke="#fbbf24"/><text x="386" y="196" font-size="25" font-weight="900" fill="#fbbf24">녹음 안 됨</text><text x="386" y="242" font-size="18" font-weight="800" fill="#dbeafe">마이크 권한, Audio</text><text x="386" y="268" font-size="18" font-weight="800" fill="#dbeafe">트랙, Record</text><text x="386" y="294" font-size="18" font-weight="800" fill="#dbeafe">enable 확인</text><rect x="642" y="146" width="236" height="172" rx="18" fill="#111827" stroke="#a78bfa"/><text x="668" y="196" font-size="25" font-weight="900" fill="#a78bfa">Export 이상</text><text x="668" y="242" font-size="18" font-weight="800" fill="#dbeafe">Full/Cycle 범위와</text><text x="668" y="268" font-size="18" font-weight="800" fill="#dbeafe">Project 백업 확인</text>
+    <text x="168" y="374" font-size="24" font-weight="800" fill="#fde68a">먼저 Save, 그 다음 Project 파일로 백업하세요.</text>
+  
+    </svg>
+  </div>
+      <figcaption>문제가 생기면 먼저 Project 파일로 백업하고 새로고침하세요.</figcaption>
+    </figure>
+  
+    <div class="grid">
+      <div class="card"><strong>소리가 안 나요</strong>트랙 Mute/Solo, Master volume, 브라우저 탭 음소거, 시스템 출력 장치를 확인합니다.</div>
+      <div class="card"><strong>녹음이 안 돼요</strong>마이크 권한, Audio 트랙 존재 여부, Record enable, Count-in 상태를 확인합니다.</div>
+      <div class="card"><strong>Export가 짧아요</strong>Range가 Cycle인지 확인합니다. 전체 곡은 Full로 내보냅니다.</div>
+      <div class="card"><strong>작업을 옮기고 싶어요</strong>Export -> Project로 <code>.webband.json</code>을 저장하고, 다른 브라우저에서 Import합니다.</div>
+    </div>
+
+    <h2>8. 퀵스타트 체크리스트</h2>
+    <table>
+      <thead><tr><th>완료</th><th>확인 항목</th><th>위치</th></tr></thead>
+      <tbody>
+        <tr><td>□</td><td>BPM, 박자표, Key를 정했다</td><td>상단 Transport</td></tr>
+        <tr><td>□</td><td>드럼 루프와 베이스 루프를 배치했다</td><td>Loops -> Timeline</td></tr>
+        <tr><td>□</td><td>MIDI 또는 Drummer 클립을 추가했다</td><td>Timeline / Clip Editor</td></tr>
+        <tr><td>□</td><td>필요한 경우 오디오를 녹음했다</td><td>Audio 탭</td></tr>
+        <tr><td>□</td><td>트랙 볼륨과 Master Limiter를 확인했다</td><td>Smart 탭</td></tr>
+        <tr><td>□</td><td>Mix WAV와 Project 백업을 받았다</td><td>Export -> Share</td></tr>
+      </tbody>
+    </table>
+    <p class="footer">생성 산출물: <code>garageband-quickstart-user-manual.html</code>, <code>garageband-quickstart-user-manual.pdf</code>, <code>garageband-quickstart-user-manual.svg</code></p>
+  </main>
+</body>
+</html>

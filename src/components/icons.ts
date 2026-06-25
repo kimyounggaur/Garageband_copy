@@ -1,6 +1,7 @@
 import * as LucideIcons from "lucide-react";
 
 export const CheckCircle2 = LucideIcons.CheckCircle2;
+export const BookOpen = LucideIcons.BookOpen;
 export const Circle = LucideIcons.Circle;
 export const ClipboardCheck = LucideIcons.ClipboardCheck;
 export const ClipboardList = LucideIcons.ClipboardList;

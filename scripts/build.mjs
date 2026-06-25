@@ -86,8 +86,10 @@ function syncPagesDocs(distRoot = join(root, "dist")) {
   const assetsRoot = join(docsRoot, "assets");
   mkdirSync(assetsRoot, { recursive: true });
   copyRecursive(join(distRoot, "assets"), assetsRoot);
-  if (existsSync(join(distRoot, "samples"))) {
-    copyRecursive(join(distRoot, "samples"), join(docsRoot, "samples"));
+  for (const publicDirectory of ["samples", "manual"]) {
+    if (existsSync(join(distRoot, publicDirectory))) {
+      copyRecursive(join(distRoot, publicDirectory), join(docsRoot, publicDirectory));
+    }
   }
   writeFileSync(join(docsRoot, ".nojekyll"), "");
   console.log("> docs synced");
