@@ -3,6 +3,7 @@ import { normalizeInstrumentId } from "../data/instruments";
 import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "./id";
 import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
+import { normalizePianoRollScale } from "./pianoRoll";
 import { repairBrokenText } from "./textRepair";
 import { normalizeCountInBars, normalizeMasterVolume, normalizeProjectKey, normalizeTimeSignature } from "./transport";
 
@@ -124,6 +125,7 @@ export function normalizeProject(project: Project): Project {
   const loose = project as LooseProject;
   const timestamp = now();
   const { cycleStart, cycleEnd } = normalizeCycle(loose.cycleStart, loose.cycleEnd);
+  const key = normalizeProjectKey(loose.key);
   return {
     id: loose.id ?? makeId("project"),
     version: CURRENT_PROJECT_VERSION,
@@ -134,7 +136,8 @@ export function normalizeProject(project: Project): Project {
     cycleStart,
     cycleEnd,
     cycleEnabled: booleanValue(loose.cycleEnabled),
-    key: normalizeProjectKey(loose.key),
+    key,
+    scale: normalizePianoRollScale(loose.scale, key),
     metronomeOn: booleanValue(loose.metronomeOn),
     countInBars: normalizeCountInBars(loose.countInBars),
     masterVolume: normalizeMasterVolume(loose.masterVolume),

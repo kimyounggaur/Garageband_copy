@@ -5,9 +5,10 @@ import type { Assignment, StudioMode } from "../education/types";
 import { defaultInstrumentForTrack, normalizeInstrumentId } from "../data/instruments";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { loopMatchSummary } from "../data/loops";
-import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
+import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type ProjectScale, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "../utils/id";
 import { loopCategoryLabel } from "../utils/labels";
+import { normalizePianoRollScale } from "../utils/pianoRoll";
 import { normalizeProject } from "../utils/projectMigration";
 import {
   estimateTapTempo,
@@ -34,6 +35,7 @@ type EditOptions = { recordHistory?: boolean; snap?: boolean };
 type ClipAudioSettings = Partial<
   Pick<Clip, "trimStartSeconds" | "trimEndSeconds" | "gain" | "fadeInSeconds" | "fadeOutSeconds" | "fadeInBeats" | "fadeOutBeats">
 >;
+type MidiNoteEdit = { id: string } & Partial<Omit<MidiNote, "id">>;
 
 const HISTORY_LIMIT = 80;
 
@@ -80,6 +82,7 @@ type DawState = {
   toggleMetronome: (metronomeOn?: boolean) => void;
   setCountInBars: (countInBars: number) => void;
   setProjectKey: (key: string) => void;
+  setProjectScale: (scale: ProjectScale) => void;
   setTimeSignature: (timeSignature: [number, number]) => void;
   setMasterVolume: (masterVolume: number) => void;
   setMasterLevel: (masterLevel: number) => void;
@@ -122,9 +125,12 @@ type DawState = {
   setTrackInstrument: (trackId: string, instrumentId: string) => void;
   addNote: (clipId: string, note: Omit<MidiNote, "id">) => string;
   addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>, options?: EditOptions) => void;
+  updateNote: (clipId: string, noteId: string, edit: Partial<Omit<MidiNote, "id">>, options?: EditOptions) => void;
+  updateNotes: (clipId: string, edits: MidiNoteEdit[], options?: EditOptions) => void;
   moveNote: (clipId: string, noteId: string, startBeat: number, pitch: number, options?: EditOptions) => void;
   resizeNote: (clipId: string, noteId: string, durationBeats: number, options?: EditOptions) => void;
   removeNote: (clipId: string, noteId: string) => void;
+  removeNotes: (clipId: string, noteIds: string[]) => void;
 };
 
 const TRACK_COLORS = ["#38bdf8", "#f59e0b", "#a78bfa", "#4ade80", "#fb7185", "#eab308"];
@@ -246,6 +252,7 @@ function createInitialProject(): Project {
     cycleEnd: 8,
     cycleEnabled: false,
     key: "C",
+    scale: "major",
     metronomeOn: false,
     countInBars: 0,
     masterVolume: 0.85,
@@ -704,6 +711,20 @@ export const useDawStore = create<DawState>((set, get) => ({
         touch({
           ...state.project,
           key: nextKey
+        })
+      );
+    });
+  },
+
+  setProjectScale: (scale) => {
+    set((state) => {
+      const nextScale = normalizePianoRollScale(scale, state.project.key);
+      if (state.project.scale === nextScale) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          scale: nextScale
         })
       );
     });
@@ -1449,6 +1470,56 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
+  updateNote: (clipId, noteId, edit, options) => {
+    get().updateNotes(clipId, [{ id: noteId, ...edit }], options);
+  },
+
+  updateNotes: (clipId, edits, options) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.type !== "midi" || clip.locked || edits.length === 0) return state;
+      const editMap = new Map(edits.map((edit) => [edit.id, edit]));
+      let changed = false;
+      let nextLength = clip.lengthBeats;
+      const notes = (clip.notes ?? []).map((note) => {
+        const edit = editMap.get(note.id);
+        if (!edit) return note;
+        const nextStart =
+          edit.startBeat === undefined
+            ? note.startBeat
+            : clamp(options?.snap === false ? edit.startBeat : snapBeat(edit.startBeat, state.snapBeats), 0, 256);
+        const nextDuration =
+          edit.durationBeats === undefined
+            ? note.durationBeats
+            : Math.max(
+                options?.snap === false ? 0.0625 : 0.25,
+                options?.snap === false ? edit.durationBeats : snapBeat(edit.durationBeats, state.snapBeats)
+              );
+        const nextNote = {
+          ...note,
+          pitch: edit.pitch === undefined ? note.pitch : clamp(Math.round(edit.pitch), 0, 127),
+          startBeat: nextStart,
+          durationBeats: nextDuration,
+          velocity: edit.velocity === undefined ? note.velocity : clamp(edit.velocity, 0, 1)
+        };
+        nextLength = Math.max(nextLength, nextNote.startBeat + nextNote.durationBeats);
+        changed ||= JSON.stringify(nextNote) !== JSON.stringify(note);
+        return nextNote;
+      });
+      if (!changed) return state;
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          lengthBeats: Math.max(item.lengthBeats, nextLength),
+          notes
+        })),
+        undefined,
+        options
+      );
+    });
+  },
+
   moveNote: (clipId, noteId, startBeat, pitch, options) => {
     set((state) => {
       const clip = findClip(state.project, clipId);
@@ -1509,6 +1580,22 @@ export const useDawStore = create<DawState>((set, get) => ({
         updateClip(state.project, clipId, (item) => ({
           ...item,
           notes: (item.notes ?? []).filter((note) => note.id !== noteId)
+        }))
+      );
+    });
+  },
+
+  removeNotes: (clipId, noteIds) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.locked || noteIds.length === 0) return state;
+      const removeSet = new Set(noteIds);
+      if (!clip.notes?.some((note) => removeSet.has(note.id))) return state;
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          notes: (item.notes ?? []).filter((note) => !removeSet.has(note.id))
         }))
       );
     });

@@ -4,8 +4,9 @@ export type ClipType = "midi" | "audio" | "loop";
 export type LoopCategory = "Drums" | "Bass" | "Synth" | "FX";
 export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
+export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 5;
+export const CURRENT_PROJECT_VERSION = 6;
 
 export type Project = {
   id: string;
@@ -18,6 +19,7 @@ export type Project = {
   cycleEnd?: number;
   cycleEnabled?: boolean;
   key?: string;
+  scale?: ProjectScale;
   metronomeOn?: boolean;
   countInBars?: number;
   masterVolume?: number;

@@ -144,6 +144,13 @@ const {
   keyboardKeyToMidi,
   timelineBeatToClipBeat
 } = await server.ssrLoadModule("/src/utils/touchInstruments.ts");
+const {
+  cloneNotesForPaste,
+  isPitchInScale,
+  normalizePianoRollScale,
+  quantizeMidiNotes,
+  scalePitchClasses
+} = await server.ssrLoadModule("/src/utils/pianoRoll.ts");
 const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
 const {
   faderValueToPercent,
@@ -262,12 +269,13 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 5, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 6, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
   assertEqual(migrated.cycleEnabled, false, "사이클 토글 기본값");
   assertEqual(migrated.key, "C", "프로젝트 키 기본값");
+  assertEqual(migrated.scale, "major", "프로젝트 스케일 기본값");
   assertEqual(migrated.metronomeOn, false, "메트로놈 기본값");
   assertEqual(migrated.countInBars, 0, "카운트인 기본값");
   assertEqual(migrated.masterVolume, 0.85, "마스터 볼륨 기본값");
@@ -454,6 +462,72 @@ test("Phase 4 touch instrument notes are written through MIDI store actions", ()
     "beat sequencer writes drum MIDI pitches"
   );
   assertEqual(useDawStore.getState().undoStack.length > 0, true, "touch instrument writes are undoable");
+});
+
+test("Phase 5 piano roll utilities enforce scale lock, quantize notes, and prepare paste copies", () => {
+  assertEqual(normalizePianoRollScale(undefined, "Am"), "minor", "minor key defaults to minor scale");
+  assertDeepEqual(scalePitchClasses("D", "major"), [2, 4, 6, 7, 9, 11, 1], "D major pitch classes");
+  assertEqual(isPitchInScale(61, "C", "major"), false, "C# is disabled in C major scale lock");
+  assertEqual(isPitchInScale(61, "C", "chromatic"), true, "chromatic mode allows every pitch");
+
+  const sourceNotes = [
+    note("q1", 60, 0.13, 0.41, 0.8),
+    note("q2", 62, 1.36, 0.74, 0.7)
+  ];
+  const quantized = quantizeMidiNotes(sourceNotes, ["q1", "q2"], { gridBeats: 0.25, strength: 0.5 });
+  assertDeepEqual(
+    quantized.map((item) => [item.id, item.startBeat, item.durationBeats]),
+    [
+      ["q1", 0.19, 0.46],
+      ["q2", 1.31, 0.75]
+    ],
+    "quantize applies strength to selected note starts and lengths"
+  );
+
+  const pasted = cloneNotesForPaste(sourceNotes, { startBeat: 4, pitchOffset: 12 });
+  assertDeepEqual(
+    pasted.map((item) => [item.pitch, item.startBeat, item.durationBeats, item.velocity]),
+    [
+      [72, 4, 0.41, 0.8],
+      [74, 5.23, 0.74, 0.7]
+    ],
+    "copy/paste clones notes relative to the earliest source beat"
+  );
+});
+
+test("Phase 5 store actions update velocity, quantized note groups, deletion, and project scale with undo history", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 5 piano roll store test");
+  useDawStore.getState().setProjectKey("D");
+  useDawStore.getState().setProjectScale("minor");
+  assertEqual(useDawStore.getState().project.scale, "minor", "project scale saved");
+
+  const clipId = useDawStore.getState().addMidiClip(undefined, 0);
+  const firstId = useDawStore.getState().addNote(clipId, { pitch: 60, startBeat: 0.13, durationBeats: 0.41, velocity: 0.8 });
+  const secondId = useDawStore.getState().addNote(clipId, { pitch: 62, startBeat: 1.36, durationBeats: 0.74, velocity: 0.7 });
+
+  useDawStore.getState().updateNotes(
+    clipId,
+    [
+      { id: firstId, startBeat: 0.07, durationBeats: 0.46, velocity: 0.42 },
+      { id: secondId, startBeat: 1.43, durationBeats: 0.75, pitch: 64 }
+    ],
+    { snap: false }
+  );
+  let midiClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  assertDeepEqual(
+    midiClip.notes.map((item) => [item.id, item.pitch, item.startBeat, item.durationBeats, item.velocity]),
+    [
+      [firstId, 60, 0.07, 0.46, 0.42],
+      [secondId, 64, 1.43, 0.75, 0.7]
+    ],
+    "bulk note update preserves sub-grid quantize strength and velocity"
+  );
+
+  useDawStore.getState().removeNotes(clipId, [firstId, secondId]);
+  midiClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === clipId);
+  assertEqual(midiClip.notes.length, 0, "bulk note delete removes selected notes");
+  assert(useDawStore.getState().undoStack.length > 0, "phase 5 edits are undoable");
 });
 
 test("Phase 3 store actions select instrument patches and annotate loop tempo/key matching", () => {
