@@ -4,7 +4,7 @@ import { Copy, Lock, PlayCircle, Scissors, Trash2 } from "../icons";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
 import { clipTypeLabel } from "../../utils/labels";
-import { CLIP_HEIGHT, beatToX, clamp, snapBeat } from "../../utils/timeline";
+import { CLIP_HEIGHT, beatToX, clamp, clipTypeRegionColor, snapBeat } from "../../utils/timeline";
 import { AudioWaveform } from "../audio/AudioWaveform";
 
 type ClipBlockProps = {
@@ -33,16 +33,24 @@ function menuPosition(clientX: number, clientY: number) {
   };
 }
 
+function snapDelta(delta: number, snapBeats: number) {
+  return Math.round(delta / snapBeats) * snapBeats;
+}
+
 export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   const [menu, setMenu] = useState<ClipMenuState | undefined>();
   const selectedClipId = useDawStore((state) => state.selectedClipId);
+  const selectedClipIds = useDawStore((state) => state.selectedClipIds);
   const snapBeats = useDawStore((state) => state.snapBeats);
-  const selected = selectedClipId === clip.id;
+  const selected = selectedClipId === clip.id || selectedClipIds.includes(clip.id);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const selectClip = useDawStore((state) => state.selectClip);
   const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
   const moveClip = useDawStore((state) => state.moveClip);
+  const moveSelectedClips = useDawStore((state) => state.moveSelectedClips);
   const resizeClip = useDawStore((state) => state.resizeClip);
+  const resizeClipStart = useDawStore((state) => state.resizeClipStart);
+  const setClipLoopEnabled = useDawStore((state) => state.setClipLoopEnabled);
   const duplicateClip = useDawStore((state) => state.duplicateClip);
   const removeClip = useDawStore((state) => state.removeClip);
   const splitSelectedAudioClip = useDawStore((state) => state.splitSelectedAudioClip);
@@ -50,7 +58,8 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   const commitHistorySnapshot = useDawStore((state) => state.commitHistorySnapshot);
   const left = beatToX(clip.startBeat, pixelsPerBeat);
   const width = Math.max(pixelsPerBeat * 0.25, beatToX(clip.lengthBeats, pixelsPerBeat));
-  const textColor = textColorFor(clip.color);
+  const regionColor = clipTypeRegionColor(clip.type);
+  const textColor = textColorFor(regionColor);
   const canSplitAtMenuBeat =
     Boolean(menu) &&
     clip.type === "audio" &&
@@ -80,18 +89,42 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   function beginMove(event: PointerEvent<HTMLDivElement>) {
     event.stopPropagation();
     if (event.button !== 0) return;
+    const additive = event.ctrlKey || event.metaKey;
+    const shouldSnap = !additive;
     selectTrack(clip.trackId);
-    selectClip(clip.id);
+    if (additive && !selected) {
+      selectClip(clip.id, true);
+    } else if (!selected) {
+      selectClip(clip.id);
+    }
     setMenu(undefined);
     if (clip.locked) return;
     beginHistorySnapshot();
 
     const startX = event.clientX;
-    const originalBeat = clip.startBeat;
+    let activeClipId = clip.id;
+    let originalBeat = clip.startBeat;
+    let moveGroup = selected && selectedClipIds.length > 1 && !event.altKey;
+    if (event.altKey) {
+      const duplicatedId = duplicateClip(clip.id);
+      const duplicatedClip = useDawStore.getState().project.tracks.flatMap((track) => track.clips).find((item) => item.id === duplicatedId);
+      if (duplicatedId && duplicatedClip) {
+        activeClipId = duplicatedId;
+        originalBeat = duplicatedClip.startBeat;
+        moveGroup = false;
+      }
+    }
+    let lastGroupDelta = 0;
 
     function handleMove(moveEvent: globalThis.PointerEvent) {
-      const delta = (moveEvent.clientX - startX) / pixelsPerBeat;
-      moveClip(clip.id, snapBeat(originalBeat + delta, snapBeats), undefined, { recordHistory: false });
+      const rawDelta = (moveEvent.clientX - startX) / pixelsPerBeat;
+      if (moveGroup) {
+        const nextDelta = shouldSnap ? snapDelta(rawDelta, snapBeats) : rawDelta;
+        moveSelectedClips(nextDelta - lastGroupDelta, { recordHistory: false, snap: false });
+        lastGroupDelta = nextDelta;
+        return;
+      }
+      moveClip(activeClipId, originalBeat + rawDelta, undefined, { recordHistory: false, snap: shouldSnap });
     }
 
     function handleUp() {
@@ -109,6 +142,7 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   function beginResize(event: PointerEvent<HTMLButtonElement>) {
     event.stopPropagation();
     if (event.button !== 0) return;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
     selectTrack(clip.trackId);
     selectClip(clip.id);
     setMenu(undefined);
@@ -120,7 +154,68 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
 
     function handleMove(moveEvent: globalThis.PointerEvent) {
       const delta = (moveEvent.clientX - startX) / pixelsPerBeat;
-      resizeClip(clip.id, snapBeat(originalLength + delta, snapBeats), { recordHistory: false });
+      resizeClip(clip.id, originalLength + delta, { recordHistory: false, snap: shouldSnap });
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      commitHistorySnapshot();
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  }
+
+  function beginResizeStart(event: PointerEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (event.button !== 0) return;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
+    selectTrack(clip.trackId);
+    selectClip(clip.id);
+    setMenu(undefined);
+    if (clip.locked) return;
+    beginHistorySnapshot();
+
+    const startX = event.clientX;
+    const originalStart = clip.startBeat;
+
+    function handleMove(moveEvent: globalThis.PointerEvent) {
+      const delta = (moveEvent.clientX - startX) / pixelsPerBeat;
+      resizeClipStart(clip.id, originalStart + delta, { recordHistory: false, snap: shouldSnap });
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      commitHistorySnapshot();
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  }
+
+  function beginLoopResize(event: PointerEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (event.button !== 0) return;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
+    selectTrack(clip.trackId);
+    selectClip(clip.id);
+    setMenu(undefined);
+    if (clip.locked) return;
+    beginHistorySnapshot();
+    setClipLoopEnabled(clip.id, true, { recordHistory: false });
+
+    const startX = event.clientX;
+    const originalLength = clip.lengthBeats;
+
+    function handleMove(moveEvent: globalThis.PointerEvent) {
+      const delta = (moveEvent.clientX - startX) / pixelsPerBeat;
+      resizeClip(clip.id, originalLength + delta, { recordHistory: false, snap: shouldSnap });
     }
 
     function handleUp() {
@@ -156,13 +251,30 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   return (
     <div
       className={`absolute top-3 overflow-hidden rounded-md border shadow-lg ${
-        selected ? "border-white ring-2 ring-meter-cyan/70" : "border-black/30"
+        selected ? "border-accent-sel ring-2 ring-accent-sel/70" : "border-black/30"
       }`}
-      style={{ left, width, height: CLIP_HEIGHT, backgroundColor: clip.color, color: textColor }}
+      style={{ left, width, height: CLIP_HEIGHT, backgroundColor: regionColor, color: textColor }}
       onPointerDown={beginMove}
       onContextMenu={openClipMenu}
       onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        selectTrack(clip.trackId);
+        selectClip(clip.id);
+        setCurrentBeat(clip.startBeat);
+      }}
     >
+      {clip.loopEnabled ? (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-35"
+          style={{
+            backgroundImage: `repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 1px, transparent 1px ${Math.max(
+              14,
+              pixelsPerBeat
+            )}px)`
+          }}
+        />
+      ) : null}
       {clip.type === "audio" ? (
         <AudioWaveform clip={clip} color={textColor} className="pointer-events-none absolute inset-0 h-full w-full opacity-55" />
       ) : null}
@@ -177,12 +289,28 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
         </div>
       </div>
       <button
+        className={`absolute left-0 top-0 h-full w-2 bg-black/18 transition hover:bg-black/32 ${
+          clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
+        }`}
+        title="클립 시작점 조절"
+        aria-label="클립 시작점 조절"
+        onPointerDown={beginResizeStart}
+      />
+      <button
         className={`absolute right-0 top-0 h-full w-2 bg-black/18 transition hover:bg-black/32 ${
           clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
         }`}
         title="클립 길이 조절"
         aria-label="클립 길이 조절"
         onPointerDown={beginResize}
+      />
+      <button
+        className={`absolute bottom-1 right-2 h-3 w-3 rounded-sm border border-white/60 bg-black/30 transition hover:bg-black/50 ${
+          clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
+        }`}
+        title="루프 반복 길이 조절"
+        aria-label="루프 반복 길이 조절"
+        onPointerDown={beginLoopResize}
       />
 
       {menu ? (

@@ -27,6 +27,7 @@ export const Play = LucideIcons.Play;
 export const PlayCircle = LucideIcons.PlayCircle;
 export const Plus = LucideIcons.Plus;
 export const Redo2 = LucideIcons.Redo2;
+export const Repeat2 = LucideIcons.Repeat2;
 export const RefreshCcw = LucideIcons.RefreshCcw;
 export const RotateCcw = LucideIcons.RotateCcw;
 export const Save = LucideIcons.Save;

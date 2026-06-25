@@ -1,5 +1,5 @@
-import { Copy, Keyboard, Pencil, Plus, Trash2, Volume2 } from "../icons";
-import type { MouseEvent } from "react";
+import { Copy, Keyboard, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
+import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
 import { trackRoleLabel } from "../../utils/labels";
@@ -10,7 +10,13 @@ import {
   SNAP_OPTIONS,
   TRACK_HEIGHT,
   beatToX,
+  buildRulerTicks,
+  clamp,
+  formatBarBeatTick,
+  normalizeCycleRange,
   pixelsPerBeatForZoom,
+  snapBeat,
+  xToBeat,
   type SnapBeats
 } from "../../utils/timeline";
 import { TrackLane } from "./TrackLane";
@@ -33,7 +39,7 @@ function getTimelineBeats() {
   const project = useDawStore.getState().project;
   const end = project.tracks.flatMap((track) => track.clips).reduce((max, clip) => {
     return Math.max(max, clip.startBeat + clip.lengthBeats + 4);
-  }, DEFAULT_PROJECT_BEATS);
+  }, Math.max(DEFAULT_PROJECT_BEATS, (project.cycleEnd ?? 0) + 4));
   return Math.max(DEFAULT_PROJECT_BEATS, Math.ceil(end / 4) * 4);
 }
 
@@ -50,12 +56,14 @@ export function ArrangementTimeline() {
   const [trackMenu, setTrackMenu] = useState<TrackMenuState | undefined>();
   const project = useDawStore((state) => state.project);
   const currentBeat = useDawStore((state) => state.currentBeat);
+  const isPlaying = useDawStore((state) => state.isPlaying);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
   const snapBeats = useDawStore((state) => state.snapBeats);
   const timelineZoom = useDawStore((state) => state.timelineZoom);
   const preventClipOverlap = useDawStore((state) => state.preventClipOverlap);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const selectClip = useDawStore((state) => state.selectClip);
+  const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
   const addTrack = useDawStore((state) => state.addTrack);
   const addMidiClip = useDawStore((state) => state.addMidiClip);
   const renameTrack = useDawStore((state) => state.renameTrack);
@@ -66,11 +74,19 @@ export function ArrangementTimeline() {
   const setSnapBeats = useDawStore((state) => state.setSnapBeats);
   const setTimelineZoom = useDawStore((state) => state.setTimelineZoom);
   const setPreventClipOverlap = useDawStore((state) => state.setPreventClipOverlap);
+  const setCycleRange = useDawStore((state) => state.setCycleRange);
+  const toggleCycle = useDawStore((state) => state.toggleCycle);
+  const beginHistorySnapshot = useDawStore((state) => state.beginHistorySnapshot);
+  const commitHistorySnapshot = useDawStore((state) => state.commitHistorySnapshot);
   const totalBeats = useMemo(getTimelineBeats, [project]);
   const menuTrack = project.tracks.find((track) => track.id === trackMenu?.trackId);
-  const bars = Array.from({ length: Math.ceil(totalBeats / 4) }, (_, index) => index + 1);
+  const rulerTicks = useMemo(() => buildRulerTicks(totalBeats, project.timeSignature), [project.timeSignature, totalBeats]);
   const pixelsPerBeat = pixelsPerBeatForZoom(timelineZoom);
   const width = Math.max(totalBeats * pixelsPerBeat, viewportWidth);
+  const cycleRange = normalizeCycleRange(project.cycleStart ?? 0, project.cycleEnd ?? 8, snapBeats);
+  const cycleEnabled = Boolean(project.cycleEnabled);
+  const cycleLeft = beatToX(cycleRange.start, pixelsPerBeat);
+  const cycleWidth = Math.max(beatToX(cycleRange.end - cycleRange.start, pixelsPerBeat), pixelsPerBeat * 0.25);
 
   useEffect(() => {
     const element = timelineViewportRef.current;
@@ -121,6 +137,131 @@ export function ArrangementTimeline() {
     if (nextName) renameTrack(track.id, nextName);
   }
 
+  function beatFromClientX(clientX: number, element: HTMLElement, shouldSnap: boolean) {
+    const rect = element.getBoundingClientRect();
+    const rawBeat = clamp(xToBeat(clientX - rect.left, pixelsPerBeat), 0, totalBeats);
+    return shouldSnap ? snapBeat(rawBeat, snapBeats) : rawBeat;
+  }
+
+  function beginRulerScrub(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const element = event.currentTarget;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
+    setCurrentBeat(beatFromClientX(event.clientX, element, shouldSnap));
+
+    function handleMove(moveEvent: globalThis.PointerEvent) {
+      setCurrentBeat(beatFromClientX(moveEvent.clientX, element, shouldSnap));
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  }
+
+  function beginPlayheadDrag(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || isPlaying) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const surface = event.currentTarget.parentElement;
+    if (!surface) return;
+    const surfaceElement = surface;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
+    setCurrentBeat(beatFromClientX(event.clientX, surfaceElement, shouldSnap));
+
+    function handleMove(moveEvent: globalThis.PointerEvent) {
+      setCurrentBeat(beatFromClientX(moveEvent.clientX, surfaceElement, shouldSnap));
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  }
+
+  function beginCycleCreate(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const element = event.currentTarget;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
+    const startBeat = beatFromClientX(event.clientX, element, shouldSnap);
+    beginHistorySnapshot();
+    setCycleRange(startBeat, startBeat + snapBeats, { recordHistory: false, snap: shouldSnap });
+
+    function handleMove(moveEvent: globalThis.PointerEvent) {
+      const endBeat = beatFromClientX(moveEvent.clientX, element, shouldSnap);
+      setCycleRange(startBeat, endBeat, { recordHistory: false, snap: shouldSnap });
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      commitHistorySnapshot();
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  }
+
+  function beginCycleEdit(event: PointerEvent<HTMLButtonElement>, mode: "move" | "start" | "end") {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const shouldSnap = !event.ctrlKey && !event.metaKey;
+    const originalStart = cycleRange.start;
+    const originalEnd = cycleRange.end;
+    const originalLength = originalEnd - originalStart;
+    beginHistorySnapshot();
+
+    function handleMove(moveEvent: globalThis.PointerEvent) {
+      const delta = (moveEvent.clientX - startX) / pixelsPerBeat;
+      if (mode === "move") {
+        const nextStart = shouldSnap ? snapBeat(originalStart + delta, snapBeats) : Math.max(0, originalStart + delta);
+        setCycleRange(nextStart, nextStart + originalLength, { recordHistory: false, snap: false });
+        return;
+      }
+      if (mode === "start") {
+        setCycleRange(originalStart + delta, originalEnd, { recordHistory: false, snap: shouldSnap });
+        return;
+      }
+      setCycleRange(originalStart, originalEnd + delta, { recordHistory: false, snap: shouldSnap });
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+      commitHistorySnapshot();
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+  }
+
+  function handleTimelineWheel(event: WheelEvent<HTMLDivElement>) {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    setTimelineZoom(timelineZoom + direction * 0.08);
+  }
+
   return (
     <section className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
@@ -151,6 +292,14 @@ export function ArrangementTimeline() {
             />
             겹침 방지
           </label>
+          <button
+            className={`studio-button ${cycleEnabled ? "border-accent-sel bg-accent-sel/15 text-white" : ""}`}
+            onClick={() => toggleCycle()}
+            title={cycleEnabled ? "사이클 끄기" : "사이클 켜기"}
+          >
+            <Repeat2 size={14} />
+            Cycle
+          </button>
           <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
             확대
             <input
@@ -177,7 +326,7 @@ export function ArrangementTimeline() {
 
       <div className="grid min-h-0 min-w-0 grid-cols-[132px_minmax(0,1fr)] sm:grid-cols-[178px_minmax(0,1fr)]">
         <div className="border-r border-white/10 bg-black/10">
-          <div className="h-9 border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <div className="flex h-12 items-end border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
             트랙
           </div>
           {project.tracks.map((track) => (
@@ -276,28 +425,77 @@ export function ArrangementTimeline() {
           ) : null}
         </div>
 
-        <div ref={timelineViewportRef} className="min-w-0 overflow-auto bg-studio-950/80">
+        <div ref={timelineViewportRef} className="min-w-0 overflow-auto bg-studio-950/80" onWheel={handleTimelineWheel}>
           <div className="relative min-w-full" style={{ width }}>
-            <div
-              className="sticky top-0 z-20 flex h-9 border-b border-white/10 bg-studio-900/95"
-              style={{ width }}
-            >
-              {bars.map((bar) => (
-                <div
-                  key={bar}
-                  className="h-full border-r border-white/10 px-2 py-2 text-[11px] font-bold text-slate-500"
-                  style={{ width: pixelsPerBeat * 4 }}
-                >
-                  {bar}
-                </div>
-              ))}
+            <div className="sticky top-0 z-20 h-12 border-b border-white/10 bg-studio-900/95" style={{ width }}>
+              <div
+                className="relative h-4 cursor-crosshair border-b border-white/10 bg-black/20"
+                style={{ width }}
+                onPointerDown={beginCycleCreate}
+                title="드래그해서 사이클 구간 만들기"
+              >
+                {cycleEnabled ? (
+                  <>
+                    <button
+                      className="absolute top-[3px] h-2 rounded-sm border border-accent-sel/70 bg-accent-sel/35 shadow-[0_0_12px_rgba(74,222,128,0.18)]"
+                      style={{ left: cycleLeft, width: cycleWidth }}
+                      onPointerDown={(event) => beginCycleEdit(event, "move")}
+                      aria-label="사이클 구간 이동"
+                      title={`${formatBarBeatTick(cycleRange.start, project.timeSignature)} - ${formatBarBeatTick(
+                        cycleRange.end,
+                        project.timeSignature
+                      )}`}
+                    />
+                    <button
+                      className="absolute top-0 h-4 w-3 cursor-ew-resize rounded-sm bg-accent-sel/70"
+                      style={{ left: Math.max(0, cycleLeft - 3) }}
+                      onPointerDown={(event) => beginCycleEdit(event, "start")}
+                      aria-label="사이클 시작점 조절"
+                      title="사이클 시작점 조절"
+                    />
+                    <button
+                      className="absolute top-0 h-4 w-3 cursor-ew-resize rounded-sm bg-accent-sel/70"
+                      style={{ left: cycleLeft + cycleWidth - 3 }}
+                      onPointerDown={(event) => beginCycleEdit(event, "end")}
+                      aria-label="사이클 끝점 조절"
+                      title="사이클 끝점 조절"
+                    />
+                  </>
+                ) : null}
+              </div>
+
+              <div
+                className="relative h-8 cursor-col-resize bg-gradient-to-b from-graphite-900 to-studio-900"
+                style={{ width }}
+                onPointerDown={beginRulerScrub}
+                title="클릭하거나 드래그해서 재생 위치 이동"
+              >
+                {rulerTicks.map((tick) => (
+                  <div
+                    key={`${tick.kind}-${tick.beat}`}
+                    className="absolute bottom-0 top-0"
+                    style={{ left: beatToX(tick.beat, pixelsPerBeat) }}
+                  >
+                    <div
+                      className={`h-full ${tick.kind === "bar" ? "w-[2px] bg-white/24" : "w-px bg-white/10"}`}
+                    />
+                    {tick.label ? (
+                      <span className="absolute left-1 top-1 text-[11px] font-bold text-slate-400">{tick.label}</span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div
-              className="pointer-events-none absolute bottom-0 top-0 z-30 w-px bg-meter-green shadow-[0_0_0_1px_rgba(74,222,128,0.18)]"
+              className={`absolute bottom-0 top-0 z-30 w-px bg-meter-green shadow-[0_0_0_1px_rgba(74,222,128,0.18)] ${
+                isPlaying ? "pointer-events-none" : "cursor-ew-resize"
+              }`}
               style={{ left: beatToX(currentBeat, pixelsPerBeat) }}
+              onPointerDown={beginPlayheadDrag}
+              title={formatBarBeatTick(currentBeat, project.timeSignature)}
             >
-              <div className="-ml-1.5 h-3 w-3 rounded-sm bg-meter-green" />
+              <div className="-ml-1.5 h-3 w-3 rounded-sm bg-meter-green shadow-[0_0_12px_rgba(94,194,107,0.55)]" />
             </div>
 
             {project.tracks.map((track) => (

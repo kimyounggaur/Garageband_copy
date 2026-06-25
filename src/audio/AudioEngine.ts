@@ -41,6 +41,7 @@ export class AudioEngine {
   private audioUrlCleanups: Array<() => void> = [];
   private frameId = 0;
   private lengthBeats = 16;
+  private cycleEnabled = false;
 
   async play(project: Project, onBeat: BeatCallback, onEnded: EndCallback) {
     await Tone.start();
@@ -48,10 +49,16 @@ export class AudioEngine {
 
     Tone.Transport.PPQ = PPQ;
     Tone.Transport.bpm.value = project.bpm;
-    Tone.Transport.position = 0;
+    const cycleStart = Math.max(0, project.cycleStart ?? 0);
+    const cycleEnd = Math.max(cycleStart + 0.25, project.cycleEnd ?? cycleStart + 0.25);
+    this.cycleEnabled = Boolean(project.cycleEnabled && cycleEnd > cycleStart);
+    Tone.Transport.loop = this.cycleEnabled;
+    Tone.Transport.loopStart = tickTime(cycleStart);
+    Tone.Transport.loopEnd = tickTime(cycleEnd);
+    Tone.Transport.position = this.cycleEnabled ? tickTime(cycleStart) : 0;
     Tone.Transport.cancel(0);
 
-    this.lengthBeats = projectLength(project);
+    this.lengthBeats = this.cycleEnabled ? cycleEnd : projectLength(project);
     this.createChannels(project);
     await this.scheduleProject(project);
     await Tone.loaded();
@@ -63,6 +70,8 @@ export class AudioEngine {
     cancelAnimationFrame(this.frameId);
     Tone.Transport.stop();
     Tone.Transport.cancel(0);
+    Tone.Transport.loop = false;
+    this.cycleEnabled = false;
     this.scheduledIds = [];
     this.nodes.forEach((node) => node.dispose());
     this.nodes = [];
@@ -285,7 +294,7 @@ export class AudioEngine {
     const loop = () => {
       const beat = Tone.Transport.ticks / PPQ;
       onBeat(beat);
-      if (beat >= this.lengthBeats + 0.1) {
+      if (!this.cycleEnabled && beat >= this.lengthBeats + 0.1) {
         this.stop();
         onBeat(0);
         onEnded();

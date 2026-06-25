@@ -7,12 +7,20 @@ import { CURRENT_PROJECT_VERSION, type Clip, type MidiNote, type Project, type T
 import { makeId } from "../utils/id";
 import { loopCategoryLabel } from "../utils/labels";
 import { normalizeProject } from "../utils/projectMigration";
-import { MAX_TIMELINE_ZOOM, MIN_TIMELINE_ZOOM, SNAP_BEAT, clamp, snapBeat, type SnapBeats } from "../utils/timeline";
+import {
+  MAX_TIMELINE_ZOOM,
+  MIN_TIMELINE_ZOOM,
+  SNAP_BEAT,
+  clamp,
+  normalizeCycleRange,
+  snapBeat,
+  type SnapBeats
+} from "../utils/timeline";
 
 type ClipDraft = Omit<Clip, "id" | "trackId"> & Partial<Pick<Clip, "id" | "trackId">>;
-type EditOptions = { recordHistory?: boolean };
+type EditOptions = { recordHistory?: boolean; snap?: boolean };
 type ClipAudioSettings = Partial<
-  Pick<Clip, "trimStartSeconds" | "trimEndSeconds" | "gain" | "fadeInSeconds" | "fadeOutSeconds">
+  Pick<Clip, "trimStartSeconds" | "trimEndSeconds" | "gain" | "fadeInSeconds" | "fadeOutSeconds" | "fadeInBeats" | "fadeOutBeats">
 >;
 
 const HISTORY_LIMIT = 80;
@@ -24,6 +32,7 @@ type DawState = {
   currentBeat: number;
   selectedTrackId?: string;
   selectedClipId?: string;
+  selectedClipIds: string[];
   hydrated: boolean;
   undoStack: Project[];
   redoStack: Project[];
@@ -47,6 +56,8 @@ type DawState = {
   setSnapBeats: (snapBeats: SnapBeats) => void;
   setTimelineZoom: (timelineZoom: number) => void;
   setPreventClipOverlap: (preventClipOverlap: boolean) => void;
+  setCycleRange: (startBeat: number, endBeat: number, options?: EditOptions) => void;
+  toggleCycle: (enabled?: boolean) => void;
   addTrack: (type?: TrackType, name?: string) => string;
   renameTrack: (trackId: string, name: string) => void;
   duplicateTrack: (trackId: string) => string | undefined;
@@ -65,11 +76,15 @@ type DawState = {
   updateClipAudioSettings: (clipId: string, settings: ClipAudioSettings) => void;
   splitSelectedAudioClip: () => void;
   moveClip: (clipId: string, startBeat: number, targetTrackId?: string, options?: EditOptions) => void;
+  moveSelectedClips: (deltaBeats: number, options?: EditOptions) => void;
   resizeClip: (clipId: string, lengthBeats: number, options?: EditOptions) => void;
+  resizeClipStart: (clipId: string, startBeat: number, options?: EditOptions) => void;
+  setClipLoopEnabled: (clipId: string, loopEnabled: boolean, options?: EditOptions) => void;
   duplicateClip: (clipId: string) => string | undefined;
   removeClip: (clipId: string) => void;
   selectTrack: (trackId?: string) => void;
-  selectClip: (clipId?: string) => void;
+  selectClip: (clipId?: string, additive?: boolean) => void;
+  selectClips: (clipIds: string[]) => void;
   setBpm: (bpm: number) => void;
   setPlaying: (isPlaying: boolean) => void;
   setCurrentBeat: (beat: number) => void;
@@ -198,6 +213,9 @@ function createInitialProject(): Project {
     bpm: 120,
     timeSignature: [4, 4],
     tracks: [drums, bass, keys],
+    cycleStart: 0,
+    cycleEnd: 8,
+    cycleEnabled: false,
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -245,12 +263,28 @@ function findClip(project: Project, clipId?: string) {
   return project.tracks.flatMap((track) => track.clips).find((clip) => clip.id === clipId);
 }
 
-function getValidSelection(project: Project, selectedTrackId?: string, selectedClipId?: string) {
-  const selectedClip = findClip(project, selectedClipId);
+function getValidClipIds(project: Project, clipIds: string[]) {
+  const existingClipIds = new Set(project.tracks.flatMap((track) => track.clips.map((clip) => clip.id)));
+  return clipIds.filter((clipId, index) => existingClipIds.has(clipId) && clipIds.indexOf(clipId) === index);
+}
+
+function snapWithOptions(beat: number, snapBeats: SnapBeats, options?: EditOptions) {
+  return options?.snap === false ? Math.max(0, beat) : snapBeat(beat, snapBeats);
+}
+
+function getValidSelection(project: Project, selectedTrackId?: string, selectedClipId?: string, selectedClipIds: string[] = []) {
+  const validClipIds = getValidClipIds(project, selectedClipIds);
+  const selectedClip = findClip(project, selectedClipId) ?? findClip(project, validClipIds[0]);
   const selectedTrack = project.tracks.find((track) => track.id === selectedTrackId);
+  const nextSelectedClipIds = selectedClip
+    ? validClipIds.includes(selectedClip.id)
+      ? validClipIds
+      : [selectedClip.id, ...validClipIds]
+    : validClipIds;
   return {
     selectedTrackId: selectedTrack?.id ?? selectedClip?.trackId ?? project.tracks[0]?.id,
-    selectedClipId: selectedClip?.id
+    selectedClipId: selectedClip?.id,
+    selectedClipIds: nextSelectedClipIds
   };
 }
 
@@ -326,6 +360,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   currentBeat: 0,
   selectedTrackId: undefined,
   selectedClipId: undefined,
+  selectedClipIds: [],
   hydrated: false,
   undoStack: [],
   redoStack: [],
@@ -343,6 +378,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentBeat: 0,
       selectedTrackId: undefined,
       selectedClipId: undefined,
+      selectedClipIds: [],
       undoStack: [],
       redoStack: [],
       pendingHistory: undefined
@@ -358,6 +394,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentBeat: 0,
       selectedTrackId: migratedProject.tracks[0]?.id,
       selectedClipId: migratedProject.tracks[0]?.clips[0]?.id,
+      selectedClipIds: migratedProject.tracks[0]?.clips[0]?.id ? [migratedProject.tracks[0].clips[0].id] : [],
       undoStack: [],
       redoStack: [],
       pendingHistory: undefined
@@ -382,6 +419,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentBeat: 0,
       selectedTrackId: project.tracks[0]?.id,
       selectedClipId: project.tracks[0]?.clips[0]?.id,
+      selectedClipIds: project.tracks[0]?.clips[0]?.id ? [project.tracks[0].clips[0].id] : [],
       undoStack: [],
       redoStack: [],
       pendingHistory: undefined
@@ -398,6 +436,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentBeat: 0,
       selectedTrackId: project.tracks[0]?.id,
       selectedClipId: project.tracks[0]?.clips[0]?.id,
+      selectedClipIds: project.tracks[0]?.clips[0]?.id ? [project.tracks[0].clips[0].id] : [],
       undoStack: [],
       redoStack: [],
       pendingHistory: undefined
@@ -424,6 +463,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       currentBeat: 0,
       selectedTrackId: nextProject.tracks[0]?.id,
       selectedClipId: nextProject.tracks[0]?.clips[0]?.id,
+      selectedClipIds: nextProject.tracks[0]?.clips[0]?.id ? [nextProject.tracks[0].clips[0].id] : [],
       undoStack: [],
       redoStack: [],
       pendingHistory: undefined
@@ -467,7 +507,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         undoStack: state.undoStack.slice(0, -1),
         redoStack: pushHistory(state.redoStack, state.project),
         pendingHistory: undefined,
-        ...getValidSelection(project, state.selectedTrackId, state.selectedClipId)
+        ...getValidSelection(project, state.selectedTrackId, state.selectedClipId, state.selectedClipIds)
       };
     });
   },
@@ -482,7 +522,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         undoStack: pushHistory(state.undoStack, state.project),
         redoStack: state.redoStack.slice(0, -1),
         pendingHistory: undefined,
-        ...getValidSelection(project, state.selectedTrackId, state.selectedClipId)
+        ...getValidSelection(project, state.selectedTrackId, state.selectedClipId, state.selectedClipIds)
       };
     });
   },
@@ -514,13 +554,60 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   setPreventClipOverlap: (preventClipOverlap) => set({ preventClipOverlap }),
 
+  setCycleRange: (startBeat, endBeat, options) => {
+    set((state) => {
+      const range =
+        options?.snap === false
+          ? {
+              start: Math.max(0, Math.min(startBeat, endBeat)),
+              end: Math.max(Math.max(startBeat, endBeat), Math.max(0, Math.min(startBeat, endBeat)) + 0.25)
+            }
+          : normalizeCycleRange(startBeat, endBeat, state.snapBeats);
+      if (
+        state.project.cycleStart === range.start &&
+        state.project.cycleEnd === range.end &&
+        state.project.cycleEnabled === true
+      ) {
+        return state;
+      }
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          cycleStart: range.start,
+          cycleEnd: range.end,
+          cycleEnabled: true
+        }),
+        undefined,
+        options
+      );
+    });
+  },
+
+  toggleCycle: (enabled) => {
+    set((state) => {
+      const nextEnabled = enabled ?? !state.project.cycleEnabled;
+      if (state.project.cycleEnabled === nextEnabled) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          cycleStart: state.project.cycleStart ?? 0,
+          cycleEnd: Math.max((state.project.cycleStart ?? 0) + 0.25, state.project.cycleEnd ?? 8),
+          cycleEnabled: nextEnabled
+        })
+      );
+    });
+  },
+
   addTrack: (type = "instrument", name) => {
     const state = get();
     const track = createTrack(type, state.project.tracks.length, name);
     set(
       commitProjectChange(state, touch({ ...state.project, tracks: [...state.project.tracks, track] }), {
         selectedTrackId: track.id,
-        selectedClipId: undefined
+        selectedClipId: undefined,
+        selectedClipIds: []
       })
     );
     return track.id;
@@ -565,7 +652,8 @@ export const useDawStore = create<DawState>((set, get) => ({
         touch({ ...state.project, tracks: [...state.project.tracks, duplicatedTrack] }),
         {
           selectedTrackId: duplicatedTrack.id,
-          selectedClipId: duplicatedTrack.clips[0]?.id
+          selectedClipId: duplicatedTrack.clips[0]?.id,
+          selectedClipIds: duplicatedTrack.clips[0]?.id ? [duplicatedTrack.clips[0].id] : []
         }
       );
     });
@@ -579,7 +667,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       if (tracks.length === state.project.tracks.length) return state;
       return commitProjectChange(state, touch({ ...state.project, tracks }), {
         selectedTrackId: state.selectedTrackId === trackId ? tracks[0]?.id : state.selectedTrackId,
-        selectedClipId: findClip({ ...state.project, tracks }, state.selectedClipId)?.id
+        selectedClipId: findClip({ ...state.project, tracks }, state.selectedClipId)?.id,
+        selectedClipIds: getValidClipIds({ ...state.project, tracks }, state.selectedClipIds)
       });
     });
   },
@@ -610,7 +699,8 @@ export const useDawStore = create<DawState>((set, get) => ({
         }),
         {
           selectedTrackId: trackId,
-          selectedClipId: clip.id
+          selectedClipId: clip.id,
+          selectedClipIds: [clip.id]
         }
       );
     });
@@ -632,7 +722,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       startBeat,
       lengthBeats: loop.lengthBeats * 2,
       color: loop.color,
-      loopId
+      loopId,
+      loopEnabled: true
     });
   },
 
@@ -704,7 +795,11 @@ export const useDawStore = create<DawState>((set, get) => ({
           fadeOutSeconds:
             settings.fadeOutSeconds === undefined
               ? item.fadeOutSeconds
-              : nonNegativeNumber(settings.fadeOutSeconds, item.fadeOutSeconds ?? 0)
+              : nonNegativeNumber(settings.fadeOutSeconds, item.fadeOutSeconds ?? 0),
+          fadeInBeats:
+            settings.fadeInBeats === undefined ? item.fadeInBeats : nonNegativeNumber(settings.fadeInBeats, item.fadeInBeats ?? 0),
+          fadeOutBeats:
+            settings.fadeOutBeats === undefined ? item.fadeOutBeats : nonNegativeNumber(settings.fadeOutBeats, item.fadeOutBeats ?? 0)
         }))
       );
     });
@@ -753,7 +848,8 @@ export const useDawStore = create<DawState>((set, get) => ({
         }),
         {
           selectedTrackId: track.id,
-          selectedClipId: rightClip.id
+          selectedClipId: rightClip.id,
+          selectedClipIds: [rightClip.id]
         }
       );
     });
@@ -769,8 +865,12 @@ export const useDawStore = create<DawState>((set, get) => ({
       const targetTrack = state.project.tracks.find((track) => track.id === nextTrackId);
       if (!targetTrack) return state;
       const nextStartBeat = state.preventClipOverlap
-        ? resolveNonOverlappingStart(targetTrack.clips, clipId, startBeat, clip.lengthBeats, state.snapBeats)
-        : snapBeat(startBeat, state.snapBeats);
+        ? options?.snap === false
+          ? hasClipOverlap(targetTrack.clips, clipId, Math.max(0, startBeat), clip.lengthBeats)
+            ? resolveNonOverlappingStart(targetTrack.clips, clipId, startBeat, clip.lengthBeats, state.snapBeats)
+            : Math.max(0, startBeat)
+          : resolveNonOverlappingStart(targetTrack.clips, clipId, startBeat, clip.lengthBeats, state.snapBeats)
+        : snapWithOptions(startBeat, state.snapBeats, options);
       if (nextTrackId === sourceTrack.id && nextStartBeat === clip.startBeat) return state;
 
       if (nextTrackId !== sourceTrack.id) {
@@ -791,7 +891,8 @@ export const useDawStore = create<DawState>((set, get) => ({
           }),
           {
             selectedTrackId: nextTrackId,
-            selectedClipId: clipId
+            selectedClipId: clipId,
+            selectedClipIds: [clipId]
           },
           options
         );
@@ -806,14 +907,67 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
+  moveSelectedClips: (deltaBeats, options) => {
+    set((state) => {
+      const selectedIds = getValidClipIds(state.project, state.selectedClipIds);
+      if (selectedIds.length === 0 || deltaBeats === 0) return state;
+      const selectedSet = new Set(selectedIds);
+      let changed = false;
+      const tracks = state.project.tracks.map((track) => {
+        const obstacles = track.clips.filter((clip) => !selectedSet.has(clip.id));
+        let trackChanged = false;
+        const clips = track.clips.map((clip) => {
+          if (!selectedSet.has(clip.id) || clip.locked) return clip;
+          const desiredStart = clip.startBeat + deltaBeats;
+          const nextStart = state.preventClipOverlap
+            ? options?.snap === false
+              ? hasClipOverlap(obstacles, clip.id, Math.max(0, desiredStart), clip.lengthBeats)
+                ? resolveNonOverlappingStart([...obstacles, clip], clip.id, desiredStart, clip.lengthBeats, state.snapBeats)
+                : Math.max(0, desiredStart)
+              : resolveNonOverlappingStart([...obstacles, clip], clip.id, desiredStart, clip.lengthBeats, state.snapBeats)
+            : snapWithOptions(desiredStart, state.snapBeats, options);
+          if (nextStart === clip.startBeat) return clip;
+          changed = true;
+          trackChanged = true;
+          return { ...clip, startBeat: nextStart };
+        });
+        return trackChanged ? { ...track, clips } : track;
+      });
+      if (!changed) return state;
+      return commitProjectChange(
+        state,
+        touch({ ...state.project, tracks }),
+        {
+          selectedClipIds: selectedIds,
+          selectedClipId: selectedIds[selectedIds.length - 1]
+        },
+        options
+      );
+    });
+  },
+
   resizeClip: (clipId, lengthBeats, options) => {
     set((state) => {
       const track = state.project.tracks.find((item) => item.clips.some((clip) => clip.id === clipId));
       const clip = track?.clips.find((item) => item.id === clipId);
       if (!track || !clip || clip.locked) return state;
       const nextLength = state.preventClipOverlap
-        ? resolveNonOverlappingLength(track, clip, lengthBeats, state.snapBeats)
-        : Math.max(0.25, snapBeat(lengthBeats, state.snapBeats));
+        ? options?.snap === false
+          ? clamp(
+              Math.max(0.25, lengthBeats),
+              0.25,
+              Math.max(
+                0.25,
+                track.clips
+                  .filter((item) => item.id !== clip.id && item.startBeat >= clip.startBeat)
+                  .reduce<number | undefined>(
+                    (nearest, item) => (nearest === undefined ? item.startBeat : Math.min(nearest, item.startBeat)),
+                    undefined
+                  ) ?? Number.POSITIVE_INFINITY
+              ) - clip.startBeat
+            )
+          : resolveNonOverlappingLength(track, clip, lengthBeats, state.snapBeats)
+        : Math.max(0.25, snapWithOptions(lengthBeats, state.snapBeats, options));
       if (nextLength === clip.lengthBeats) return state;
       return commitProjectChange(
         state,
@@ -821,6 +975,49 @@ export const useDawStore = create<DawState>((set, get) => ({
           ...item,
           lengthBeats: nextLength
         })),
+        undefined,
+        options
+      );
+    });
+  },
+
+  resizeClipStart: (clipId, startBeat, options) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.clips.some((clip) => clip.id === clipId));
+      const clip = track?.clips.find((item) => item.id === clipId);
+      if (!track || !clip || clip.locked) return state;
+      const clipEnd = clip.startBeat + clip.lengthBeats;
+      let nextStart = clamp(snapWithOptions(startBeat, state.snapBeats, options), 0, clipEnd - 0.25);
+
+      if (state.preventClipOverlap) {
+        const previousEnd = track.clips
+          .filter((item) => item.id !== clip.id && item.startBeat < clipEnd)
+          .reduce((max, item) => Math.max(max, item.startBeat + item.lengthBeats), 0);
+        nextStart = clamp(Math.max(nextStart, previousEnd), 0, clipEnd - 0.25);
+      }
+
+      const nextLength = Math.max(0.25, clipEnd - nextStart);
+      if (nextStart === clip.startBeat && nextLength === clip.lengthBeats) return state;
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          startBeat: nextStart,
+          lengthBeats: nextLength
+        })),
+        undefined,
+        options
+      );
+    });
+  },
+
+  setClipLoopEnabled: (clipId, loopEnabled, options) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.locked || clip.loopEnabled === loopEnabled) return state;
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({ ...item, loopEnabled })),
         undefined,
         options
       );
@@ -858,7 +1055,8 @@ export const useDawStore = create<DawState>((set, get) => ({
         }),
         {
           selectedTrackId: track.id,
-          selectedClipId: duplicatedId
+          selectedClipId: duplicatedId,
+          selectedClipIds: duplicatedId ? [duplicatedId] : []
         }
       );
     });
@@ -877,13 +1075,57 @@ export const useDawStore = create<DawState>((set, get) => ({
             clips: track.clips.filter((item) => item.id !== clipId)
           }))
         }), {
-        selectedClipId: state.selectedClipId === clipId ? undefined : state.selectedClipId
+        selectedClipId: state.selectedClipId === clipId ? undefined : state.selectedClipId,
+        selectedClipIds: state.selectedClipIds.filter((id) => id !== clipId)
       });
     });
   },
 
   selectTrack: (trackId) => set({ selectedTrackId: trackId }),
-  selectClip: (clipId) => set({ selectedClipId: clipId }),
+  selectClip: (clipId, additive = false) => {
+    set((state) => {
+      if (!clipId) {
+        return { selectedClipId: undefined, selectedClipIds: [] };
+      }
+      const clip = findClip(state.project, clipId);
+      if (!clip) return state;
+      if (!additive) {
+        return {
+          selectedTrackId: clip.trackId,
+          selectedClipId: clip.id,
+          selectedClipIds: [clip.id]
+        };
+      }
+
+      const baseSelection = state.selectedClipIds.length
+        ? state.selectedClipIds
+        : state.selectedClipId
+          ? [state.selectedClipId]
+          : [];
+      const nextSelectedClipIds = baseSelection.includes(clip.id)
+        ? baseSelection.filter((id) => id !== clip.id)
+        : [...baseSelection, clip.id];
+      const nextActiveClipId = nextSelectedClipIds[nextSelectedClipIds.length - 1];
+      const nextActiveClip = findClip(state.project, nextActiveClipId);
+      return {
+        selectedTrackId: nextActiveClip?.trackId ?? clip.trackId,
+        selectedClipId: nextActiveClipId,
+        selectedClipIds: nextSelectedClipIds
+      };
+    });
+  },
+  selectClips: (clipIds) => {
+    set((state) => {
+      const selectedClipIds = getValidClipIds(state.project, clipIds);
+      const selectedClipId = selectedClipIds[selectedClipIds.length - 1];
+      const selectedClip = findClip(state.project, selectedClipId);
+      return {
+        selectedTrackId: selectedClip?.trackId ?? state.selectedTrackId,
+        selectedClipId,
+        selectedClipIds
+      };
+    });
+  },
 
   setBpm: (bpm) => {
     set((state) => {

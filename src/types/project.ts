@@ -3,7 +3,7 @@ export type TrackRole = "beat" | "bass" | "melody" | "harmony" | "recording";
 export type ClipType = "midi" | "audio" | "loop";
 export type LoopCategory = "Drums" | "Bass" | "Synth" | "FX";
 
-export const CURRENT_PROJECT_VERSION = 2;
+export const CURRENT_PROJECT_VERSION = 3;
 
 export type Project = {
   id: string;
@@ -12,6 +12,9 @@ export type Project = {
   bpm: number;
   timeSignature: [number, number];
   tracks: Track[];
+  cycleStart?: number;
+  cycleEnd?: number;
+  cycleEnabled?: boolean;
   lessonId?: string;
   assignmentId?: string;
   classId?: string;
@@ -67,7 +70,10 @@ export type Clip = {
   gain?: number;
   fadeInSeconds?: number;
   fadeOutSeconds?: number;
+  fadeInBeats?: number;
+  fadeOutBeats?: number;
   loopId?: string;
+  loopEnabled?: boolean;
   locked?: boolean;
   instructions?: string;
 };

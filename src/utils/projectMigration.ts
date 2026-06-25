@@ -19,6 +19,16 @@ function nonNegative(value: unknown, fallback = 0) {
   return Number.isFinite(numberValue) ? Math.max(0, numberValue) : fallback;
 }
 
+function booleanValue(value: unknown, fallback = false) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeCycle(start: unknown, end: unknown) {
+  const cycleStart = nonNegative(start, 0);
+  const cycleEnd = Math.max(cycleStart + 0.25, nonNegative(end, 8));
+  return { cycleStart, cycleEnd };
+}
+
 function defaultClipName(type: ClipType, loopId?: string) {
   if (loopId) return getLoopById(loopId)?.name ?? "루프 클립";
   return `${clipTypeLabel(type)} 클립`;
@@ -78,7 +88,10 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
     gain: Number.isFinite(gain) ? Math.max(0, gain) : undefined,
     fadeInSeconds: nonNegative(clip.fadeInSeconds),
     fadeOutSeconds: nonNegative(clip.fadeOutSeconds),
+    fadeInBeats: nonNegative(clip.fadeInBeats),
+    fadeOutBeats: nonNegative(clip.fadeOutBeats),
     loopId: clip.loopId,
+    loopEnabled: booleanValue(clip.loopEnabled),
     locked: clip.locked ?? false,
     instructions: instructions || undefined
   };
@@ -107,6 +120,7 @@ function normalizeTrack(track: Partial<Track>, index: number): Track {
 export function normalizeProject(project: Project): Project {
   const loose = project as LooseProject;
   const timestamp = now();
+  const { cycleStart, cycleEnd } = normalizeCycle(loose.cycleStart, loose.cycleEnd);
   return {
     id: loose.id ?? makeId("project"),
     version: CURRENT_PROJECT_VERSION,
@@ -114,6 +128,9 @@ export function normalizeProject(project: Project): Project {
     bpm: Math.round(Math.max(40, Math.min(220, Number(loose.bpm ?? 120)))),
     timeSignature: Array.isArray(loose.timeSignature) ? loose.timeSignature : [4, 4],
     tracks: (loose.tracks ?? []).map(normalizeTrack),
+    cycleStart,
+    cycleEnd,
+    cycleEnabled: booleanValue(loose.cycleEnabled),
     lessonId: loose.lessonId,
     assignmentId: loose.assignmentId,
     classId: loose.classId,

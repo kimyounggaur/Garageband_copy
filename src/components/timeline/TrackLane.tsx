@@ -21,7 +21,8 @@ export function TrackLane({ track, width, pixelsPerBeat }: TrackLaneProps) {
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    const beat = snapBeat(xToBeat(event.clientX - rect.left, pixelsPerBeat), snapBeats);
+    const rawBeat = xToBeat(event.clientX - rect.left, pixelsPerBeat);
+    const beat = event.ctrlKey || event.metaKey ? Math.max(0, rawBeat) : snapBeat(rawBeat, snapBeats);
     const loopId = event.dataTransfer.getData("application/webband-loop");
     const midi = event.dataTransfer.getData("application/webband-midi");
     if (loopId) addLoopClip(loopId, track.id, beat);
@@ -41,7 +42,8 @@ export function TrackLane({ track, width, pixelsPerBeat }: TrackLaneProps) {
       }}
       onClick={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
-        setCurrentBeat(snapBeat(xToBeat(event.clientX - rect.left, pixelsPerBeat), snapBeats));
+        const rawBeat = xToBeat(event.clientX - rect.left, pixelsPerBeat);
+        setCurrentBeat(event.ctrlKey || event.metaKey ? Math.max(0, rawBeat) : snapBeat(rawBeat, snapBeats));
         selectTrack(track.id);
         selectClip(undefined);
       }}

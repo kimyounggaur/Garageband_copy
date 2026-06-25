@@ -106,6 +106,12 @@ const {
   resolveClipFadeDurations,
   secondsPerBeat
 } = await server.ssrLoadModule("/src/audio/clipAudioMath.ts");
+const {
+  buildRulerTicks,
+  clipTypeRegionColor,
+  formatBarBeatTick,
+  normalizeCycleRange
+} = await server.ssrLoadModule("/src/utils/timeline.ts");
 const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
 const {
   faderValueToPercent,
@@ -224,8 +230,11 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 2, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 3, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
+  assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
+  assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
+  assertEqual(migrated.cycleEnabled, false, "사이클 토글 기본값");
   assertEqual(migrated.bpm, 220, "BPM 상한 보정");
   assertEqual(migrated.tracks[0].name, "비트", "깨진 트랙 이름 보정");
   assertEqual(migrated.tracks[0].role, "beat", "드럼 트랙 역할 보정");
@@ -234,8 +243,29 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
   assertEqual(migrated.tracks[0].clips[0].lengthBeats, 0.25, "클립 최소 길이 보정");
   assertEqual(migrated.tracks[0].clips[0].trimStartSeconds, 0, "음수 trim 보정");
   assertEqual(migrated.tracks[0].clips[0].fadeInSeconds, 0, "음수 fade 보정");
+  assertEqual(migrated.tracks[0].clips[0].fadeInBeats, 0, "박자 fade in 기본값");
+  assertEqual(migrated.tracks[0].clips[0].fadeOutBeats, 0, "박자 fade out 기본값");
+  assertEqual(migrated.tracks[0].clips[0].loopEnabled, false, "클립 루프 기본값");
   assertEqual(migrated.tracks[0].clips[0].gain, 0, "음수 gain 하한 보정");
   assertEqual(migrated.tracks[0].clips[0].instructions, undefined, "깨진 안내문 제거");
+});
+
+test("Phase 1 타임라인 유틸이 룰러, 사이클, 리전 색상 값을 계산한다", () => {
+  assertEqual(formatBarBeatTick(0, [4, 4]), "001|1|000", "첫 박자 LCD 표기");
+  assertEqual(formatBarBeatTick(7.5, [4, 4]), "002|4|240", "마디 박자 틱 표기");
+
+  const ticks = buildRulerTicks(8, [4, 4]);
+  assertEqual(ticks.filter((tick) => tick.kind === "bar").length, 2, "2마디 굵은 눈금");
+  assertEqual(ticks.filter((tick) => tick.kind === "beat").length, 6, "박자 가는 눈금");
+  assertEqual(ticks[0].label, "1", "첫 마디 라벨");
+  assertEqual(ticks[4].label, "2", "둘째 마디 라벨");
+
+  assertDeepEqual(normalizeCycleRange(7, 2, 0.25), { start: 2, end: 7 }, "사이클 역방향 드래그 정규화");
+  assertDeepEqual(normalizeCycleRange(2, 2.1, 0.25), { start: 2, end: 2.25 }, "사이클 최소 길이 보장");
+
+  assertEqual(clipTypeRegionColor("midi"), "#5ec26b", "MIDI 리전 색");
+  assertEqual(clipTypeRegionColor("audio"), "#46a7e0", "오디오 리전 색");
+  assertEqual(clipTypeRegionColor("loop"), "#7d8cff", "루프 리전 색");
 });
 
 test("musicTheory가 사용 음, 음역, 학습 힌트를 분석한다", () => {
@@ -346,6 +376,53 @@ test("duplicateClip이 선택 클립을 편집 가능한 복사본으로 만든�
   assertEqual(duplicatedClip.locked, false, "복사본은 편집 가능");
   assert(duplicatedClip.notes[0].id !== noteId, "복사본 노트 ID 재생성");
   assertEqual(useDawStore.getState().selectedClipId, duplicatedId, "복사본 선택");
+});
+
+test("Phase 1 store actions edit cycle, multi selection, left resize, loops, and grouped moves", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 1 store test");
+  const firstClipId = useDawStore.getState().project.tracks[0].clips[0].id;
+  const secondClipId = useDawStore.getState().addMidiClip(undefined, 16);
+
+  useDawStore.getState().setCycleRange(7, 2);
+  assertEqual(useDawStore.getState().project.cycleStart, 2, "cycle start sorted");
+  assertEqual(useDawStore.getState().project.cycleEnd, 7, "cycle end sorted");
+  assertEqual(useDawStore.getState().project.cycleEnabled, true, "cycle enabled by range edit");
+
+  useDawStore.getState().selectClip(firstClipId);
+  useDawStore.getState().selectClip(secondClipId, true);
+  assertDeepEqual([...useDawStore.getState().selectedClipIds].sort(), [firstClipId, secondClipId].sort(), "multi selection ids");
+
+  const beforeResize = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === firstClipId);
+  useDawStore.getState().resizeClipStart(firstClipId, beforeResize.startBeat + 1);
+  const resized = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === firstClipId);
+  assertEqual(resized.startBeat, beforeResize.startBeat + 1, "left resize start");
+  assertEqual(resized.lengthBeats, beforeResize.lengthBeats - 1, "left resize keeps end");
+
+  useDawStore.getState().setClipLoopEnabled(firstClipId, true);
+  assertEqual(
+    useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === firstClipId).loopEnabled,
+    true,
+    "clip loop enabled"
+  );
+
+  const startsBeforeMove = Object.fromEntries(
+    useDawStore
+      .getState()
+      .project.tracks.flatMap((item) => item.clips)
+      .filter((item) => [firstClipId, secondClipId].includes(item.id))
+      .map((item) => [item.id, item.startBeat])
+  );
+  useDawStore.getState().moveSelectedClips(2);
+  const startsAfterMove = Object.fromEntries(
+    useDawStore
+      .getState()
+      .project.tracks.flatMap((item) => item.clips)
+      .filter((item) => [firstClipId, secondClipId].includes(item.id))
+      .map((item) => [item.id, item.startBeat])
+  );
+  assertEqual(startsAfterMove[firstClipId], startsBeforeMove[firstClipId] + 2, "group move first clip");
+  assertEqual(startsAfterMove[secondClipId], startsBeforeMove[secondClipId] + 2, "group move second clip");
 });
 
 test("duplicateTrack이 트랙과 클립을 편집 가능한 복사본으로 만든다", () => {
