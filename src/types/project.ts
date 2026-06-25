@@ -6,7 +6,31 @@ export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 8;
+export const CURRENT_PROJECT_VERSION = 9;
+
+export type TrackSends = {
+  reverb?: number;
+  delay?: number;
+};
+
+export type TrackFx = {
+  eq?: {
+    low: number;
+    mid: number;
+    high: number;
+  };
+  comp?: {
+    threshold: number;
+    ratio: number;
+  };
+};
+
+export type MasterFx = {
+  volume: number;
+  limiterOn?: boolean;
+  reverb?: number;
+  delay?: number;
+};
 
 export type Project = {
   id: string;
@@ -23,6 +47,7 @@ export type Project = {
   metronomeOn?: boolean;
   countInBars?: number;
   masterVolume?: number;
+  master?: MasterFx;
   lessonId?: string;
   assignmentId?: string;
   classId?: string;
@@ -60,6 +85,8 @@ export type Track = {
   muted: boolean;
   solo: boolean;
   recordEnabled?: boolean;
+  sends?: TrackSends;
+  fx?: TrackFx;
   color: string;
   clips: Clip[];
 };

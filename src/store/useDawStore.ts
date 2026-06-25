@@ -4,10 +4,32 @@ import { createLessonProject, getLessonById } from "../education/lessons";
 import type { Assignment, StudioMode } from "../education/types";
 import { buildCompedAudioClip, normalizeTakeSections } from "../audio/audioComping";
 import { defaultDrummerSettings, generateDrummerPattern, normalizeDrummerSettings } from "../audio/drummer";
+import {
+  buildSmartControlPatch,
+  mergeTrackFx,
+  mergeTrackSends,
+  normalizeMasterFx,
+  normalizeTrackFx,
+  normalizeTrackSends,
+  type SmartControlMacro
+} from "../audio/fx";
 import { defaultInstrumentForTrack, normalizeInstrumentId } from "../data/instruments";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { loopMatchSummary } from "../data/loops";
-import { CURRENT_PROJECT_VERSION, type AudioTakeSection, type Clip, type MidiNote, type Project, type ProjectScale, type Track, type TrackRole, type TrackType } from "../types/project";
+import {
+  CURRENT_PROJECT_VERSION,
+  type AudioTakeSection,
+  type Clip,
+  type MasterFx,
+  type MidiNote,
+  type Project,
+  type ProjectScale,
+  type Track,
+  type TrackFx,
+  type TrackRole,
+  type TrackSends,
+  type TrackType
+} from "../types/project";
 import { makeId } from "../utils/id";
 import { loopCategoryLabel } from "../utils/labels";
 import { normalizePianoRollScale } from "../utils/pianoRoll";
@@ -101,6 +123,7 @@ type DawState = {
   setProjectScale: (scale: ProjectScale) => void;
   setTimeSignature: (timeSignature: [number, number]) => void;
   setMasterVolume: (masterVolume: number) => void;
+  setMasterFx: (master: Partial<MasterFx>) => void;
   setMasterLevel: (masterLevel: number) => void;
   setTunerReading: (reading?: TunerReading) => void;
   tapTempo: (timestampMs?: number) => void;
@@ -145,6 +168,9 @@ type DawState = {
   toggleSolo: (trackId: string) => void;
   setTrackVolume: (trackId: string, volume: number) => void;
   setTrackPan: (trackId: string, pan: number) => void;
+  setTrackSends: (trackId: string, sends: TrackSends) => void;
+  setTrackFx: (trackId: string, fx: TrackFx) => void;
+  applyTrackSmartControl: (trackId: string, macro: SmartControlMacro, value: number) => void;
   setTrackInstrument: (trackId: string, instrumentId: string) => void;
   addNote: (clipId: string, note: Omit<MidiNote, "id">) => string;
   addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>, options?: EditOptions) => void;
@@ -230,6 +256,8 @@ function createTrack(type: TrackType, index: number, name?: string, role?: Track
     muted: false,
     solo: false,
     recordEnabled: false,
+    sends: normalizeTrackSends(),
+    fx: normalizeTrackFx(),
     color: TRACK_COLORS[index % TRACK_COLORS.length],
     clips: []
   };
@@ -299,6 +327,7 @@ function createInitialProject(): Project {
     metronomeOn: false,
     countInBars: 0,
     masterVolume: 0.85,
+    master: normalizeMasterFx(undefined, 0.85),
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -790,12 +819,29 @@ export const useDawStore = create<DawState>((set, get) => ({
   setMasterVolume: (masterVolume) => {
     set((state) => {
       const nextMasterVolume = normalizeMasterVolume(masterVolume);
-      if (state.project.masterVolume === nextMasterVolume) return state;
+      const nextMaster = normalizeMasterFx({ ...state.project.master, volume: nextMasterVolume }, nextMasterVolume);
+      if (state.project.masterVolume === nextMasterVolume && JSON.stringify(state.project.master) === JSON.stringify(nextMaster)) return state;
       return commitProjectChange(
         state,
         touch({
           ...state.project,
-          masterVolume: nextMasterVolume
+          masterVolume: nextMasterVolume,
+          master: nextMaster
+        })
+      );
+    });
+  },
+
+  setMasterFx: (master) => {
+    set((state) => {
+      const nextMaster = normalizeMasterFx({ ...state.project.master, ...master }, state.project.masterVolume);
+      if (JSON.stringify(state.project.master) === JSON.stringify(nextMaster)) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          masterVolume: nextMaster.volume,
+          master: nextMaster
         })
       );
     });
@@ -1599,6 +1645,62 @@ export const useDawStore = create<DawState>((set, get) => ({
           ...state.project,
           tracks: state.project.tracks.map((item) =>
             item.id === trackId ? { ...item, pan: nextPan } : item
+          )
+        })
+      );
+    });
+  },
+
+  setTrackSends: (trackId, sends) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      const nextSends = mergeTrackSends(track.sends, sends);
+      if (JSON.stringify(track.sends) === JSON.stringify(nextSends)) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) =>
+            item.id === trackId ? { ...item, sends: nextSends } : item
+          )
+        })
+      );
+    });
+  },
+
+  setTrackFx: (trackId, fx) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      const nextFx = mergeTrackFx(track.fx, fx);
+      if (JSON.stringify(track.fx) === JSON.stringify(nextFx)) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) =>
+            item.id === trackId ? { ...item, fx: nextFx } : item
+          )
+        })
+      );
+    });
+  },
+
+  applyTrackSmartControl: (trackId, macro, value) => {
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      if (!track) return state;
+      const patch = buildSmartControlPatch(macro, value);
+      const nextSends = patch.sends ? mergeTrackSends(track.sends, patch.sends) : normalizeTrackSends(track.sends);
+      const nextFx = patch.fx ? mergeTrackFx(track.fx, patch.fx) : normalizeTrackFx(track.fx);
+      if (JSON.stringify(track.sends) === JSON.stringify(nextSends) && JSON.stringify(track.fx) === JSON.stringify(nextFx)) return state;
+      return commitProjectChange(
+        state,
+        touch({
+          ...state.project,
+          tracks: state.project.tracks.map((item) =>
+            item.id === trackId ? { ...item, sends: nextSends, fx: nextFx } : item
           )
         })
       );

@@ -1,6 +1,7 @@
 import { getLoopById } from "../data/loops";
 import type { Clip, LoopStep, Project, Track } from "../types/project";
 import { clipGain, getClipAudioBlob, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
+import { normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackAudibleGain } from "./fx";
 
 const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
@@ -41,13 +42,96 @@ function noteToFrequency(note: string) {
   return midiToFrequency((Number(octave) + 1) * 12 + notes[name]);
 }
 
-function connectTrackOutput(context: OfflineAudioContext, track: Track, destination: AudioNode, hasSolo: boolean) {
-  const gain = context.createGain();
+type OfflineMasterGraph = {
+  input: GainNode;
+  reverbInput: GainNode;
+  delayInput: GainNode;
+};
+
+function createReverbImpulse(context: OfflineAudioContext) {
+  const duration = 1.8;
+  const length = Math.floor(context.sampleRate * duration);
+  const buffer = context.createBuffer(2, length, context.sampleRate);
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let index = 0; index < length; index += 1) {
+      const decay = 1 - index / length;
+      data[index] = (Math.random() * 2 - 1) * decay * decay;
+    }
+  }
+  return buffer;
+}
+
+function createMasterGraph(context: OfflineAudioContext, project: Project): OfflineMasterGraph {
+  const masterFx = resolveProjectMasterFx(project);
+  const input = context.createGain();
+  const limiter = context.createDynamicsCompressor();
+  const output = context.createGain();
+  output.gain.value = masterFx.volume;
+  limiter.threshold.value = masterFx.limiterOn === false ? 0 : -1;
+  limiter.knee.value = masterFx.limiterOn === false ? 0 : 1;
+  limiter.ratio.value = masterFx.limiterOn === false ? 1 : 20;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.08;
+  input.connect(limiter).connect(output).connect(context.destination);
+
+  const reverbInput = context.createGain();
+  const convolver = context.createConvolver();
+  const reverbReturn = context.createGain();
+  convolver.buffer = createReverbImpulse(context);
+  reverbReturn.gain.value = masterFx.reverb ?? 0;
+  reverbInput.connect(convolver).connect(reverbReturn).connect(input);
+
+  const delayInput = context.createGain();
+  const delay = context.createDelay(2);
+  const feedback = context.createGain();
+  const delayReturn = context.createGain();
+  delay.delayTime.value = beatSeconds(project) / 2;
+  feedback.gain.value = 0.28;
+  delayReturn.gain.value = masterFx.delay ?? 0;
+  delayInput.connect(delay);
+  delay.connect(feedback).connect(delay);
+  delay.connect(delayReturn).connect(input);
+
+  return { input, reverbInput, delayInput };
+}
+
+function connectTrackOutput(context: OfflineAudioContext, track: Track, master: OfflineMasterGraph, hasSolo: boolean) {
+  const input = context.createGain();
+  const low = context.createBiquadFilter();
+  const mid = context.createBiquadFilter();
+  const high = context.createBiquadFilter();
+  const compressor = context.createDynamicsCompressor();
   const pan = context.createStereoPanner();
-  gain.gain.value = hasSolo ? (track.solo ? track.volume : 0) : track.muted ? 0 : track.volume;
+  const gain = context.createGain();
+  const reverbSend = context.createGain();
+  const delaySend = context.createGain();
+  const fx = normalizeTrackFx(track.fx);
+  const sends = normalizeTrackSends(track.sends);
+
+  low.type = "lowshelf";
+  low.frequency.value = 180;
+  low.gain.value = fx.eq.low;
+  mid.type = "peaking";
+  mid.frequency.value = 1100;
+  mid.Q.value = 0.9;
+  mid.gain.value = fx.eq.mid;
+  high.type = "highshelf";
+  high.frequency.value = 4200;
+  high.gain.value = fx.eq.high;
+  compressor.threshold.value = fx.comp.threshold;
+  compressor.ratio.value = fx.comp.ratio;
+  compressor.attack.value = 0.01;
+  compressor.release.value = 0.12;
+  gain.gain.value = resolveTrackAudibleGain(track, hasSolo);
   pan.pan.value = track.pan;
-  gain.connect(pan).connect(destination);
-  return gain;
+  reverbSend.gain.value = sends.reverb;
+  delaySend.gain.value = sends.delay;
+
+  input.connect(low).connect(mid).connect(high).connect(compressor).connect(pan).connect(gain).connect(master.input);
+  compressor.connect(reverbSend).connect(master.reverbInput);
+  compressor.connect(delaySend).connect(master.delayInput);
+  return input;
 }
 
 function scheduleOscillator(
@@ -254,9 +338,7 @@ function encodeWav(buffer: AudioBuffer) {
 export async function exportProjectToWav(project: Project) {
   const duration = projectDurationSeconds(project);
   const context = new OfflineAudioContext(2, Math.ceil(duration * SAMPLE_RATE), SAMPLE_RATE);
-  const master = context.createGain();
-  master.gain.value = 0.88;
-  master.connect(context.destination);
+  const master = createMasterGraph(context, project);
 
   const hasSolo = project.tracks.some((track) => track.solo);
   const audioSchedules: Promise<void>[] = [];

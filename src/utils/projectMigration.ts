@@ -1,6 +1,7 @@
 import { getLoopById } from "../data/loops";
 import { normalizeInstrumentId } from "../data/instruments";
 import { normalizeDrummerSettings } from "../audio/drummer";
+import { normalizeMasterFx, normalizeTrackFx, normalizeTrackSends } from "../audio/fx";
 import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "./id";
 import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
@@ -161,6 +162,8 @@ function normalizeTrack(track: Partial<Track>, index: number): Track {
     muted: Boolean(track.muted),
     solo: Boolean(track.solo),
     recordEnabled: type === "audio" ? Boolean(track.recordEnabled) : false,
+    sends: normalizeTrackSends(track.sends),
+    fx: normalizeTrackFx(track.fx),
     color: track.color ?? TRACK_COLORS[index % TRACK_COLORS.length],
     clips: (track.clips ?? []).map((clip, clipIndex) => normalizeClip(clip, id, clipIndex + index))
   };
@@ -171,6 +174,8 @@ export function normalizeProject(project: Project): Project {
   const timestamp = now();
   const { cycleStart, cycleEnd } = normalizeCycle(loose.cycleStart, loose.cycleEnd);
   const key = normalizeProjectKey(loose.key);
+  const masterVolume = normalizeMasterVolume(loose.masterVolume);
+  const master = normalizeMasterFx(loose.master, masterVolume);
   return {
     id: loose.id ?? makeId("project"),
     version: CURRENT_PROJECT_VERSION,
@@ -185,7 +190,8 @@ export function normalizeProject(project: Project): Project {
     scale: normalizePianoRollScale(loose.scale, key),
     metronomeOn: booleanValue(loose.metronomeOn),
     countInBars: normalizeCountInBars(loose.countInBars),
-    masterVolume: normalizeMasterVolume(loose.masterVolume),
+    masterVolume: master.volume,
+    master,
     lessonId: loose.lessonId,
     assignmentId: loose.assignmentId,
     classId: loose.classId,

@@ -113,6 +113,13 @@ const {
   normalizeTakeSections
 } = await server.ssrLoadModule("/src/audio/audioComping.ts");
 const {
+  buildSmartControlPatch,
+  normalizeMasterFx,
+  normalizeTrackFx,
+  normalizeTrackSends,
+  resolveSmartControlMacros
+} = await server.ssrLoadModule("/src/audio/fx.ts");
+const {
   buildRulerTicks,
   clipTypeRegionColor,
   formatBarBeatTick,
@@ -280,7 +287,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 8, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 9, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -290,10 +297,17 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
   assertEqual(migrated.metronomeOn, false, "메트로놈 기본값");
   assertEqual(migrated.countInBars, 0, "카운트인 기본값");
   assertEqual(migrated.masterVolume, 0.85, "마스터 볼륨 기본값");
+  assertDeepEqual(migrated.master, { volume: 0.85, limiterOn: true, reverb: 0.25, delay: 0.18 }, "Phase 8 master fx defaults");
   assertEqual(migrated.bpm, 220, "BPM 상한 보정");
   assertEqual(migrated.tracks[0].name, "비트", "깨진 트랙 이름 보정");
   assertEqual(migrated.tracks[0].role, "beat", "드럼 트랙 역할 보정");
   assertEqual(migrated.tracks[0].instrumentId, "studio-drum-kit", "Phase 3 드럼 트랙 악기 기본값");
+  assertDeepEqual(migrated.tracks[0].sends, { reverb: 0, delay: 0 }, "Phase 8 send defaults");
+  assertDeepEqual(
+    migrated.tracks[0].fx,
+    { eq: { low: 0, mid: 0, high: 0 }, comp: { threshold: -24, ratio: 2 } },
+    "Phase 8 track fx defaults"
+  );
   assertEqual(migrated.tracks[0].clips[0].name, "그리드 룸 드럼", "깨진 루프 클립 이름 보정");
   assertEqual(migrated.tracks[0].clips[0].startBeat, 0, "클립 시작 위치 보정");
   assertEqual(migrated.tracks[0].clips[0].lengthBeats, 0.25, "클립 최소 길이 보정");
@@ -806,6 +820,57 @@ test("Phase 7 store actions arm tracks, manage takes, and create comp clips", ()
   assertEqual(audioClip.pitchSemitones, -12, "pitch transpose is saved");
   assertEqual(audioClip.fadeInBeats, 1, "fade beats are saved");
   assert(useDawStore.getState().undoStack.length > 0, "phase 7 edits are undoable");
+});
+
+test("Phase 8 fx helpers normalize sends, eq, comp, master, and smart macros", () => {
+  assertDeepEqual(normalizeTrackSends({ reverb: 2, delay: -1 }), { reverb: 1, delay: 0 }, "track sends are clamped");
+  assertDeepEqual(
+    normalizeTrackFx({ eq: { low: -50, mid: 3, high: 50 }, comp: { threshold: 12, ratio: 99 } }),
+    { eq: { low: -24, mid: 3, high: 24 }, comp: { threshold: 0, ratio: 20 } },
+    "track fx values are clamped"
+  );
+  assertDeepEqual(
+    normalizeMasterFx({ volume: 2, limiterOn: false, reverb: 2, delay: -1 }, 0.42),
+    { volume: 1, limiterOn: false, reverb: 1, delay: 0 },
+    "master fx values are clamped"
+  );
+
+  const spacePatch = buildSmartControlPatch("space", 0.6);
+  assertDeepEqual(spacePatch.sends, { reverb: 0.6, delay: 0.36 }, "space macro maps to reverb and delay sends");
+  const punchPatch = buildSmartControlPatch("punch", 0.75);
+  assertDeepEqual(punchPatch.fx.comp, { threshold: -18, ratio: 6.25 }, "punch macro maps to compressor");
+  const macros = resolveSmartControlMacros({
+    sends: { reverb: 0.6, delay: 0.36 },
+    fx: { eq: { low: -4, mid: 1, high: 6 }, comp: { threshold: -18, ratio: 6.25 } }
+  });
+  assertApprox(macros.brightness, 0.75, "brightness macro resolves from high EQ");
+  assertApprox(macros.space, 0.6, "space macro resolves from sends");
+  assertApprox(macros.punch, 0.75, "punch macro resolves from compressor ratio");
+});
+
+test("Phase 8 store actions save track fx, sends, master fx, and smart controls", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 8 mixer fx test");
+  const trackId = useDawStore.getState().project.tracks[0].id;
+
+  useDawStore.getState().setTrackSends(trackId, { reverb: 0.45, delay: 0.25 });
+  useDawStore.getState().setTrackFx(trackId, {
+    eq: { low: -3, mid: 1.5, high: 4 },
+    comp: { threshold: -20, ratio: 4 }
+  });
+  useDawStore.getState().applyTrackSmartControl(trackId, "brightness", 0.75);
+  useDawStore.getState().applyTrackSmartControl(trackId, "space", 0.5);
+  useDawStore.getState().applyTrackSmartControl(trackId, "punch", 0.5);
+  useDawStore.getState().setMasterFx({ volume: 0.7, reverb: 0.4, delay: 0.2, limiterOn: false });
+
+  const projectState = useDawStore.getState().project;
+  const trackState = projectState.tracks.find((item) => item.id === trackId);
+  assertDeepEqual(trackState.fx.eq, { low: -3, mid: 0, high: 6 }, "brightness macro updates EQ");
+  assertDeepEqual(trackState.sends, { reverb: 0.5, delay: 0.3 }, "space macro updates sends");
+  assertDeepEqual(trackState.fx.comp, { threshold: -30, ratio: 4.5 }, "punch macro updates compressor");
+  assertDeepEqual(projectState.master, { volume: 0.7, limiterOn: false, reverb: 0.4, delay: 0.2 }, "master fx is saved");
+  assertEqual(projectState.masterVolume, 0.7, "legacy master volume stays in sync");
+  assert(useDawStore.getState().undoStack.length > 0, "phase 8 edits are undoable");
 });
 
 test("Phase 0 UI 컨트롤 변환이 노브, 페이더, 미터, LCD에서 일관된 값을 만든다", () => {

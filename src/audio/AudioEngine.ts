@@ -3,6 +3,7 @@ import { getLoopById, transposeLoopNote } from "../data/loops";
 import type { Clip, Project, Track } from "../types/project";
 import { normalizeCountInBars, normalizeMasterVolume } from "../utils/transport";
 import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
+import { gainToDb, normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackMute } from "./fx";
 import { createInstrumentSynth } from "./instrumentSynth";
 
 type BeatCallback = (beat: number) => void;
@@ -14,11 +15,6 @@ type PlayOptions = {
 };
 
 const PPQ = 192;
-
-function gainToDb(volume: number) {
-  if (volume <= 0.001) return -60;
-  return Math.max(-60, 20 * Math.log10(volume));
-}
 
 function tickTime(beat: number) {
   return `${Math.max(0, Math.round(beat * PPQ))}i`;
@@ -41,14 +37,28 @@ function projectLength(project: Project) {
   return Math.max(16, end);
 }
 
+type TrackFxRuntime = {
+  channel: Tone.Channel;
+  eq: Tone.EQ3;
+  compressor: Tone.Compressor;
+  reverbSend: Tone.Gain;
+  delaySend: Tone.Gain;
+};
+
 export class AudioEngine {
-  private channels = new Map<string, Tone.Channel>();
+  private channels = new Map<string, TrackFxRuntime>();
   private nodes: Tone.ToneAudioNode[] = [];
   private scheduledIds: number[] = [];
   private audioUrlCleanups: Array<() => void> = [];
   private countInTimeouts: number[] = [];
+  private masterBus?: Tone.Gain;
   private masterOutput?: Tone.Gain;
   private masterMeter?: Tone.Meter;
+  private masterLimiter?: Tone.Limiter;
+  private masterReverb?: Tone.Reverb;
+  private masterReverbReturn?: Tone.Gain;
+  private masterDelay?: Tone.FeedbackDelay;
+  private masterDelayReturn?: Tone.Gain;
   private frameId = 0;
   private lengthBeats = 16;
   private cycleEnabled = false;
@@ -92,47 +102,109 @@ export class AudioEngine {
     this.scheduledIds = [];
     this.nodes.forEach((node) => node.dispose());
     this.nodes = [];
-    this.channels.forEach((channel) => channel.dispose());
     this.channels.clear();
+    this.masterBus = undefined;
     this.masterOutput = undefined;
     this.masterMeter = undefined;
+    this.masterLimiter = undefined;
+    this.masterReverb = undefined;
+    this.masterReverbReturn = undefined;
+    this.masterDelay = undefined;
+    this.masterDelayReturn = undefined;
     this.audioUrlCleanups.forEach((cleanup) => cleanup());
     this.audioUrlCleanups = [];
   }
 
   updateTrackControls(project: Project) {
-    if (this.masterOutput) {
-      this.masterOutput.gain.value = normalizeMasterVolume(project.masterVolume);
-    }
+    const master = resolveProjectMasterFx(project);
+    if (this.masterOutput) this.masterOutput.gain.value = master.volume;
+    if (this.masterReverbReturn) this.masterReverbReturn.gain.value = master.reverb ?? 0;
+    if (this.masterDelayReturn) this.masterDelayReturn.gain.value = master.delay ?? 0;
+    if (this.masterLimiter) this.masterLimiter.threshold.value = master.limiterOn === false ? 6 : -1;
     const hasSolo = project.tracks.some((track) => track.solo);
     project.tracks.forEach((track) => {
-      const channel = this.channels.get(track.id);
-      if (!channel) return;
-      channel.volume.value = gainToDb(track.volume);
-      channel.pan.value = track.pan;
-      channel.mute = hasSolo ? !track.solo : track.muted;
+      const runtime = this.channels.get(track.id);
+      if (!runtime) return;
+      const fx = normalizeTrackFx(track.fx);
+      const sends = normalizeTrackSends(track.sends);
+      runtime.channel.volume.value = gainToDb(track.volume);
+      runtime.channel.pan.value = track.pan;
+      runtime.channel.mute = resolveTrackMute(track, hasSolo);
+      runtime.eq.low.value = fx.eq.low;
+      runtime.eq.mid.value = fx.eq.mid;
+      runtime.eq.high.value = fx.eq.high;
+      runtime.compressor.threshold.value = fx.comp.threshold;
+      runtime.compressor.ratio.value = fx.comp.ratio;
+      runtime.reverbSend.gain.value = sends.reverb;
+      runtime.delaySend.gain.value = sends.delay;
     });
   }
 
   private createMasterOutput(project: Project) {
-    this.masterOutput = new Tone.Gain(normalizeMasterVolume(project.masterVolume)).toDestination();
+    const master = resolveProjectMasterFx(project);
+    this.masterBus = new Tone.Gain(1);
+    this.masterLimiter = new Tone.Limiter(master.limiterOn === false ? 6 : -1);
+    this.masterOutput = new Tone.Gain(master.volume).toDestination();
     this.masterMeter = new Tone.Meter({ normalRange: true, smoothing: 0.78 });
+    this.masterReverb = new Tone.Reverb({ decay: 2.6, preDelay: 0.02, wet: 1 });
+    this.masterReverbReturn = new Tone.Gain(master.reverb ?? 0);
+    this.masterDelay = new Tone.FeedbackDelay({ delayTime: "8n", feedback: 0.28, wet: 1 });
+    this.masterDelayReturn = new Tone.Gain(master.delay ?? 0);
+    this.masterBus.connect(this.masterLimiter);
+    this.masterLimiter.connect(this.masterOutput);
+    this.masterReverb.connect(this.masterReverbReturn);
+    this.masterReverbReturn.connect(this.masterBus);
+    this.masterDelay.connect(this.masterDelayReturn);
+    this.masterDelayReturn.connect(this.masterBus);
     this.masterOutput.connect(this.masterMeter);
-    this.nodes.push(this.masterOutput, this.masterMeter);
+    this.nodes.push(
+      this.masterBus,
+      this.masterLimiter,
+      this.masterOutput,
+      this.masterMeter,
+      this.masterReverb,
+      this.masterReverbReturn,
+      this.masterDelay,
+      this.masterDelayReturn
+    );
   }
 
   private createChannels(project: Project) {
     const hasSolo = project.tracks.some((track) => track.solo);
     project.tracks.forEach((track) => {
+      const fx = normalizeTrackFx(track.fx);
+      const sends = normalizeTrackSends(track.sends);
       const channel = new Tone.Channel({
         volume: gainToDb(track.volume),
         pan: track.pan,
-        mute: hasSolo ? !track.solo : track.muted
+        mute: resolveTrackMute(track, hasSolo)
       });
-      if (this.masterOutput) channel.connect(this.masterOutput);
-      else channel.toDestination();
-      this.channels.set(track.id, channel);
-      this.nodes.push(channel);
+      const eq = new Tone.EQ3();
+      eq.low.value = fx.eq.low;
+      eq.mid.value = fx.eq.mid;
+      eq.high.value = fx.eq.high;
+      const compressor = new Tone.Compressor({
+        threshold: fx.comp.threshold,
+        ratio: fx.comp.ratio,
+        attack: 0.01,
+        release: 0.12
+      });
+      const reverbSend = new Tone.Gain(sends.reverb);
+      const delaySend = new Tone.Gain(sends.delay);
+      channel.connect(eq);
+      eq.connect(compressor);
+      if (this.masterBus) compressor.connect(this.masterBus);
+      else compressor.toDestination();
+      if (this.masterReverb) {
+        compressor.connect(reverbSend);
+        reverbSend.connect(this.masterReverb);
+      }
+      if (this.masterDelay) {
+        compressor.connect(delaySend);
+        delaySend.connect(this.masterDelay);
+      }
+      this.channels.set(track.id, { channel, eq, compressor, reverbSend, delaySend });
+      this.nodes.push(channel, eq, compressor, reverbSend, delaySend);
     });
   }
 
@@ -144,13 +216,13 @@ export class AudioEngine {
 
       track.clips.forEach((clip) => {
         if (clip.type === "loop") {
-          this.scheduleLoopClip(project, clip, channel);
+          this.scheduleLoopClip(project, clip, channel.channel);
         }
         if (clip.type === "midi") {
-          this.scheduleMidiClip(track, clip, channel);
+          this.scheduleMidiClip(track, clip, channel.channel);
         }
         if (clip.type === "audio") {
-          audioLoads.push(this.scheduleAudioClip(project, clip, channel));
+          audioLoads.push(this.scheduleAudioClip(project, clip, channel.channel));
         }
       });
     });
