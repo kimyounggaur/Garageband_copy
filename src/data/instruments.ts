@@ -87,7 +87,7 @@ export function instrumentPatchesByCategory() {
 }
 
 export function defaultInstrumentForTrack(track: { type?: TrackType; role?: TrackRole }) {
-  if (track.type === "drum" || track.role === "beat") return "studio-drum-kit";
+  if (track.type === "drum" || track.role === "beat" || track.role === "drummer") return "studio-drum-kit";
   if (track.role === "bass") return "warm-analog-bass";
   if (track.role === "harmony") return "classic-electric-piano";
   if (track.role === "melody") return "bright-studio-keys";

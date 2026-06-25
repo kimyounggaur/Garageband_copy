@@ -145,6 +145,11 @@ const {
   timelineBeatToClipBeat
 } = await server.ssrLoadModule("/src/utils/touchInstruments.ts");
 const {
+  DRUMMER_PRESETS,
+  defaultDrummerSettings,
+  generateDrummerPattern
+} = await server.ssrLoadModule("/src/audio/drummer.ts");
+const {
   cloneNotesForPaste,
   isPitchInScale,
   normalizePianoRollScale,
@@ -269,7 +274,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 6, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 7, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -462,6 +467,87 @@ test("Phase 4 touch instrument notes are written through MIDI store actions", ()
     "beat sequencer writes drum MIDI pitches"
   );
   assertEqual(useDawStore.getState().undoStack.length > 0, true, "touch instrument writes are undoable");
+});
+
+test("Phase 6 drummer generator creates deterministic grooves from presets and XY controls", () => {
+  assert(DRUMMER_PRESETS.length >= 4, "drummer exposes genre presets");
+  assertEqual(defaultDrummerSettings().preset, "Pop", "drummer defaults to Pop");
+
+  const dense = generateDrummerPattern({
+    preset: "Pop",
+    complexity: 0.82,
+    loudness: 0.75,
+    swing: 0.45,
+    fills: 0.85,
+    lengthBeats: 8,
+    seed: 11
+  });
+  const repeated = generateDrummerPattern({
+    preset: "Pop",
+    complexity: 0.82,
+    loudness: 0.75,
+    swing: 0.45,
+    fills: 0.85,
+    lengthBeats: 8,
+    seed: 11
+  });
+  const sparse = generateDrummerPattern({
+    preset: "Pop",
+    complexity: 0.15,
+    loudness: 0.75,
+    swing: 0,
+    fills: 0,
+    lengthBeats: 8,
+    seed: 11
+  });
+
+  assertDeepEqual(dense, repeated, "same drummer settings generate the same notes");
+  assert(dense.length > sparse.length, "complexity increases note density");
+  assert(dense.some((item) => item.pitch === 36), "drummer groove includes kick");
+  assert(dense.some((item) => item.pitch === 38), "drummer groove includes snare");
+  assert(dense.some((item) => item.pitch === 42 || item.pitch === 46), "drummer groove includes hats");
+  assert(dense.some((item) => item.pitch === 45 || item.pitch === 47 || item.pitch === 39), "drummer fills add accent notes");
+  assert(dense.some((item) => Math.abs((item.startBeat * 100) % 50) > 0.001), "swing moves offbeat notes off the straight grid");
+  assert(dense.every((item) => item.velocity >= 0.2 && item.velocity <= 1), "loudness keeps velocities playable");
+});
+
+test("Phase 6 store actions create and regenerate drummer MIDI clips", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 6 drummer store test");
+
+  const drummerClipId = useDawStore.getState().addDrummerClip(undefined, 0);
+  let drummerTrack = useDawStore.getState().project.tracks.find((item) => item.clips.some((clip) => clip.id === drummerClipId));
+  let drummerClip = drummerTrack?.clips.find((item) => item.id === drummerClipId);
+
+  assert(drummerTrack, "drummer track is created");
+  assertEqual(drummerTrack.role, "drummer", "drummer track role is saved");
+  assertEqual(drummerTrack.type, "drum", "drummer track uses drum playback");
+  assert(drummerTrack.instrumentId === "studio-drum-kit", "drummer track uses the drum kit");
+  assert(drummerClip, "drummer clip is created");
+  assertEqual(drummerClip.type, "midi", "drummer clip saves as MIDI");
+  assertEqual(drummerClip.drummerPreset, "Pop", "drummer preset is saved");
+  assert(drummerClip.notes.length > 0, "drummer clip contains generated MIDI notes");
+  assertEqual(useDawStore.getState().selectedClipId, drummerClipId, "drummer clip is selected");
+
+  const initialSignature = drummerClip.notes.map((item) => [item.pitch, item.startBeat, item.durationBeats, item.velocity]);
+  useDawStore.getState().updateDrummerClip(drummerClipId, {
+    drummerPreset: "EDM",
+    drummerComplexity: 0.92,
+    drummerLoudness: 0.46,
+    drummerSwing: 0.38,
+    drummerFills: 0.72
+  });
+
+  drummerTrack = useDawStore.getState().project.tracks.find((item) => item.clips.some((clip) => clip.id === drummerClipId));
+  drummerClip = drummerTrack?.clips.find((item) => item.id === drummerClipId);
+  assertEqual(drummerClip.drummerPreset, "EDM", "updated drummer preset is saved");
+  assertEqual(drummerClip.drummerComplexity, 0.92, "updated drummer complexity is saved");
+  assert(
+    JSON.stringify(drummerClip.notes.map((item) => [item.pitch, item.startBeat, item.durationBeats, item.velocity])) !==
+      JSON.stringify(initialSignature),
+    "drummer notes regenerate when settings change"
+  );
+  assert(useDawStore.getState().undoStack.length > 0, "drummer edits are undoable");
 });
 
 test("Phase 5 piano roll utilities enforce scale lock, quantize notes, and prepare paste copies", () => {

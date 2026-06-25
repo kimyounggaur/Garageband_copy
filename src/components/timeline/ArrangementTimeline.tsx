@@ -1,4 +1,4 @@
-import { Copy, Keyboard, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
+import { Copy, Drum, Keyboard, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
 import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
@@ -66,6 +66,7 @@ export function ArrangementTimeline() {
   const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
   const addTrack = useDawStore((state) => state.addTrack);
   const addMidiClip = useDawStore((state) => state.addMidiClip);
+  const addDrummerClip = useDawStore((state) => state.addDrummerClip);
   const renameTrack = useDawStore((state) => state.renameTrack);
   const duplicateTrack = useDawStore((state) => state.duplicateTrack);
   const removeTrack = useDawStore((state) => state.removeTrack);
@@ -317,6 +318,10 @@ export function ArrangementTimeline() {
             <Plus size={14} />
             드럼
           </button>
+          <button className="studio-button" onClick={() => addDrummerClip(undefined, currentBeat)}>
+            <Drum size={14} />
+            Drummer
+          </button>
           <button className="studio-button" onClick={() => addTrack("instrument", "악기")}>
             <Plus size={14} />
             악기
@@ -385,6 +390,19 @@ export function ArrangementTimeline() {
               >
                 <Keyboard size={14} />
                 현재 위치에 MIDI 클립
+              </button>
+              <button
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
+                  menuTrack.type === "audio" ? "cursor-not-allowed text-slate-600" : "text-slate-200 hover:bg-white/[0.08]"
+                }`}
+                onClick={() =>
+                  menuTrack.type === "audio" ? undefined : runTrackMenuAction(() => addDrummerClip(menuTrack.id, currentBeat))
+                }
+                disabled={menuTrack.type === "audio"}
+                role="menuitem"
+              >
+                <Drum size={14} />
+                현재 위치에 Drummer 클립
               </button>
               <button
                 className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"

@@ -1,5 +1,6 @@
 import { getLoopById } from "../data/loops";
 import { normalizeInstrumentId } from "../data/instruments";
+import { normalizeDrummerSettings } from "../audio/drummer";
 import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "./id";
 import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
@@ -39,6 +40,7 @@ function defaultClipName(type: ClipType, loopId?: string) {
 
 function inferRole(type: TrackType, name = ""): TrackRole {
   const lower = name.toLowerCase();
+  if (lower.includes("drummer") || name.includes("드러머")) return "drummer";
   if (type === "drum" || lower.includes("beat") || lower.includes("drum") || name.includes("비트") || name.includes("드럼")) {
     return "beat";
   }
@@ -68,6 +70,20 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
   const gain = Number(clip.gain);
   const fallbackName = defaultClipName(type, clip.loopId);
   const instructions = repairBrokenText(clip.instructions, "");
+  const hasDrummerSettings =
+    clip.drummerPreset !== undefined ||
+    clip.drummerComplexity !== undefined ||
+    clip.drummerLoudness !== undefined ||
+    clip.drummerSwing !== undefined ||
+    clip.drummerFills !== undefined;
+  const drummerSettings = normalizeDrummerSettings({
+    preset: clip.drummerPreset,
+    complexity: clip.drummerComplexity,
+    loudness: clip.drummerLoudness,
+    swing: clip.drummerSwing,
+    fills: clip.drummerFills,
+    lengthBeats: clip.lengthBeats
+  });
 
   return {
     id: clip.id ?? makeId("clip"),
@@ -96,7 +112,12 @@ function normalizeClip(clip: Partial<Clip>, trackId: string, fallbackIndex: numb
     loopId: clip.loopId,
     loopEnabled: booleanValue(clip.loopEnabled),
     locked: clip.locked ?? false,
-    instructions: instructions || undefined
+    instructions: instructions || undefined,
+    drummerPreset: hasDrummerSettings ? drummerSettings.preset : undefined,
+    drummerComplexity: hasDrummerSettings ? drummerSettings.complexity : undefined,
+    drummerLoudness: hasDrummerSettings ? drummerSettings.loudness : undefined,
+    drummerSwing: hasDrummerSettings ? drummerSettings.swing : undefined,
+    drummerFills: hasDrummerSettings ? drummerSettings.fills : undefined
   };
 }
 

@@ -1,12 +1,12 @@
 export type TrackType = "drum" | "instrument" | "audio";
-export type TrackRole = "beat" | "bass" | "melody" | "harmony" | "recording";
+export type TrackRole = "beat" | "drummer" | "bass" | "melody" | "harmony" | "recording";
 export type ClipType = "midi" | "audio" | "loop";
 export type LoopCategory = "Drums" | "Bass" | "Synth" | "FX";
 export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 6;
+export const CURRENT_PROJECT_VERSION = 7;
 
 export type Project = {
   id: string;
@@ -85,6 +85,11 @@ export type Clip = {
   loopEnabled?: boolean;
   locked?: boolean;
   instructions?: string;
+  drummerPreset?: string;
+  drummerComplexity?: number;
+  drummerLoudness?: number;
+  drummerSwing?: number;
+  drummerFills?: number;
 };
 
 export type MidiNote = {

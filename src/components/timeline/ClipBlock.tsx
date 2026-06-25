@@ -58,7 +58,9 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   const commitHistorySnapshot = useDawStore((state) => state.commitHistorySnapshot);
   const left = beatToX(clip.startBeat, pixelsPerBeat);
   const width = Math.max(pixelsPerBeat * 0.25, beatToX(clip.lengthBeats, pixelsPerBeat));
-  const regionColor = clipTypeRegionColor(clip.type);
+  const isDrummerClip = Boolean(clip.drummerPreset);
+  const regionColor = clipTypeRegionColor(isDrummerClip ? "drummer" : clip.type);
+  const clipKindLabel = isDrummerClip ? "Drummer" : clipTypeLabel(clip.type);
   const textColor = textColorFor(regionColor);
   const canSplitAtMenuBeat =
     Boolean(menu) &&
@@ -284,7 +286,7 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
           <span className="truncate text-xs font-black">{clip.name}</span>
         </div>
         <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase opacity-80">
-          <span>{clipTypeLabel(clip.type)}</span>
+          <span>{clipKindLabel}</span>
           <span>{clip.lengthBeats}b</span>
         </div>
       </div>
@@ -325,7 +327,7 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
           <div className="border-b border-white/10 px-2 py-2">
             <div className="truncate text-xs font-black text-slate-100">{clip.name}</div>
             <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-              <span>{clipTypeLabel(clip.type)}</span>
+              <span>{clipKindLabel}</span>
               <span>{menu.beat.toFixed(2)}박</span>
               {clip.locked ? <span>잠김</span> : null}
             </div>

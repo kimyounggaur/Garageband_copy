@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { summarizeLesson } from "../education/evaluateMission";
 import { createLessonProject, getLessonById } from "../education/lessons";
 import type { Assignment, StudioMode } from "../education/types";
+import { defaultDrummerSettings, generateDrummerPattern, normalizeDrummerSettings } from "../audio/drummer";
 import { defaultInstrumentForTrack, normalizeInstrumentId } from "../data/instruments";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { loopMatchSummary } from "../data/loops";
@@ -34,6 +35,9 @@ type ClipDraft = Omit<Clip, "id" | "trackId"> & Partial<Pick<Clip, "id" | "track
 type EditOptions = { recordHistory?: boolean; snap?: boolean };
 type ClipAudioSettings = Partial<
   Pick<Clip, "trimStartSeconds" | "trimEndSeconds" | "gain" | "fadeInSeconds" | "fadeOutSeconds" | "fadeInBeats" | "fadeOutBeats">
+>;
+type DrummerClipSettings = Partial<
+  Pick<Clip, "drummerPreset" | "drummerComplexity" | "drummerLoudness" | "drummerSwing" | "drummerFills">
 >;
 type MidiNoteEdit = { id: string } & Partial<Omit<MidiNote, "id">>;
 
@@ -95,6 +99,7 @@ type DawState = {
   addClip: (trackId: string, clip: ClipDraft) => string;
   addLoopClip: (loopId: string, trackId?: string, startBeat?: number) => string;
   addMidiClip: (trackId?: string, startBeat?: number) => string;
+  addDrummerClip: (trackId?: string, startBeat?: number) => string;
   addAudioClip: (
     trackId: string | undefined,
     startBeat: number,
@@ -104,6 +109,7 @@ type DawState = {
     audioAssetId?: string
   ) => string;
   updateClipAudioSettings: (clipId: string, settings: ClipAudioSettings) => void;
+  updateDrummerClip: (clipId: string, settings: DrummerClipSettings, options?: EditOptions) => void;
   splitSelectedAudioClip: () => void;
   moveClip: (clipId: string, startBeat: number, targetTrackId?: string, options?: EditOptions) => void;
   moveSelectedClips: (deltaBeats: number, options?: EditOptions) => void;
@@ -149,6 +155,24 @@ function clampedNumber(value: number | undefined, min: number, max: number, fall
   return Number.isFinite(next) ? clamp(next, min, max) : fallback;
 }
 
+function drummerSettingsFromClip(clip: Pick<Clip, "drummerPreset" | "drummerComplexity" | "drummerLoudness" | "drummerSwing" | "drummerFills" | "lengthBeats">, settings: DrummerClipSettings = {}) {
+  return normalizeDrummerSettings({
+    preset: settings.drummerPreset ?? clip.drummerPreset,
+    complexity: settings.drummerComplexity ?? clip.drummerComplexity,
+    loudness: settings.drummerLoudness ?? clip.drummerLoudness,
+    swing: settings.drummerSwing ?? clip.drummerSwing,
+    fills: settings.drummerFills ?? clip.drummerFills,
+    lengthBeats: clip.lengthBeats
+  });
+}
+
+function createDrummerNotes(clipId: string, settings: ReturnType<typeof normalizeDrummerSettings>): MidiNote[] {
+  return generateDrummerPattern({ ...settings, seed: clipId }).map((note) => ({
+    ...note,
+    id: makeId("note")
+  }));
+}
+
 function touch(project: Project): Project {
   return { ...project, updatedAt: now() };
 }
@@ -167,6 +191,7 @@ function pushHistory(stack: Project[], project: Project) {
 
 function inferTrackRole(type: TrackType, name?: string): TrackRole {
   const lower = (name ?? "").toLowerCase();
+  if (lower.includes("drummer") || name?.includes("드러머")) return "drummer";
   if (type === "drum" || lower.includes("beat") || lower.includes("drum") || name?.includes("비트") || name?.includes("드럼")) return "beat";
   if (type === "audio" || lower.includes("record") || name?.includes("녹음")) return "recording";
   if (lower.includes("bass") || name?.includes("베이스")) return "bass";
@@ -931,6 +956,35 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
+  addDrummerClip: (trackId, startBeat = 0) => {
+    const state = get();
+    const selectedTrack = state.project.tracks.find((track) => track.id === state.selectedTrackId);
+    const explicitTrack = state.project.tracks.find((track) => track.id === trackId);
+    const targetTrackId =
+      explicitTrack?.id ??
+      (selectedTrack?.role === "drummer" ? selectedTrack.id : undefined) ??
+      state.project.tracks.find((track) => track.role === "drummer")?.id ??
+      get().addTrack("drum", "Drummer");
+    const id = makeId("clip");
+    const settings = defaultDrummerSettings();
+    const notes = createDrummerNotes(id, settings);
+
+    return get().addClip(targetTrackId, {
+      id,
+      type: "midi",
+      name: `Drummer - ${settings.preset}`,
+      startBeat,
+      lengthBeats: settings.lengthBeats,
+      color: "#e0b341",
+      notes,
+      drummerPreset: settings.preset,
+      drummerComplexity: settings.complexity,
+      drummerLoudness: settings.loudness,
+      drummerSwing: settings.swing,
+      drummerFills: settings.fills
+    });
+  },
+
   addAudioClip: (trackId, startBeat, name, audioUrl, durationSeconds, audioAssetId) => {
     const state = get();
     const selectedTrack = state.project.tracks.find((track) => track.id === state.selectedTrackId);
@@ -987,6 +1041,30 @@ export const useDawStore = create<DawState>((set, get) => ({
           fadeOutBeats:
             settings.fadeOutBeats === undefined ? item.fadeOutBeats : nonNegativeNumber(settings.fadeOutBeats, item.fadeOutBeats ?? 0)
         }))
+      );
+    });
+  },
+
+  updateDrummerClip: (clipId, settings, options) => {
+    set((state) => {
+      const clip = findClip(state.project, clipId);
+      if (!clip || clip.type !== "midi" || clip.locked) return state;
+      const nextSettings = drummerSettingsFromClip(clip, settings);
+      const notes = createDrummerNotes(clip.id, nextSettings);
+      return commitProjectChange(
+        state,
+        updateClip(state.project, clipId, (item) => ({
+          ...item,
+          name: `Drummer - ${nextSettings.preset}`,
+          notes,
+          drummerPreset: nextSettings.preset,
+          drummerComplexity: nextSettings.complexity,
+          drummerLoudness: nextSettings.loudness,
+          drummerSwing: nextSettings.swing,
+          drummerFills: nextSettings.fills
+        })),
+        undefined,
+        options
       );
     });
   },

@@ -25,6 +25,7 @@ export function trackTypeLabel(type: TrackType) {
 }
 
 export function trackRoleLabel(role?: TrackRole | TrackType) {
+  if (role === "drummer") return "Drummer";
   if (role === "beat") return "비트";
   if (role === "bass") return "베이스";
   if (role === "melody") return "멜로디";

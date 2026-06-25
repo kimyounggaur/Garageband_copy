@@ -278,7 +278,7 @@ export class AudioEngine {
   }
 
   private scheduleMidiClip(track: Pick<Track, "type" | "role" | "instrumentId">, clip: Clip, channel: Tone.Channel) {
-    if (track.type === "drum" || track.role === "beat") {
+    if (track.type === "drum" || track.role === "beat" || track.role === "drummer") {
       this.scheduleDrumMidiClip(clip, channel);
       return;
     }

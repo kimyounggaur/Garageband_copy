@@ -5,6 +5,7 @@ import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
 import { clipTypeLabel, statusLabel } from "../../utils/labels";
 import { AudioWaveform } from "../audio/AudioWaveform";
+import { Drummer } from "../instruments/Drummer";
 import { TouchInstruments } from "../instruments/TouchInstruments";
 import { PianoRoll } from "./PianoRoll";
 
@@ -19,7 +20,7 @@ function audioValue(value: number | undefined, fallback = 0) {
 
 export function ClipEditor() {
   const [normalizeStatus, setNormalizeStatus] = useState<"idle" | "working" | "done" | "error">("idle");
-  const [midiEditorMode, setMidiEditorMode] = useState<"roll" | "touch">("roll");
+  const [midiEditorMode, setMidiEditorMode] = useState<"roll" | "touch" | "drummer">("roll");
   const project = useDawStore((state) => state.project);
   const selectedClipId = useDawStore((state) => state.selectedClipId);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
@@ -33,10 +34,16 @@ export function ClipEditor() {
   const clips = useMemo(() => project.tracks.flatMap((track) => track.clips), [project.tracks]);
   const selectedClip = findSelectedClip(clips, selectedClipId);
   const selectedTrack = project.tracks.find((track) => track.id === selectedTrackId);
+  const selectedClipTrack = project.tracks.find((track) => track.id === selectedClip?.trackId);
+  const isDrummerClip = Boolean(selectedClip?.drummerPreset || selectedClipTrack?.role === "drummer");
 
   useEffect(() => {
     setNormalizeStatus("idle");
   }, [selectedClipId]);
+
+  useEffect(() => {
+    setMidiEditorMode((mode) => (isDrummerClip ? "drummer" : mode === "drummer" ? "roll" : mode));
+  }, [isDrummerClip, selectedClipId]);
 
   async function normalizeSelectedClip() {
     if (!selectedClip || selectedClip.type !== "audio" || selectedClip.locked) return;
@@ -55,7 +62,9 @@ export function ClipEditor() {
       <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)] border-x-0 border-b-0">
         <div className="flex min-h-10 items-center justify-between gap-2 border-b border-white/10 px-3 py-1">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="panel-title">{midiEditorMode === "roll" ? "피아노롤" : "터치 악기"}</span>
+            <span className="panel-title">
+              {midiEditorMode === "drummer" ? "Drummer" : midiEditorMode === "roll" ? "피아노롤" : "터치 악기"}
+            </span>
             <span className="truncate text-sm font-bold text-slate-200">{selectedClip.name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -65,6 +74,14 @@ export function ClipEditor() {
             >
               Piano Roll
             </button>
+            {isDrummerClip ? (
+              <button
+                className={`studio-button h-7 px-2 text-[11px] ${midiEditorMode === "drummer" ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
+                onClick={() => setMidiEditorMode("drummer")}
+              >
+                Drummer
+              </button>
+            ) : null}
             <button
               className={`studio-button h-7 px-2 text-[11px] ${midiEditorMode === "touch" ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
               onClick={() => setMidiEditorMode("touch")}
@@ -77,7 +94,13 @@ export function ClipEditor() {
             </button>
           </div>
         </div>
-        {midiEditorMode === "roll" ? <PianoRoll clip={selectedClip} /> : <TouchInstruments clip={selectedClip} />}
+        {midiEditorMode === "drummer" ? (
+          <Drummer clip={selectedClip} />
+        ) : midiEditorMode === "roll" ? (
+          <PianoRoll clip={selectedClip} />
+        ) : (
+          <TouchInstruments clip={selectedClip} />
+        )}
       </section>
     );
   }
