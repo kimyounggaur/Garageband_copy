@@ -135,6 +135,15 @@ const {
   getInstrumentPatch,
   instrumentPatchesByCategory
 } = await server.ssrLoadModule("/src/data/instruments.ts");
+const {
+  buildChordNotes,
+  buildDiatonicChordStrips,
+  buildKeyboardNote,
+  buildStepSequencerNotes,
+  generateSmartDrumPattern,
+  keyboardKeyToMidi,
+  timelineBeatToClipBeat
+} = await server.ssrLoadModule("/src/utils/touchInstruments.ts");
 const { useDawStore } = await server.ssrLoadModule("/src/store/useDawStore.ts");
 const {
   faderValueToPercent,
@@ -348,6 +357,103 @@ test("Phase 3 library utilities filter loops, report tempo/key matching, and def
   assertEqual(getInstrumentPatch("classic-electric-piano").category, "Keys", "악기 패치 조회");
   assertEqual(defaultInstrumentForTrack({ type: "drum", role: "beat" }), "studio-drum-kit", "드럼 기본 패치");
   assert(instrumentPatchesByCategory().some((group) => group.category === "Synths" && group.patches.length > 0), "카테고리 그룹");
+});
+
+test("Phase 4 touch instrument utilities create quantized keyboard, drum, smart drum, and chord notes", () => {
+  assertEqual(keyboardKeyToMidi("a", 4), 60, "A key maps to C4");
+  assertEqual(keyboardKeyToMidi("k", 4), 72, "K key maps to the next C");
+
+  const keyboardNote = buildKeyboardNote({
+    pitch: keyboardKeyToMidi("d", 4),
+    startBeat: 1.13,
+    snapBeats: 0.25,
+    durationBeats: 0.48,
+    velocity: 1.4
+  });
+  assertDeepEqual(
+    keyboardNote,
+    { pitch: 64, startBeat: 1.25, durationBeats: 0.5, velocity: 1 },
+    "keyboard input is quantized and clamped"
+  );
+
+  const stepNotes = buildStepSequencerNotes(
+    [
+      { lane: "kick", step: 0, velocity: 0.8 },
+      { lane: "snare", step: 4, velocity: 0.7 },
+      { lane: "hat", step: 1, velocity: 0.4 }
+    ],
+    { startBeat: 2, stepBeats: 0.25, swing: 0.5 }
+  );
+  assertDeepEqual(
+    stepNotes.map((item) => [item.pitch, item.startBeat, item.durationBeats, item.velocity]),
+    [
+      [36, 2, 0.25, 0.8],
+      [38, 3, 0.25, 0.7],
+      [42, 2.31, 0.25, 0.4]
+    ],
+    "step sequencer maps lanes and swing to drum MIDI notes"
+  );
+
+  const smartPattern = generateSmartDrumPattern({ complexity: 0.75, loudness: 0.8, lengthBeats: 4, seed: 7 });
+  assertDeepEqual(
+    smartPattern,
+    generateSmartDrumPattern({ complexity: 0.75, loudness: 0.8, lengthBeats: 4, seed: 7 }),
+    "smart drum generation is deterministic with a seed"
+  );
+  assert(smartPattern.some((item) => item.pitch === 36), "smart drums include kick notes");
+  assert(smartPattern.every((item) => item.velocity <= 0.9 && item.velocity >= 0.2), "smart drum loudness scales velocity");
+
+  const dChords = buildDiatonicChordStrips("D");
+  assertDeepEqual(dChords[0].notes, [62, 66, 69], "D major I strip uses D-F#-A");
+  assertEqual(dChords[4].roman, "V", "major keys expose the V chord strip");
+
+  const strummed = buildChordNotes(dChords[0], { startBeat: 4, durationBeats: 1.5, strumBeats: 0.05, velocity: 0.72 });
+  assertDeepEqual(
+    strummed.map((item) => [item.pitch, item.startBeat, item.durationBeats, item.velocity]),
+    [
+      [62, 4, 1.5, 0.72],
+      [66, 4.05, 1.45, 0.72],
+      [69, 4.1, 1.4, 0.72]
+    ],
+    "chord strips strum notes across the beat"
+  );
+});
+
+test("Phase 4 touch instrument notes are written through MIDI store actions", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 4 touch instrument test");
+  const melodicClipId = useDawStore.getState().addMidiClip(undefined, 4);
+  const keyboardNote = buildKeyboardNote({
+    pitch: keyboardKeyToMidi("a", 4),
+    startBeat: timelineBeatToClipBeat(5.13, 4, 0.25),
+    snapBeats: 0.25,
+    durationBeats: 0.5,
+    velocity: 0.8
+  });
+  useDawStore.getState().addNotes(melodicClipId, [keyboardNote]);
+
+  const melodicClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === melodicClipId);
+  assertEqual(melodicClip.notes.length, 1, "keyboard note recorded into MIDI clip");
+  assertEqual(melodicClip.notes[0].startBeat, 1.25, "recorded note is clip-relative and quantized");
+
+  const drumTrackId = useDawStore.getState().addTrack("drum", "Touch Drums");
+  const drumClipId = useDawStore.getState().addMidiClip(drumTrackId, 0);
+  const drumNotes = buildStepSequencerNotes(
+    [
+      { lane: "kick", step: 0, velocity: 0.9 },
+      { lane: "snare", step: 4, velocity: 0.7 },
+      { lane: "hat", step: 2, velocity: 0.45 }
+    ],
+    { startBeat: 0, stepBeats: 0.25 }
+  );
+  useDawStore.getState().addNotes(drumClipId, drumNotes);
+  const drumClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === drumClipId);
+  assertDeepEqual(
+    drumClip.notes.map((item) => item.pitch),
+    [36, 38, 42],
+    "beat sequencer writes drum MIDI pitches"
+  );
+  assertEqual(useDawStore.getState().undoStack.length > 0, true, "touch instrument writes are undoable");
 });
 
 test("Phase 3 store actions select instrument patches and annotate loop tempo/key matching", () => {

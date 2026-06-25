@@ -1,0 +1,1 @@
+import{P as e,S as n}from"./index-Nge_YKFf.js";import{am as s}from"./index-OylRVDuz.js";function c(a){const t=s(a);return new e(n,{oscillator:{type:t.synth.oscillator},envelope:{attack:t.synth.attack,decay:t.synth.decay,sustain:t.synth.sustain,release:t.synth.release}})}export{c};

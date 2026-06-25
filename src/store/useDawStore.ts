@@ -121,7 +121,7 @@ type DawState = {
   setTrackPan: (trackId: string, pan: number) => void;
   setTrackInstrument: (trackId: string, instrumentId: string) => void;
   addNote: (clipId: string, note: Omit<MidiNote, "id">) => string;
-  addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>) => void;
+  addNotes: (clipId: string, notes: Array<Omit<MidiNote, "id">>, options?: EditOptions) => void;
   moveNote: (clipId: string, noteId: string, startBeat: number, pitch: number, options?: EditOptions) => void;
   resizeNote: (clipId: string, noteId: string, durationBeats: number, options?: EditOptions) => void;
   removeNote: (clipId: string, noteId: string) => void;
@@ -1413,29 +1413,38 @@ export const useDawStore = create<DawState>((set, get) => ({
     return id;
   },
 
-  addNotes: (clipId, notes) => {
+  addNotes: (clipId, notes, options) => {
     set((state) => {
       const clip = findClip(state.project, clipId);
-      if (!clip || clip.type !== "midi" || notes.length === 0) return state;
+      if (!clip || clip.type !== "midi" || clip.locked || notes.length === 0) return state;
       return commitProjectChange(
         state,
         updateClip(state.project, clipId, (item) => ({
           ...item,
           lengthBeats: Math.max(
             item.lengthBeats,
-            ...notes.map((note) => snapBeat(note.startBeat + note.durationBeats, state.snapBeats))
+            ...notes.map((note) =>
+              options?.snap === false
+                ? Math.max(0.25, note.startBeat + note.durationBeats)
+                : snapBeat(note.startBeat + note.durationBeats, state.snapBeats)
+            )
           ),
           notes: [
             ...(item.notes ?? []),
             ...notes.map((note) => ({
               ...note,
               id: makeId("note"),
-              startBeat: clamp(snapBeat(note.startBeat, state.snapBeats), 0, 256),
-              durationBeats: Math.max(0.25, snapBeat(note.durationBeats, state.snapBeats)),
+              startBeat: clamp(options?.snap === false ? note.startBeat : snapBeat(note.startBeat, state.snapBeats), 0, 256),
+              durationBeats: Math.max(
+                options?.snap === false ? 0.0625 : 0.25,
+                options?.snap === false ? note.durationBeats : snapBeat(note.durationBeats, state.snapBeats)
+              ),
               velocity: clamp(note.velocity, 0, 1)
             }))
           ]
-        }))
+        })),
+        undefined,
+        options
       );
     });
   },

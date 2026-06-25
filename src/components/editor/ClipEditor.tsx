@@ -5,6 +5,7 @@ import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
 import { clipTypeLabel, statusLabel } from "../../utils/labels";
 import { AudioWaveform } from "../audio/AudioWaveform";
+import { TouchInstruments } from "../instruments/TouchInstruments";
 import { PianoRoll } from "./PianoRoll";
 
 function findSelectedClip(clips: Clip[], clipId?: string) {
@@ -18,6 +19,7 @@ function audioValue(value: number | undefined, fallback = 0) {
 
 export function ClipEditor() {
   const [normalizeStatus, setNormalizeStatus] = useState<"idle" | "working" | "done" | "error">("idle");
+  const [midiEditorMode, setMidiEditorMode] = useState<"roll" | "touch">("roll");
   const project = useDawStore((state) => state.project);
   const selectedClipId = useDawStore((state) => state.selectedClipId);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
@@ -53,15 +55,29 @@ export function ClipEditor() {
       <section className="panel grid min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)] border-x-0 border-b-0">
         <div className="flex min-h-10 items-center justify-between gap-2 border-b border-white/10 px-3 py-1">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="panel-title">피아노롤</span>
+            <span className="panel-title">{midiEditorMode === "roll" ? "피아노롤" : "터치 악기"}</span>
             <span className="truncate text-sm font-bold text-slate-200">{selectedClip.name}</span>
           </div>
-          <button className="studio-button" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
-            <Trash2 size={14} />
-            {selectedClip.locked ? "잠김" : "삭제"}
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              className={`studio-button h-7 px-2 text-[11px] ${midiEditorMode === "roll" ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
+              onClick={() => setMidiEditorMode("roll")}
+            >
+              Piano Roll
+            </button>
+            <button
+              className={`studio-button h-7 px-2 text-[11px] ${midiEditorMode === "touch" ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
+              onClick={() => setMidiEditorMode("touch")}
+            >
+              Touch
+            </button>
+            <button className="studio-button h-7" onClick={() => removeClip(selectedClip.id)} disabled={selectedClip.locked}>
+              <Trash2 size={14} />
+              {selectedClip.locked ? "잠김" : "삭제"}
+            </button>
+          </div>
         </div>
-        <PianoRoll clip={selectedClip} />
+        {midiEditorMode === "roll" ? <PianoRoll clip={selectedClip} /> : <TouchInstruments clip={selectedClip} />}
       </section>
     );
   }
