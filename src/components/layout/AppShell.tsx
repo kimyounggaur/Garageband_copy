@@ -2,8 +2,11 @@ import { lazy, Suspense, type ChangeEvent, useEffect, useRef, useState } from "r
 import { loadLastProject, projectRepository } from "../../db/studioRepository";
 import { useDawStore } from "../../store/useDawStore";
 import { Download, FileArchive, FileInput, Upload } from "../icons";
+import { ShortcutHelpDialog } from "../shortcuts/ShortcutHelpDialog";
 import { ArrangementTimeline } from "../timeline/ArrangementTimeline";
 import { TransportBar } from "../transport/TransportBar";
+import { resolveShortcutKey, type ShortcutId } from "../../utils/shortcutOverlay";
+import { readStoredTheme, writeStoredTheme, type AppTheme } from "../../utils/theme";
 
 type Status = "idle" | "working" | "done" | "error";
 type ShareFormat = "wav" | "mp3";
@@ -55,9 +58,13 @@ export function AppShell() {
   const [shareQuality, setShareQuality] = useState<ShareQuality>("standard");
   const [shareRange, setShareRange] = useState<ShareRange>("full");
   const [shareMessage, setShareMessage] = useState("");
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
+  const [activeShortcutId, setActiveShortcutId] = useState<ShortcutId | undefined>();
+  const [appTheme, setAppTheme] = useState<AppTheme>(() => readStoredTheme());
   const audioEngineRef = useRef<AudioEngineInstance | null>(null);
   const firstLoadRef = useRef(false);
   const projectFileInputRef = useRef<HTMLInputElement | null>(null);
+  const shortcutHighlightTimerRef = useRef<number | undefined>(undefined);
 
   async function getLazyAudioEngine() {
     if (audioEngineRef.current) return audioEngineRef.current;
@@ -134,6 +141,20 @@ export function AppShell() {
   }, [project]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = appTheme;
+    writeStoredTheme(appTheme);
+  }, [appTheme]);
+
+  useEffect(
+    () => () => {
+      if (shortcutHighlightTimerRef.current !== undefined) {
+        window.clearTimeout(shortcutHighlightTimerRef.current);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
     const queuedCellIds = liveLoopPlayback.queuedCellIds;
     if (queuedCellIds.length === 0) {
       if (liveLoopPlayback.activeCellIds.length === 0) audioEngineRef.current?.stopLiveLoops();
@@ -156,6 +177,18 @@ export function AppShell() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (shortcutHelpOpen) {
+        event.preventDefault();
+        event.stopPropagation();
+        const shortcut = resolveShortcutKey(event);
+        if (!shortcut) {
+          closeShortcutHelp();
+          return;
+        }
+        flashShortcut(shortcut.id);
+        return;
+      }
+
       if (isEditableTarget(event.target) || event.altKey) return;
       const key = event.key.toLowerCase();
 
@@ -206,7 +239,36 @@ export function AppShell() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [shortcutHelpOpen]);
+
+  function flashShortcut(shortcutId: ShortcutId) {
+    if (shortcutHighlightTimerRef.current !== undefined) {
+      window.clearTimeout(shortcutHighlightTimerRef.current);
+    }
+    setActiveShortcutId(shortcutId);
+    shortcutHighlightTimerRef.current = window.setTimeout(() => {
+      setActiveShortcutId(undefined);
+      shortcutHighlightTimerRef.current = undefined;
+    }, 900);
+  }
+
+  function openShortcutHelp() {
+    if (shortcutHighlightTimerRef.current !== undefined) {
+      window.clearTimeout(shortcutHighlightTimerRef.current);
+      shortcutHighlightTimerRef.current = undefined;
+    }
+    setActiveShortcutId(undefined);
+    setShortcutHelpOpen(true);
+  }
+
+  function closeShortcutHelp() {
+    if (shortcutHighlightTimerRef.current !== undefined) {
+      window.clearTimeout(shortcutHighlightTimerRef.current);
+      shortcutHighlightTimerRef.current = undefined;
+    }
+    setActiveShortcutId(undefined);
+    setShortcutHelpOpen(false);
+  }
 
   async function handleSave() {
     setSaveStatus("working");
@@ -314,7 +376,10 @@ export function AppShell() {
     }`;
 
   return (
-    <div className="grid h-dvh w-screen min-w-0 grid-rows-[auto_minmax(0,1fr)_minmax(220px,34dvh)] overflow-hidden bg-graphite-975 text-slate-100 lg:grid-rows-[56px_minmax(0,1fr)_260px]">
+    <div
+      data-theme={appTheme}
+      className="grid h-dvh w-screen min-w-0 grid-rows-[auto_minmax(0,1fr)_minmax(220px,34dvh)] overflow-hidden bg-graphite-975 text-slate-100 lg:grid-rows-[56px_minmax(0,1fr)_260px]"
+    >
       <TransportBar
         onSave={handleSave}
         saveStatus={saveStatus}
@@ -322,6 +387,9 @@ export function AppShell() {
         exportStatus={exportStatus}
         educationView={educationView}
         onEducationViewChange={setEducationView}
+        onShortcutHelp={openShortcutHelp}
+        appTheme={appTheme}
+        onAppThemeChange={setAppTheme}
       />
 
       <main className="grid min-h-0 w-full min-w-0 grid-cols-1 grid-rows-[minmax(360px,1fr)_minmax(320px,40dvh)] gap-2 overflow-auto bg-gradient-to-b from-graphite-950 to-graphite-975 p-2 lg:grid-cols-[minmax(0,1fr)_clamp(280px,22vw,420px)] lg:grid-rows-none lg:overflow-hidden">
@@ -427,6 +495,8 @@ export function AppShell() {
           </div>
         </div>
       ) : null}
+
+      {shortcutHelpOpen ? <ShortcutHelpDialog activeShortcutId={activeShortcutId} onClose={closeShortcutHelp} /> : null}
     </div>
   );
 }

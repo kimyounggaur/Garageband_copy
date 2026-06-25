@@ -7,8 +7,167 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background: #0a0c10;
-  color: #e5ecf6;
+  background: var(--theme-body-bg);
+  color: var(--theme-text-high);
+  --color-graphite-975: 10 12 16;
+  --color-graphite-950: 15 18 23;
+  --color-graphite-900: 21 25 31;
+  --color-graphite-850: 27 32 39;
+  --color-graphite-800: 34 40 49;
+  --color-graphite-750: 42 49 60;
+  --color-graphite-700: 52 60 73;
+  --color-graphite-600: 71 80 97;
+  --color-lcd-bg: 11 31 26;
+  --color-lcd-text: 124 255 178;
+  --color-lcd-dim: 47 107 81;
+  --color-region-midi: 94 194 107;
+  --color-region-audio: 70 167 224;
+  --color-region-drummer: 224 179 65;
+  --color-region-loop: 125 140 255;
+  --color-accent-play: 74 222 128;
+  --color-accent-record: 255 77 77;
+  --color-accent-cycle: 246 196 83;
+  --color-accent-sel: 122 215 255;
+  --color-studio-950: 12 15 20;
+  --color-studio-900: 17 23 34;
+  --color-studio-850: 21 29 42;
+  --color-studio-800: 27 36 49;
+  --color-studio-700: 38 50 68;
+  --color-studio-500: 59 75 98;
+  --color-studio-300: 155 168 186;
+  --color-meter-green: 74 222 128;
+  --color-meter-amber: 245 158 11;
+  --color-meter-cyan: 56 189 248;
+  --color-meter-rose: 251 113 133;
+  --theme-body-bg: #0a0c10;
+  --theme-text-high: #e5ecf6;
+  --theme-text-mid: #cbd5e1;
+  --theme-text-muted: #94a3b8;
+  --theme-text-soft: #64748b;
+  --shadow-panel: inset 0 1px 0 rgba(255,255,255,0.04), 0 12px 34px rgba(0,0,0,0.28);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-graphite-975: 247 249 252;
+  --color-graphite-950: 240 244 248;
+  --color-graphite-900: 255 255 255;
+  --color-graphite-850: 248 250 252;
+  --color-graphite-800: 236 242 248;
+  --color-graphite-750: 226 234 243;
+  --color-graphite-700: 203 213 225;
+  --color-graphite-600: 100 116 139;
+  --color-lcd-bg: 232 248 240;
+  --color-lcd-text: 6 95 70;
+  --color-lcd-dim: 52 117 92;
+  --color-region-midi: 34 197 94;
+  --color-region-audio: 14 165 233;
+  --color-region-drummer: 217 119 6;
+  --color-region-loop: 99 102 241;
+  --color-accent-play: 22 163 74;
+  --color-accent-record: 220 38 38;
+  --color-accent-cycle: 217 119 6;
+  --color-accent-sel: 14 116 144;
+  --color-studio-950: 255 255 255;
+  --color-studio-900: 248 250 252;
+  --color-studio-850: 241 245 249;
+  --color-studio-800: 226 232 240;
+  --color-studio-700: 203 213 225;
+  --color-studio-500: 100 116 139;
+  --color-studio-300: 71 85 105;
+  --color-meter-green: 22 163 74;
+  --color-meter-amber: 217 119 6;
+  --color-meter-cyan: 14 165 233;
+  --color-meter-rose: 225 29 72;
+  --theme-body-bg: #f7f9fc;
+  --theme-text-high: #0f172a;
+  --theme-text-mid: #334155;
+  --theme-text-muted: #64748b;
+  --theme-text-soft: #94a3b8;
+  --shadow-panel: inset 0 1px 0 rgba(255,255,255,0.85), 0 16px 34px rgba(15,23,42,0.10);
+}
+
+[data-theme="pretty"] {
+  color-scheme: light;
+  font-family: Arial, ui-sans-serif, system-ui, sans-serif;
+  --theme-brand-reference: #fa520f;
+  --color-graphite-975: 255 250 235;
+  --color-graphite-950: 255 240 194;
+  --color-graphite-900: 255 255 255;
+  --color-graphite-850: 255 245 213;
+  --color-graphite-800: 255 226 149;
+  --color-graphite-750: 255 208 106;
+  --color-graphite-700: 250 82 15;
+  --color-graphite-600: 127 99 21;
+  --color-lcd-bg: 31 31 31;
+  --color-lcd-text: 255 217 0;
+  --color-lcd-dim: 255 161 16;
+  --color-region-midi: 255 161 16;
+  --color-region-audio: 250 82 15;
+  --color-region-drummer: 255 217 0;
+  --color-region-loop: 251 100 36;
+  --color-accent-play: 255 161 16;
+  --color-accent-record: 250 82 15;
+  --color-accent-cycle: 255 217 0;
+  --color-accent-sel: 250 82 15;
+  --color-studio-950: 255 250 235;
+  --color-studio-900: 255 240 194;
+  --color-studio-850: 255 245 213;
+  --color-studio-800: 255 226 149;
+  --color-studio-700: 255 208 106;
+  --color-studio-500: 127 99 21;
+  --color-studio-300: 31 31 31;
+  --color-meter-green: 255 161 16;
+  --color-meter-amber: 255 217 0;
+  --color-meter-cyan: 251 100 36;
+  --color-meter-rose: 250 82 15;
+  --theme-body-bg: #fffaeb;
+  --theme-text-high: #1f1f1f;
+  --theme-text-mid: #3d3d3d;
+  --theme-text-muted: #7f6315;
+  --theme-text-soft: #a06d13;
+  --shadow-panel: rgba(127, 99, 21, 0.12) -8px 16px 39px, rgba(127, 99, 21, 0.10) -33px 64px 72px, rgba(127, 99, 21, 0.06) -73px 144px 97px;
+}
+
+[data-theme="cute"] {
+  color-scheme: light;
+  --theme-brand-reference: #faf9f7;
+  --color-graphite-975: 250 249 247;
+  --color-graphite-950: 238 233 223;
+  --color-graphite-900: 255 255 255;
+  --color-graphite-850: 250 249 247;
+  --color-graphite-800: 238 233 223;
+  --color-graphite-750: 218 212 200;
+  --color-graphite-700: 218 212 200;
+  --color-graphite-600: 85 83 78;
+  --color-lcd-bg: 2 73 42;
+  --color-lcd-text: 132 231 165;
+  --color-lcd-dim: 7 138 82;
+  --color-region-midi: 132 231 165;
+  --color-region-audio: 59 211 253;
+  --color-region-drummer: 251 189 65;
+  --color-region-loop: 193 176 255;
+  --color-accent-play: 7 138 82;
+  --color-accent-record: 252 121 129;
+  --color-accent-cycle: 251 189 65;
+  --color-accent-sel: 59 211 253;
+  --color-studio-950: 255 255 255;
+  --color-studio-900: 250 249 247;
+  --color-studio-850: 238 233 223;
+  --color-studio-800: 255 255 255;
+  --color-studio-700: 218 212 200;
+  --color-studio-500: 85 83 78;
+  --color-studio-300: 0 0 0;
+  --color-meter-green: 132 231 165;
+  --color-meter-amber: 251 189 65;
+  --color-meter-cyan: 59 211 253;
+  --color-meter-rose: 252 121 129;
+  --theme-body-bg: #faf9f7;
+  --theme-text-high: #000000;
+  --theme-text-mid: #333333;
+  --theme-text-muted: #55534e;
+  --theme-text-soft: #9f9b93;
+  --shadow-panel: rgba(0,0,0,0.10) 0 1px 1px, rgba(0,0,0,0.04) 0 -1px 1px inset, rgba(0,0,0,0.05) 0 -0.5px 1px;
 }
 
 * {
@@ -20,6 +179,7 @@ body {
   width: 100vw;
   min-height: 100vh;
   overflow: hidden;
+  background: var(--theme-body-bg);
 }
 
 #root {
@@ -58,10 +218,12 @@ input[type="range"] {
 
 .studio-button {
   @apply inline-flex h-8 items-center justify-center gap-2 rounded-md border border-graphite-700 bg-graphite-800 px-3 text-xs font-semibold text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-slate-500/60 hover:bg-graphite-750 active:bg-graphite-700 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-graphite-700 disabled:hover:bg-graphite-800;
+  white-space: nowrap;
 }
 
 .studio-icon-button {
   @apply inline-flex h-8 w-8 items-center justify-center rounded-md border border-graphite-700 bg-graphite-800 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition hover:border-slate-500/60 hover:bg-graphite-750 active:bg-graphite-700 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-graphite-700 disabled:hover:bg-graphite-800;
+  flex-shrink: 0;
 }
 
 .panel {
@@ -70,4 +232,202 @@ input[type="range"] {
 
 .panel-title {
   @apply text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400;
+}
+
+[data-theme="light"] .text-slate-100,
+[data-theme="pretty"] .text-slate-100,
+[data-theme="cute"] .text-slate-100,
+[data-theme="light"] .text-slate-200,
+[data-theme="pretty"] .text-slate-200,
+[data-theme="cute"] .text-slate-200,
+[data-theme="light"] .text-white,
+[data-theme="pretty"] .text-white,
+[data-theme="cute"] .text-white {
+  color: var(--theme-text-high) !important;
+}
+
+[data-theme="light"] .text-slate-300,
+[data-theme="pretty"] .text-slate-300,
+[data-theme="cute"] .text-slate-300,
+[data-theme="light"] .text-slate-400,
+[data-theme="pretty"] .text-slate-400,
+[data-theme="cute"] .text-slate-400 {
+  color: var(--theme-text-mid) !important;
+}
+
+[data-theme="light"] .text-slate-500,
+[data-theme="pretty"] .text-slate-500,
+[data-theme="cute"] .text-slate-500,
+[data-theme="light"] .text-slate-600,
+[data-theme="pretty"] .text-slate-600,
+[data-theme="cute"] .text-slate-600 {
+  color: var(--theme-text-muted) !important;
+}
+
+[data-theme="pretty"] .panel,
+[data-theme="pretty"] .studio-button,
+[data-theme="pretty"] .studio-icon-button,
+[data-theme="pretty"] input,
+[data-theme="pretty"] select,
+[data-theme="pretty"] textarea {
+  border-radius: 2px !important;
+}
+
+[data-theme="pretty"] .studio-button,
+[data-theme="pretty"] .studio-icon-button {
+  border-color: rgb(var(--color-graphite-700) / 0.9) !important;
+  box-shadow: rgba(127, 99, 21, 0.12) -4px 8px 18px;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+[data-theme="cute"] .panel {
+  border-style: dashed;
+  border-radius: 24px !important;
+}
+
+[data-theme="cute"] .studio-button,
+[data-theme="cute"] .studio-icon-button {
+  border-color: #dad4c8 !important;
+  border-radius: 999px !important;
+  box-shadow: var(--shadow-panel);
+}
+
+[data-theme="cute"] .studio-button:hover,
+[data-theme="cute"] .studio-icon-button:hover {
+  box-shadow: rgb(0, 0, 0) -7px 7px 0;
+  transform: translateY(-1px) rotate(-3deg);
+}
+
+.shortcut-help-dialog {
+  filter: drop-shadow(0 28px 80px rgba(0, 0, 0, 0.48));
+}
+
+.shortcut-help-poster {
+  display: block;
+  border-radius: 24px;
+}
+
+.shortcut-help-eyebrow,
+.shortcut-help-column,
+.shortcut-help-hint,
+.shortcut-help-footer {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shortcut-help-eyebrow {
+  fill: #7ad7ff;
+  font-size: 12px;
+}
+
+.shortcut-help-title {
+  fill: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.shortcut-help-hint,
+.shortcut-help-footer {
+  fill: #9ba8ba;
+  font-size: 11px;
+}
+
+.shortcut-help-column {
+  fill: #9ba8ba;
+  font-size: 11px;
+}
+
+.shortcut-help-row-bg {
+  fill: rgba(255, 255, 255, 0.045);
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+}
+
+.shortcut-help-keycap {
+  fill: #0b1f1a;
+  stroke: #2f6b51;
+  stroke-width: 1.5;
+}
+
+.shortcut-help-key,
+.shortcut-help-action,
+.shortcut-help-description,
+.shortcut-help-tip {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.shortcut-help-key {
+  fill: #7cffb2;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.shortcut-help-action {
+  fill: #f8fafc;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.shortcut-help-description,
+.shortcut-help-tip {
+  fill: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shortcut-help-pulse {
+  animation: shortcut-row-pulse 0.82s ease-in-out infinite;
+  fill: rgba(122, 215, 255, 0.12);
+  pointer-events: none;
+  stroke: #7ad7ff;
+  stroke-width: 2;
+}
+
+.shortcut-help-row.is-active .shortcut-help-row-bg {
+  animation: shortcut-bg-swell 0.82s ease-in-out infinite;
+  fill: rgba(122, 215, 255, 0.13);
+  stroke: rgba(124, 255, 178, 0.75);
+}
+
+.shortcut-help-row.is-active .shortcut-help-key,
+.shortcut-help-row.is-active .shortcut-help-action,
+.shortcut-help-row.is-active .shortcut-help-description,
+.shortcut-help-row.is-active .shortcut-help-tip {
+  animation: shortcut-text-glow 0.82s ease-in-out infinite;
+}
+
+@keyframes shortcut-row-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.015);
+  }
+}
+
+@keyframes shortcut-bg-swell {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(122, 215, 255, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(122, 215, 255, 0.58));
+  }
+}
+
+@keyframes shortcut-text-glow {
+  0%,
+  100% {
+    fill: #ffffff;
+  }
+  50% {
+    fill: #7cffb2;
+  }
 }

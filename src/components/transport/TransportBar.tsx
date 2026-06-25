@@ -6,7 +6,10 @@ import {
   Download,
   FolderPlus,
   GraduationCap,
+  Heart,
+  Keyboard,
   Mic,
+  Moon,
   Pause,
   Play,
   PlayCircle,
@@ -17,6 +20,8 @@ import {
   School,
   SlidersHorizontal,
   Square,
+  Sparkles,
+  Sun,
   Undo2,
   Volume1
 } from "../icons";
@@ -24,6 +29,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { StudioMode } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
+import type { AppTheme } from "../../utils/theme";
 import { statusLabel } from "../../utils/labels";
 import { detectPitchFromBuffer, pitchToTunerReading, projectKeyOptions } from "../../utils/transport";
 import { IconButton, LcdDisplay, Meter, SegmentedToggle } from "../ui";
@@ -37,6 +43,9 @@ type TransportBarProps = {
   exportStatus: Status;
   educationView: "student" | "teacher";
   onEducationViewChange: (view: "student" | "teacher") => void;
+  onShortcutHelp: () => void;
+  appTheme: AppTheme;
+  onAppThemeChange: (theme: AppTheme) => void;
 };
 
 const TIME_SIGNATURE_OPTIONS: Array<[number, number]> = [
@@ -53,7 +62,10 @@ export function TransportBar({
   onExport,
   exportStatus,
   educationView,
-  onEducationViewChange
+  onEducationViewChange,
+  onShortcutHelp,
+  appTheme,
+  onAppThemeChange
 }: TransportBarProps) {
   const project = useDawStore((state) => state.project);
   const mode = useDawStore((state) => state.mode);
@@ -98,6 +110,12 @@ export function TransportBar({
   const educationOptions: Array<{ value: "student" | "teacher"; label: string; icon: ReactNode }> = [
     { value: "student", label: "Student", icon: <GraduationCap size={14} /> },
     { value: "teacher", label: "Teacher", icon: <School size={14} /> }
+  ];
+  const themeOptions: Array<{ value: AppTheme; label: string; icon: ReactNode }> = [
+    { value: "dark", label: "Dark", icon: <Moon size={14} /> },
+    { value: "light", label: "Light", icon: <Sun size={14} /> },
+    { value: "pretty", label: "Pretty", icon: <Sparkles size={14} /> },
+    { value: "cute", label: "Cute", icon: <Heart size={14} /> }
   ];
   const lcdValue =
     lcdMode === "tuner" && tunerReading
@@ -328,6 +346,18 @@ export function TransportBar({
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
         <SegmentedToggle value={educationView} options={educationOptions} onChange={onEducationViewChange} ariaLabel="Education view" className="grid-cols-2" />
         <SegmentedToggle value={mode} options={modeOptions} onChange={setMode} ariaLabel="Workspace mode" className="grid-cols-3" />
+        <SegmentedToggle
+          value={appTheme}
+          options={themeOptions}
+          onChange={onAppThemeChange}
+          ariaLabel="UI theme"
+          className="grid-cols-4"
+          labelClassName="hidden 2xl:inline"
+        />
+        <button className="studio-button" onClick={onShortcutHelp} title="단축키 확인">
+          <Keyboard size={15} />
+          <span className="hidden 2xl:inline">단축키 확인</span>
+        </button>
         <a
           className="studio-button"
           href="./manual/quickstart/garageband-quickstart-user-manual.html"
@@ -336,7 +366,7 @@ export function TransportBar({
           title="퀵스타트 메뉴얼"
         >
           <PlayCircle size={15} />
-          <span className="hidden sm:inline">퀵스타트</span>
+          <span className="hidden 2xl:inline">퀵스타트</span>
         </a>
         <a
           className="studio-button"
@@ -346,7 +376,7 @@ export function TransportBar({
           title="유저 메뉴얼"
         >
           <BookOpen size={15} />
-          <span className="hidden sm:inline">유저 메뉴얼</span>
+          <span className="hidden 2xl:inline">유저 메뉴얼</span>
         </a>
         <button className="studio-button" onClick={() => createProject("New Project")} title="New project">
           <FolderPlus size={15} />
