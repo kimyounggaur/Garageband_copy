@@ -6,6 +6,7 @@ import { automationBaseValue, normalizeTrackAutomation } from "./automation";
 import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
 import { gainToDb, normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackMute } from "./fx";
 import { createInstrumentSynth } from "./instrumentSynth";
+import { liveLoopCellToClip, liveLoopTriggerBeat, resolveProjectLiveLoops } from "./liveLoops";
 
 type BeatCallback = (beat: number) => void;
 type EndCallback = () => void;
@@ -55,6 +56,7 @@ export class AudioEngine {
   private channels = new Map<string, TrackFxRuntime>();
   private nodes: Tone.ToneAudioNode[] = [];
   private scheduledIds: number[] = [];
+  private liveLoopScheduledIds: number[] = [];
   private audioUrlCleanups: Array<() => void> = [];
   private countInTimeouts: number[] = [];
   private masterBus?: Tone.Gain;
@@ -107,6 +109,7 @@ export class AudioEngine {
     Tone.Transport.loop = false;
     this.cycleEnabled = false;
     this.scheduledIds = [];
+    this.liveLoopScheduledIds = [];
     this.nodes.forEach((node) => node.dispose());
     this.nodes = [];
     this.channels.clear();
@@ -145,6 +148,44 @@ export class AudioEngine {
       runtime.reverbSend.gain.value = sends.reverb;
       runtime.delaySend.gain.value = sends.delay;
     });
+  }
+
+  async triggerLiveLoopCells(project: Project, cellIds: string[], triggerBeat?: number) {
+    if (cellIds.length === 0 || this.channels.size === 0) return;
+    this.stopLiveLoops();
+    const liveLoops = resolveProjectLiveLoops(project);
+    const targetIds = new Set(cellIds);
+    const startBeat =
+      triggerBeat ??
+      liveLoopTriggerBeat(Tone.Transport.ticks / PPQ, project.timeSignature, liveLoops.quantizeBeats);
+    const audioSchedules: Promise<void>[] = [];
+
+    liveLoops.cells
+      .filter((cell) => targetIds.has(cell.id))
+      .forEach((cell) => {
+        const track = project.tracks.find((item) => item.id === cell.trackId);
+        const runtime = this.channels.get(cell.trackId);
+        if (!track || !runtime) return;
+        const clip = liveLoopCellToClip(cell, startBeat);
+        const beforeScheduleCount = this.scheduledIds.length;
+
+        if (clip.type === "loop") this.scheduleLoopClip(project, clip, runtime.channel);
+        if (clip.type === "midi") this.scheduleMidiClip(track, clip, runtime.channel);
+        if (clip.type === "audio") audioSchedules.push(this.scheduleAudioClip(project, clip, runtime.channel));
+
+        this.liveLoopScheduledIds.push(...this.scheduledIds.slice(beforeScheduleCount));
+      });
+
+    if (audioSchedules.length > 0) {
+      const beforeScheduleCount = this.scheduledIds.length;
+      await Promise.all(audioSchedules);
+      this.liveLoopScheduledIds.push(...this.scheduledIds.slice(beforeScheduleCount));
+    }
+  }
+
+  stopLiveLoops() {
+    this.liveLoopScheduledIds.forEach((id) => Tone.Transport.clear(id));
+    this.liveLoopScheduledIds = [];
   }
 
   private createMasterOutput(project: Project) {

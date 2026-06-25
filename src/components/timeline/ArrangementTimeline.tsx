@@ -1,4 +1,4 @@
-import { Circle, Copy, Drum, Keyboard, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
+import { Circle, Copy, Drum, Keyboard, Music2, Pencil, Plus, Repeat2, Trash2, Volume2 } from "../icons";
 import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
@@ -21,7 +21,10 @@ import {
   type SnapBeats
 } from "../../utils/timeline";
 import { TrackLane } from "./TrackLane";
+import { LIVE_LOOP_ROW_HEIGHT, LiveLoopsGrid } from "./LiveLoopsGrid";
 import type { Track } from "../../types/project";
+
+type TimelineView = "tracks" | "liveLoops";
 
 type TrackMenuState = {
   x: number;
@@ -56,6 +59,7 @@ export function ArrangementTimeline() {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [trackMenu, setTrackMenu] = useState<TrackMenuState | undefined>();
   const [automationOpenTrackIds, setAutomationOpenTrackIds] = useState<string[]>([]);
+  const [timelineView, setTimelineView] = useState<TimelineView>("tracks");
   const project = useDawStore((state) => state.project);
   const currentBeat = useDawStore((state) => state.currentBeat);
   const isPlaying = useDawStore((state) => state.isPlaying);
@@ -280,7 +284,31 @@ export function ArrangementTimeline() {
   return (
     <section className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
-        <span className="panel-title">편곡</span>
+        <div className="flex items-center gap-2">
+          <span className="panel-title">편곡</span>
+          <div className="flex h-8 overflow-hidden rounded-md border border-white/10 bg-black/20 p-0.5">
+            <button
+              className={`flex items-center gap-1 rounded px-2 text-[11px] font-black transition ${
+                timelineView === "tracks" ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+              }`}
+              onClick={() => setTimelineView("tracks")}
+              aria-pressed={timelineView === "tracks"}
+            >
+              <Keyboard size={13} />
+              Tracks
+            </button>
+            <button
+              className={`flex items-center gap-1 rounded px-2 text-[11px] font-black transition ${
+                timelineView === "liveLoops" ? "bg-accent-play text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+              }`}
+              onClick={() => setTimelineView("liveLoops")}
+              aria-pressed={timelineView === "liveLoops"}
+            >
+              <Music2 size={13} />
+              Live Loops
+            </button>
+          </div>
+        </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
             스냅
@@ -349,18 +377,19 @@ export function ArrangementTimeline() {
             트랙
           </div>
           {project.tracks.map((track) => {
-            const automationOpen = automationOpenSet.has(track.id);
+            const automationOpen = timelineView === "tracks" && automationOpenSet.has(track.id);
+            const trackHeaderHeight = timelineView === "liveLoops" ? LIVE_LOOP_ROW_HEIGHT : TRACK_HEIGHT;
             return (
               <div
                 key={track.id}
                 className={`flex w-full items-start border-b border-white/10 transition ${
                   selectedTrackId === track.id ? "bg-meter-cyan/10" : "hover:bg-white/[0.045]"
                 }`}
-                style={{ height: TRACK_HEIGHT + (automationOpen ? AUTOMATION_LANE_HEIGHT : 0) }}
+                style={{ height: trackHeaderHeight + (automationOpen ? AUTOMATION_LANE_HEIGHT : 0) }}
               >
                 <button
                   className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left"
-                  style={{ height: TRACK_HEIGHT }}
+                  style={{ height: trackHeaderHeight }}
                   onClick={() => selectTrack(track.id)}
                   onContextMenu={(event) => openTrackMenu(event, track)}
                 >
@@ -372,19 +401,21 @@ export function ArrangementTimeline() {
                     </span>
                   </span>
                 </button>
-                <button
-                  className={`mr-2 mt-[22px] flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-black transition ${
-                    automationOpen
-                      ? "border-meter-green/70 bg-meter-green/18 text-white"
-                      : "border-white/10 bg-black/20 text-slate-400 hover:border-meter-green/45 hover:text-slate-100"
-                  }`}
-                  onClick={(event) => toggleAutomationLane(event, track.id)}
-                  title={automationOpen ? "Automation lane off" : "Automation lane on"}
-                  aria-pressed={automationOpen}
-                  aria-label={`${track.name} automation lane`}
-                >
-                  A
-                </button>
+                {timelineView === "tracks" ? (
+                  <button
+                    className={`mr-2 mt-[22px] flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-black transition ${
+                      automationOpen
+                        ? "border-meter-green/70 bg-meter-green/18 text-white"
+                        : "border-white/10 bg-black/20 text-slate-400 hover:border-meter-green/45 hover:text-slate-100"
+                    }`}
+                    onClick={(event) => toggleAutomationLane(event, track.id)}
+                    title={automationOpen ? "Automation lane off" : "Automation lane on"}
+                    aria-pressed={automationOpen}
+                    aria-label={`${track.name} automation lane`}
+                  >
+                    A
+                  </button>
+                ) : null}
               </div>
             );
           })}
@@ -488,6 +519,7 @@ export function ArrangementTimeline() {
           ) : null}
         </div>
 
+        {timelineView === "tracks" ? (
         <div ref={timelineViewportRef} className="min-w-0 overflow-auto bg-studio-950/80" onWheel={handleTimelineWheel}>
           <div className="relative min-w-full" style={{ width }}>
             <div className="sticky top-0 z-20 h-12 border-b border-white/10 bg-studio-900/95" style={{ width }}>
@@ -572,6 +604,9 @@ export function ArrangementTimeline() {
             ))}
           </div>
         </div>
+        ) : (
+          <LiveLoopsGrid />
+        )}
       </div>
     </section>
   );

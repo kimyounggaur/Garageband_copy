@@ -125,6 +125,13 @@ const {
   trackAutomationEntry
 } = await server.ssrLoadModule("/src/audio/automation.ts");
 const {
+  createLiveLoopCellFromLoop,
+  liveLoopCellToClip,
+  liveLoopCellsForScene,
+  liveLoopTriggerBeat,
+  normalizeLiveLoops
+} = await server.ssrLoadModule("/src/audio/liveLoops.ts");
+const {
   buildRulerTicks,
   clipTypeRegionColor,
   formatBarBeatTick,
@@ -292,7 +299,7 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     updatedAt: 1
   });
 
-  assertEqual(migrated.version, 10, "프로젝트 버전 보정");
+  assertEqual(migrated.version, 11, "프로젝트 버전 보정");
   assertEqual(migrated.name, "새 프로젝트", "깨진 프로젝트 이름 보정");
   assertEqual(migrated.cycleStart, 0, "사이클 시작 기본값");
   assertEqual(migrated.cycleEnd, 8, "사이클 끝 기본값");
@@ -314,6 +321,9 @@ test("projectMigration이 이전 데이터와 깨진 문자열을 보정한다",
     "Phase 8 track fx defaults"
   );
   assertDeepEqual(migrated.tracks[0].automation, [], "Phase 9 automation defaults");
+  assertEqual(migrated.liveLoops.scenes.length, 4, "Phase 10 live loop scene defaults");
+  assertDeepEqual(migrated.liveLoops.cells, [], "Phase 10 live loop cell defaults");
+  assertEqual(migrated.liveLoops.quantizeBeats, 4, "Phase 10 live loop quantize default");
   assertEqual(migrated.tracks[0].clips[0].name, "그리드 룸 드럼", "깨진 루프 클립 이름 보정");
   assertEqual(migrated.tracks[0].clips[0].startBeat, 0, "클립 시작 위치 보정");
   assertEqual(migrated.tracks[0].clips[0].lengthBeats, 0.25, "클립 최소 길이 보정");
@@ -937,6 +947,75 @@ test("Phase 9 store actions add, move, delete, and preserve automation in histor
   assertApprox(automationValueAtBeat(trackState, "volume", 2, trackState.volume), 0.6, "edited automation interpolates");
   assertEqual(panAutomation.points.length, 0, "removed pan automation leaves an empty lane entry");
   assert(useDawStore.getState().undoStack.length > 0, "phase 9 edits are undoable");
+});
+
+test("Phase 10 live loop helpers normalize cells, scenes, and quantized triggers", () => {
+  const tracks = [track({ id: "beat" }), track({ id: "bass", role: "bass" })];
+  const defaults = normalizeLiveLoops(undefined, tracks);
+  assertEqual(defaults.scenes.length, 4, "default live loop scenes are created");
+  assertDeepEqual(defaults.cells, [], "default live loop grid starts empty");
+
+  const sceneId = defaults.scenes[0].id;
+  const cell = createLiveLoopCellFromLoop("drums-electro", "beat", sceneId);
+  const normalized = normalizeLiveLoops(
+    {
+      quantizeBeats: 0,
+      scenes: defaults.scenes,
+      cells: [
+        cell,
+        { ...cell, id: "invalid-track", trackId: "missing" },
+        { ...cell, id: "invalid-scene", sceneId: "missing" }
+      ]
+    },
+    tracks
+  );
+
+  assertEqual(normalized.quantizeBeats, 4, "invalid quantize falls back to a bar");
+  assertDeepEqual(
+    liveLoopCellsForScene(normalized, sceneId).map((item) => [item.trackId, item.loopId, item.lengthBeats]),
+    [["beat", "drums-electro", 4]],
+    "live loop cells are filtered to valid tracks and scenes"
+  );
+  assertEqual(liveLoopTriggerBeat(3.2, [4, 4]), 4, "cell trigger queues to next bar");
+  assertEqual(liveLoopTriggerBeat(4, [4, 4]), 4, "cell trigger at bar boundary starts immediately");
+  assertEqual(liveLoopTriggerBeat(4.1, [4, 4]), 8, "cell trigger after boundary queues to following bar");
+
+  const clipFromCell = liveLoopCellToClip(cell, 8);
+  assertEqual(clipFromCell.trackId, "beat", "cell clip keeps track");
+  assertEqual(clipFromCell.startBeat, 8, "cell clip starts at trigger beat");
+  assertEqual(clipFromCell.loopEnabled, true, "loop cells play as looping clips");
+});
+
+test("Phase 10 store actions edit, trigger, and clear live loop cells", () => {
+  const store = useDawStore.getState();
+  store.createProject("phase 10 live loops test");
+  const trackId = useDawStore.getState().project.tracks[0].id;
+  const sceneId = useDawStore.getState().project.liveLoops.scenes[0].id;
+
+  const cellId = useDawStore.getState().setLiveLoopCellLoop(trackId, sceneId, "drums-electro");
+  let liveLoops = useDawStore.getState().project.liveLoops;
+  const cell = liveLoops.cells.find((item) => item.id === cellId);
+  assert(cell, "live loop cell is saved");
+  assertEqual(cell.loopId, "drums-electro", "loop id is saved in cell");
+
+  useDawStore.getState().setCurrentBeat(3.2);
+  useDawStore.getState().triggerLiveLoopCell(trackId, sceneId);
+  let playback = useDawStore.getState().liveLoopPlayback;
+  assertDeepEqual(playback.queuedCellIds, [cellId], "single cell trigger queues one cell");
+  assertEqual(playback.triggerBeat, 4, "single cell trigger is quantized");
+
+  useDawStore.getState().triggerLiveLoopScene(sceneId);
+  playback = useDawStore.getState().liveLoopPlayback;
+  assertDeepEqual(playback.queuedCellIds, [cellId], "scene trigger queues cells in scene");
+
+  useDawStore.getState().stopLiveLoops();
+  assertDeepEqual(useDawStore.getState().liveLoopPlayback.activeCellIds, [], "live loop stop clears active cells");
+  assertDeepEqual(useDawStore.getState().liveLoopPlayback.queuedCellIds, [], "live loop stop clears queued cells");
+
+  useDawStore.getState().clearLiveLoopCell(trackId, sceneId);
+  liveLoops = useDawStore.getState().project.liveLoops;
+  assertEqual(liveLoops.cells.some((item) => item.id === cellId), false, "live loop cell is cleared");
+  assert(useDawStore.getState().undoStack.length > 0, "phase 10 edits are undoable");
 });
 
 test("Phase 0 UI 컨트롤 변환이 노브, 페이더, 미터, LCD에서 일관된 값을 만든다", () => {

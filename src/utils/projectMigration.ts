@@ -3,6 +3,7 @@ import { normalizeInstrumentId } from "../data/instruments";
 import { normalizeTrackAutomation } from "../audio/automation";
 import { normalizeDrummerSettings } from "../audio/drummer";
 import { normalizeMasterFx, normalizeTrackFx, normalizeTrackSends } from "../audio/fx";
+import { normalizeLiveLoops } from "../audio/liveLoops";
 import { CURRENT_PROJECT_VERSION, type Clip, type ClipType, type Project, type Track, type TrackRole, type TrackType } from "../types/project";
 import { makeId } from "./id";
 import { clipTypeLabel, trackRoleLabel, trackTypeLabel } from "./labels";
@@ -178,13 +179,14 @@ export function normalizeProject(project: Project): Project {
   const key = normalizeProjectKey(loose.key);
   const masterVolume = normalizeMasterVolume(loose.masterVolume);
   const master = normalizeMasterFx(loose.master, masterVolume);
+  const tracks = (loose.tracks ?? []).map(normalizeTrack);
   return {
     id: loose.id ?? makeId("project"),
     version: CURRENT_PROJECT_VERSION,
     name: repairBrokenText(loose.name, "새 프로젝트"),
     bpm: Math.round(Math.max(40, Math.min(220, Number(loose.bpm ?? 120)))),
     timeSignature: normalizeTimeSignature(loose.timeSignature),
-    tracks: (loose.tracks ?? []).map(normalizeTrack),
+    tracks,
     cycleStart,
     cycleEnd,
     cycleEnabled: booleanValue(loose.cycleEnabled),
@@ -194,6 +196,7 @@ export function normalizeProject(project: Project): Project {
     countInBars: normalizeCountInBars(loose.countInBars),
     masterVolume: master.volume,
     master,
+    liveLoops: normalizeLiveLoops(loose.liveLoops, tracks),
     lessonId: loose.lessonId,
     assignmentId: loose.assignmentId,
     classId: loose.classId,

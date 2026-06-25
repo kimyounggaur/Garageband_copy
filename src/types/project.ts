@@ -6,7 +6,7 @@ export type LoopPlaybackType = "midi" | "audio";
 export type InstrumentCategory = "Drums" | "Bass" | "Keys" | "Synths" | "FX";
 export type ProjectScale = "major" | "minor" | "chromatic";
 
-export const CURRENT_PROJECT_VERSION = 10;
+export const CURRENT_PROJECT_VERSION = 11;
 
 export type TrackSends = {
   reverb?: number;
@@ -45,6 +45,31 @@ export type TrackAutomation = {
   points: AutomationPoint[];
 };
 
+export type LiveLoopScene = {
+  id: string;
+  name: string;
+};
+
+export type LiveLoopCell = {
+  id: string;
+  trackId: string;
+  sceneId: string;
+  type: ClipType;
+  name: string;
+  color: string;
+  lengthBeats: number;
+  loopId?: string;
+  notes?: MidiNote[];
+  audioUrl?: string;
+  audioAssetId?: string;
+};
+
+export type LiveLoops = {
+  scenes: LiveLoopScene[];
+  cells: LiveLoopCell[];
+  quantizeBeats?: number;
+};
+
 export type Project = {
   id: string;
   version: number;
@@ -61,6 +86,7 @@ export type Project = {
   countInBars?: number;
   masterVolume?: number;
   master?: MasterFx;
+  liveLoops?: LiveLoops;
   lessonId?: string;
   assignmentId?: string;
   classId?: string;

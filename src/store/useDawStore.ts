@@ -19,6 +19,15 @@ import {
   normalizeTrackSends,
   type SmartControlMacro
 } from "../audio/fx";
+import {
+  createDefaultLiveLoops,
+  createLiveLoopCellFromLoop,
+  liveLoopCellForTrackScene,
+  liveLoopCellsForScene,
+  liveLoopTriggerBeat,
+  normalizeLiveLoops,
+  resolveProjectLiveLoops
+} from "../audio/liveLoops";
 import { defaultInstrumentForTrack, normalizeInstrumentId } from "../data/instruments";
 import { LOOP_LIBRARY, getLoopById } from "../data/loops";
 import { loopMatchSummary } from "../data/loops";
@@ -28,6 +37,7 @@ import {
   type AutomationPoint,
   type AudioTakeSection,
   type Clip,
+  type LiveLoopCell,
   type MasterFx,
   type MidiNote,
   type Project,
@@ -83,6 +93,12 @@ type DrummerClipSettings = Partial<
 >;
 type MidiNoteEdit = { id: string } & Partial<Omit<MidiNote, "id">>;
 type AutomationPointEdit = Partial<Pick<AutomationPoint, "beat" | "value">>;
+type LiveLoopPlayback = {
+  activeCellIds: string[];
+  queuedCellIds: string[];
+  triggerBeat?: number;
+  sceneId?: string;
+};
 
 const HISTORY_LIMIT = 80;
 
@@ -106,6 +122,7 @@ type DawState = {
   timelineZoom: number;
   preventClipOverlap: boolean;
   tapTempoTimes: number[];
+  liveLoopPlayback: LiveLoopPlayback;
   createProject: (name?: string) => void;
   loadProject: (project: Project) => void;
   renameProject: (name: string) => void;
@@ -136,6 +153,14 @@ type DawState = {
   setMasterLevel: (masterLevel: number) => void;
   setTunerReading: (reading?: TunerReading) => void;
   tapTempo: (timestampMs?: number) => void;
+  addLiveLoopScene: (name?: string) => string | undefined;
+  removeLiveLoopScene: (sceneId: string) => void;
+  setLiveLoopCellLoop: (trackId: string, sceneId: string, loopId: string) => string | undefined;
+  clearLiveLoopCell: (trackId: string, sceneId: string) => void;
+  triggerLiveLoopCell: (trackId: string, sceneId: string) => void;
+  triggerLiveLoopScene: (sceneId: string) => void;
+  markLiveLoopTriggered: (cellIds?: string[]) => void;
+  stopLiveLoops: () => void;
   addTrack: (type?: TrackType, name?: string) => string;
   setTrackRecordEnabled: (trackId: string, enabled?: boolean) => void;
   renameTrack: (trackId: string, name: string) => void;
@@ -213,6 +238,7 @@ type DawState = {
 };
 
 const TRACK_COLORS = ["#38bdf8", "#f59e0b", "#a78bfa", "#4ade80", "#fb7185", "#eab308"];
+const EMPTY_LIVE_LOOP_PLAYBACK: LiveLoopPlayback = { activeCellIds: [], queuedCellIds: [] };
 
 function now() {
   return Date.now();
@@ -343,13 +369,15 @@ function createInitialProject(): Project {
     ]
   });
 
+  const tracks = [drums, bass, keys];
+
   return {
     id: makeId("project"),
     version: CURRENT_PROJECT_VERSION,
     name: "새 프로젝트",
     bpm: 120,
     timeSignature: [4, 4],
-    tracks: [drums, bass, keys],
+    tracks,
     cycleStart: 0,
     cycleEnd: 8,
     cycleEnabled: false,
@@ -359,6 +387,7 @@ function createInitialProject(): Project {
     countInBars: 0,
     masterVolume: 0.85,
     master: normalizeMasterFx(undefined, 0.85),
+    liveLoops: createDefaultLiveLoops(),
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -380,12 +409,23 @@ function cloneProject(project: Project, name: string): Project {
       }))
     };
   });
+  const liveLoops = project.liveLoops
+    ? {
+        ...project.liveLoops,
+        cells: project.liveLoops.cells.map((cell) => ({
+          ...cell,
+          id: makeId("cell"),
+          trackId: trackIds.get(cell.trackId) ?? cell.trackId
+        }))
+      }
+    : undefined;
   const timestamp = now();
   return normalizeProject({
     ...project,
     id: makeId("project"),
     name,
     tracks,
+    liveLoops,
     createdAt: timestamp,
     updatedAt: timestamp
   });
@@ -429,6 +469,10 @@ function replaceAutomationEntry(track: Track, param: AutomationParam, points: Au
     ...track,
     automation: nextAutomation
   };
+}
+
+function replaceLiveLoopCell(cells: LiveLoopCell[], cell: LiveLoopCell) {
+  return [...cells.filter((item) => !(item.trackId === cell.trackId && item.sceneId === cell.sceneId)), cell];
 }
 
 function getValidSelection(project: Project, selectedTrackId?: string, selectedClipId?: string, selectedClipIds: string[] = []) {
@@ -532,6 +576,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   timelineZoom: 1,
   preventClipOverlap: true,
   tapTempoTimes: [],
+  liveLoopPlayback: EMPTY_LIVE_LOOP_PLAYBACK,
 
   createProject: (name = "새 프로젝트") => {
     const project = createInitialProject();
@@ -550,7 +595,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       selectedClipIds: [],
       undoStack: [],
       redoStack: [],
-      pendingHistory: undefined
+      pendingHistory: undefined,
+      liveLoopPlayback: EMPTY_LIVE_LOOP_PLAYBACK
     });
   },
 
@@ -571,7 +617,8 @@ export const useDawStore = create<DawState>((set, get) => ({
       selectedClipIds: migratedProject.tracks[0]?.clips[0]?.id ? [migratedProject.tracks[0].clips[0].id] : [],
       undoStack: [],
       redoStack: [],
-      pendingHistory: undefined
+      pendingHistory: undefined,
+      liveLoopPlayback: EMPTY_LIVE_LOOP_PLAYBACK
     });
   },
 
@@ -917,6 +964,135 @@ export const useDawStore = create<DawState>((set, get) => ({
       );
     });
   },
+
+  addLiveLoopScene: (name) => {
+    let sceneId: string | undefined;
+    set((state) => {
+      const liveLoops = resolveProjectLiveLoops(state.project);
+      sceneId = makeId("scene");
+      const nextLiveLoops = normalizeLiveLoops(
+        {
+          ...liveLoops,
+          scenes: [
+            ...liveLoops.scenes,
+            {
+              id: sceneId,
+              name: name?.trim() || `Scene ${liveLoops.scenes.length + 1}`
+            }
+          ]
+        },
+        state.project.tracks
+      );
+      return commitProjectChange(state, touch({ ...state.project, liveLoops: nextLiveLoops }));
+    });
+    return sceneId;
+  },
+
+  removeLiveLoopScene: (sceneId) => {
+    set((state) => {
+      const liveLoops = resolveProjectLiveLoops(state.project);
+      if (liveLoops.scenes.length <= 1 || !liveLoops.scenes.some((scene) => scene.id === sceneId)) return state;
+      const nextLiveLoops = normalizeLiveLoops(
+        {
+          ...liveLoops,
+          scenes: liveLoops.scenes.filter((scene) => scene.id !== sceneId),
+          cells: liveLoops.cells.filter((cell) => cell.sceneId !== sceneId)
+        },
+        state.project.tracks
+      );
+      return commitProjectChange(state, touch({ ...state.project, liveLoops: nextLiveLoops }));
+    });
+  },
+
+  setLiveLoopCellLoop: (trackId, sceneId, loopId) => {
+    let cellId: string | undefined;
+    set((state) => {
+      const track = state.project.tracks.find((item) => item.id === trackId);
+      const liveLoops = resolveProjectLiveLoops(state.project);
+      if (!track || !liveLoops.scenes.some((scene) => scene.id === sceneId)) return state;
+      const existingCell = liveLoopCellForTrackScene(liveLoops, trackId, sceneId);
+      const cell = {
+        ...createLiveLoopCellFromLoop(loopId, trackId, sceneId),
+        id: existingCell?.id ?? makeId("cell")
+      };
+      cellId = cell.id;
+      const nextLiveLoops = normalizeLiveLoops(
+        {
+          ...liveLoops,
+          cells: replaceLiveLoopCell(liveLoops.cells, cell)
+        },
+        state.project.tracks
+      );
+      return commitProjectChange(state, touch({ ...state.project, liveLoops: nextLiveLoops }));
+    });
+    return cellId;
+  },
+
+  clearLiveLoopCell: (trackId, sceneId) => {
+    set((state) => {
+      const liveLoops = resolveProjectLiveLoops(state.project);
+      const cells = liveLoops.cells.filter((cell) => !(cell.trackId === trackId && cell.sceneId === sceneId));
+      if (cells.length === liveLoops.cells.length) return state;
+      const nextLiveLoops = normalizeLiveLoops({ ...liveLoops, cells }, state.project.tracks);
+      return commitProjectChange(
+        state,
+        touch({ ...state.project, liveLoops: nextLiveLoops }),
+        {
+          liveLoopPlayback: {
+            ...state.liveLoopPlayback,
+            activeCellIds: state.liveLoopPlayback.activeCellIds.filter((id) => cells.some((cell) => cell.id === id)),
+            queuedCellIds: state.liveLoopPlayback.queuedCellIds.filter((id) => cells.some((cell) => cell.id === id))
+          }
+        }
+      );
+    });
+  },
+
+  triggerLiveLoopCell: (trackId, sceneId) => {
+    set((state) => {
+      const liveLoops = resolveProjectLiveLoops(state.project);
+      const cell = liveLoopCellForTrackScene(liveLoops, trackId, sceneId);
+      if (!cell) return state;
+      return {
+        liveLoopPlayback: {
+          activeCellIds: state.liveLoopPlayback.activeCellIds,
+          queuedCellIds: [cell.id],
+          triggerBeat: liveLoopTriggerBeat(state.currentBeat, state.project.timeSignature, liveLoops.quantizeBeats),
+          sceneId
+        }
+      };
+    });
+  },
+
+  triggerLiveLoopScene: (sceneId) => {
+    set((state) => {
+      const liveLoops = resolveProjectLiveLoops(state.project);
+      const cellIds = liveLoopCellsForScene(liveLoops, sceneId).map((cell) => cell.id);
+      if (cellIds.length === 0) return state;
+      return {
+        liveLoopPlayback: {
+          activeCellIds: state.liveLoopPlayback.activeCellIds,
+          queuedCellIds: cellIds,
+          triggerBeat: liveLoopTriggerBeat(state.currentBeat, state.project.timeSignature, liveLoops.quantizeBeats),
+          sceneId
+        }
+      };
+    });
+  },
+
+  markLiveLoopTriggered: (cellIds) => {
+    set((state) => {
+      const activeCellIds = cellIds ?? state.liveLoopPlayback.queuedCellIds;
+      return {
+        liveLoopPlayback: {
+          activeCellIds,
+          queuedCellIds: []
+        }
+      };
+    });
+  },
+
+  stopLiveLoops: () => set({ liveLoopPlayback: EMPTY_LIVE_LOOP_PLAYBACK }),
 
   addTrack: (type = "instrument", name) => {
     const state = get();

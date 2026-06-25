@@ -35,8 +35,11 @@ export function AppShell() {
   const project = useDawStore((state) => state.project);
   const mode = useDawStore((state) => state.mode);
   const isPlaying = useDawStore((state) => state.isPlaying);
+  const liveLoopPlayback = useDawStore((state) => state.liveLoopPlayback);
   const hydrated = useDawStore((state) => state.hydrated);
   const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
+  const setPlaying = useDawStore((state) => state.setPlaying);
+  const markLiveLoopTriggered = useDawStore((state) => state.markLiveLoopTriggered);
   const loadProjectIntoStore = useDawStore((state) => state.loadProject);
   const setHydrated = useDawStore((state) => state.setHydrated);
   const refreshLessonProgress = useDawStore((state) => state.refreshLessonProgress);
@@ -119,6 +122,27 @@ export function AppShell() {
   useEffect(() => {
     audioEngineRef.current?.updateTrackControls(project);
   }, [project]);
+
+  useEffect(() => {
+    const queuedCellIds = liveLoopPlayback.queuedCellIds;
+    if (queuedCellIds.length === 0) {
+      if (liveLoopPlayback.activeCellIds.length === 0) audioEngineRef.current?.stopLiveLoops();
+      return;
+    }
+    if (!isPlaying) {
+      setPlaying(true);
+      return;
+    }
+
+    const cellIds = [...queuedCellIds];
+    const triggerBeat = liveLoopPlayback.triggerBeat;
+    const timeoutId = window.setTimeout(() => {
+      void getLazyAudioEngine()
+        .then((engine) => engine.triggerLiveLoopCells(useDawStore.getState().project, cellIds, triggerBeat))
+        .then(() => markLiveLoopTriggered(cellIds));
+    }, 120);
+    return () => window.clearTimeout(timeoutId);
+  }, [isPlaying, liveLoopPlayback, markLiveLoopTriggered, setPlaying]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
