@@ -12,6 +12,8 @@ const manifest = JSON.parse(readFileSync(join(dist, "manifest.webmanifest"), "ut
 assert.equal(worker, plan.workerContent, "서비스 워커와 HTML/청크 revision이 맞지 않습니다");
 assert.equal(manifest.start_url, "./");
 assert.equal(manifest.scope, "./");
+assert.equal(new URL(manifest.id, "https://kimyounggaur.github.io/").href,
+  "https://kimyounggaur.github.io/Garageband_copy/", "PWA id가 다른 Pages 앱과 구별되지 않습니다");
 assert.equal(manifest.display, "standalone");
 assert.match(manifest.name, /[가-힣]/);
 assert.match(html, /<html lang="ko">/);

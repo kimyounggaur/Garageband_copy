@@ -1,5 +1,5 @@
 /* This file is filled with a content revision by generate-pwa.mjs after Vite builds. */
-const SHELL_REVISION = "bf8ad316522cbbdd";
+const SHELL_REVISION = "c935d5ac1ac607a8";
 const SHELL_FILES = ["index.html","manifest.webmanifest","samples/manifest.json","icons/mark.svg","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","assets/AssistPanel-ozaMdvWT.js","assets/AudioEngine-BNT2ljkx.js","assets/ClipEditor-CJpgHiiG.js","assets/LessonPanel-EuTfLsV7.js","assets/ReviewPanel-ond0DFk0.js","assets/StudentPanel-agaAVZoF.js","assets/StudioPanel-BUF9NL1G.js","assets/TeacherPanel-CTdy_9Av.js","assets/assistPreview-CH0niURh.js","assets/exportProject-Bi0tiHNJ.js","assets/index-BBZVqdO2.css","assets/index-D-COmEQt.js","assets/index-PXgYfcNC.js","assets/instrumentVoice-Bq_l3C3F.js","assets/sampleLibrary-F3rEiVkk.js","assets/teacherReview-DoCdzIVU.js"];
 const APPROVED_SAMPLE_FILES = ["samples/test-tones/c4.wav","samples/test-tones/g4.wav"];
 const SHELL_CACHE = `webband-shell-${SHELL_REVISION}`;
