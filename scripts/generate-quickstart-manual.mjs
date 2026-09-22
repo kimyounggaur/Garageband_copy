@@ -104,7 +104,7 @@ function quickMap() {
     ["3", "편집", "MIDI, Touch, Drummer로 멜로디를 만듭니다.", "#5ec26b"],
     ["4", "녹음", "Audio 트랙을 Arm하고 녹음합니다.", "#f59e0b"],
     ["5", "믹스", "볼륨, 팬, FX, Automation을 정리합니다.", "#fb7185"],
-    ["6", "공유", "Mix, Stems ZIP, Project 파일을 내보냅니다.", "#e879f9"]
+    ["6", "공유", "믹스 WAV, 트랙별 WAV ZIP, 프로젝트 파일을 받습니다.", "#e879f9"]
   ];
   const items = stages
     .map(([n, title, body, color], index) => {
@@ -221,19 +221,23 @@ function mixSvg() {
 function exportSvg() {
   return panel(`
     ${stageBadge(72, 74, "6", "공유", "#e879f9")}
-    <rect x="246" y="94" width="430" height="280" rx="24" fill="#111827" stroke="#465568"/>
-    ${lines(["Share"], 290, 142, { size: 34, fill: "#f8fafc" })}
-    ${["WAV", "MP3", "Full", "Cycle"].map((label, index) => {
-      const x = 290 + (index % 2) * 150;
-      const y = 168 + Math.floor(index / 2) * 54;
-      return `<rect x="${x}" y="${y}" width="120" height="36" rx="10" fill="#0b111b" stroke="#38bdf8"/><text x="${x + 60}" y="${y + 24}" text-anchor="middle" font-size="18" font-weight="900" fill="#dbeafe">${label}</text>`;
+    <rect x="366" y="94" width="430" height="284" rx="24" fill="#111827" stroke="#465568"/>
+    ${lines(["공유 및 내보내기"], 410, 137, { size: 26, fill: "#f8fafc" })}
+    ${lines(["WAV (PCM)"], 410, 166, { size: 18, fill: "#dbeafe" })}
+    ${["표준 44.1 kHz / 16비트", "고음질 48 kHz / 24비트"].map((label, index) => {
+      const y = 176 + index * 39;
+      return `<rect x="410" y="${y}" width="330" height="32" rx="10" fill="#0b111b" stroke="${index === 0 ? "#38bdf8" : "#a78bfa"}"/><text x="575" y="${y + 22}" text-anchor="middle" font-size="17" font-weight="900" fill="#dbeafe">${label}</text>`;
     }).join("")}
-    ${["Mix", "Stems ZIP", "Project", "Import"].map((label, index) => {
-      const x = 290 + (index % 2) * 150;
-      const y = 286 + Math.floor(index / 2) * 46;
-      return `<rect x="${x}" y="${y}" width="120" height="32" rx="9" fill="${index === 0 ? "#5ec26b" : "#172033"}" stroke="#465568"/><text x="${x + 60}" y="${y + 22}" text-anchor="middle" font-size="16" font-weight="900" fill="${index === 0 ? "#07111c" : "#e5f2ff"}">${label}</text>`;
+    ${["전체", "반복"].map((label, index) => {
+      const x = 410 + index * 160;
+      return `<rect x="${x}" y="254" width="140" height="31" rx="10" fill="#0b111b" stroke="#38bdf8"/><text x="${x + 70}" y="276" text-anchor="middle" font-size="17" font-weight="900" fill="#dbeafe">${label}</text>`;
     }).join("")}
-    ${lines(["Mix = 완성 WAV", "Stems ZIP = 트랙별 파일", "Project = 백업/이동"], 62, 334, { size: 20, fill: "#dbeafe", gap: 28 })}
+    ${["믹스 WAV", "트랙별 WAV ZIP", "프로젝트 파일", "프로젝트 가져오기"].map((label, index) => {
+      const x = 410 + (index % 2) * 150;
+      const y = 294 + Math.floor(index / 2) * 39;
+      return `<rect x="${x}" y="${y}" width="140" height="31" rx="9" fill="${index === 0 ? "#5ec26b" : "#172033"}" stroke="#465568"/><text x="${x + 70}" y="${y + 21}" text-anchor="middle" font-size="14" font-weight="900" fill="${index === 0 ? "#07111c" : "#e5f2ff"}">${label}</text>`;
+    }).join("")}
+    ${lines(["믹스 WAV: 완성 오디오", "트랙별 ZIP: 개별 파일", "프로젝트: 백업/이동"], 62, 300, { size: 20, fill: "#dbeafe", gap: 28 })}
   `, "공유");
 }
 
@@ -243,12 +247,12 @@ function rescueSvg() {
     ${[
       ["소리 없음", "Mute/Solo, Master, 브라우저 탭 음소거 확인", "#fb7185"],
       ["녹음 안 됨", "마이크 권한, Audio 트랙, Record enable 확인", "#fbbf24"],
-      ["Export 이상", "Full/Cycle 범위와 Project 백업 확인", "#a78bfa"]
+      ["내보내기 이상", "전체/반복 범위와 프로젝트 백업 확인", "#a78bfa"]
     ].map(([title, body, color], index) => {
       const x = 78 + index * 282;
       return `<rect x="${x}" y="146" width="236" height="172" rx="18" fill="#111827" stroke="${color}"/><text x="${x + 26}" y="196" font-size="25" font-weight="900" fill="${color}">${esc(title)}</text>${lines(wrapText(body, 14), x + 26, 242, { size: 18, fill: "#dbeafe", gap: 26 })}`;
     }).join("")}
-    ${lines(["먼저 Save, 그 다음 Project 파일로 백업하세요."], 168, 374, { size: 24, fill: "#fde68a" })}
+    ${lines(["먼저 저장하고 프로젝트 파일로 백업하세요."], 206, 374, { size: 24, fill: "#fde68a" })}
   `, "문제 해결");
 }
 
@@ -394,22 +398,22 @@ function htmlManual() {
     ])}
 
     <h2>6. 1분: WAV와 프로젝트 백업 받기</h2>
-    ${figure("그림 6. Share Export", "상단 Export 버튼은 Mix, Stems ZIP, Project 파일, Import를 한 번에 처리하는 Share 모달을 엽니다.", exportSvg(), "MP3를 선택해도 현재 엔진은 WAV로 안전 폴백할 수 있습니다.")}
+    ${figure("그림 6. 공유 및 내보내기", "상단 공유 버튼은 믹스 WAV, 트랙별 WAV ZIP, 프로젝트 파일, 가져오기를 한 창에서 처리합니다.", exportSvg(), "형식은 WAV(PCM)이며 표준 44.1 kHz/16비트와 고음질 48 kHz/24비트를 고를 수 있습니다.")}
     ${steps([
-      "상단 오른쪽 <code>Export</code>를 누릅니다.",
-      "<code>Format</code>은 WAV로 둡니다. 특정 반복 구간만 필요하면 Cycle을 켠 뒤 Range를 Cycle로 선택합니다.",
-      "<code>Mix</code>를 눌러 완성 WAV를 받습니다.",
-      "협업이나 교사용 피드백이 필요하면 <code>Stems ZIP</code>도 받습니다.",
-      "나중에 이어서 작업하려면 <code>Project</code>를 눌러 <code>.webband.json</code> 백업을 저장합니다."
+      "상단 오른쪽 <code>공유</code>를 누릅니다. 형식은 <code>WAV (PCM)</code>입니다.",
+      "음질을 <code>표준 44.1 kHz / 16비트</code> 또는 <code>고음질 48 kHz / 24비트</code>로 정합니다.",
+      "특정 반복 구간만 필요하면 Cycle을 켠 뒤 범위를 <code>반복</code>으로 선택합니다. 전체 곡은 <code>전체</code>를 선택합니다.",
+      "<code>믹스 WAV</code>를 눌러 완성 WAV를 받습니다. 협업이나 교사용 피드백에는 <code>트랙별 WAV ZIP</code>도 받습니다.",
+      "나중에 이어서 작업하려면 <code>프로젝트 파일</code>을 눌러 <code>.webband.json</code> 백업을 저장합니다."
     ])}
 
     <h2>7. 막힐 때 바로 확인</h2>
-    ${figure("그림 7. 문제 해결 미니맵", "퀵스타트 중 가장 자주 만나는 문제 세 가지입니다.", rescueSvg(), "문제가 생기면 먼저 Project 파일로 백업하고 새로고침하세요.")}
+    ${figure("그림 7. 문제 해결 미니맵", "퀵스타트 중 가장 자주 만나는 문제 세 가지입니다.", rescueSvg(), "문제가 생기면 먼저 프로젝트 파일로 백업하고 새로고침하세요.")}
     <div class="grid">
       <div class="card"><strong>소리가 안 나요</strong>트랙 Mute/Solo, Master volume, 브라우저 탭 음소거, 시스템 출력 장치를 확인합니다.</div>
       <div class="card"><strong>녹음이 안 돼요</strong>마이크 권한, Audio 트랙 존재 여부, Record enable, Count-in 상태를 확인합니다.</div>
-      <div class="card"><strong>Export가 짧아요</strong>Range가 Cycle인지 확인합니다. 전체 곡은 Full로 내보냅니다.</div>
-      <div class="card"><strong>작업을 옮기고 싶어요</strong>Export -> Project로 <code>.webband.json</code>을 저장하고, 다른 브라우저에서 Import합니다.</div>
+      <div class="card"><strong>내보낸 WAV가 짧아요</strong>범위가 반복인지 확인합니다. 전체 곡은 전체로 내보냅니다.</div>
+      <div class="card"><strong>작업을 옮기고 싶어요</strong>공유 -> 프로젝트 파일로 <code>.webband.json</code>을 저장하고, 다른 브라우저에서 프로젝트 가져오기를 누릅니다.</div>
     </div>
 
     <h2>8. 퀵스타트 체크리스트</h2>
@@ -421,7 +425,7 @@ function htmlManual() {
         <tr><td>□</td><td>MIDI 또는 Drummer 클립을 추가했다</td><td>Timeline / Clip Editor</td></tr>
         <tr><td>□</td><td>필요한 경우 오디오를 녹음했다</td><td>Audio 탭</td></tr>
         <tr><td>□</td><td>트랙 볼륨과 Master Limiter를 확인했다</td><td>Smart 탭</td></tr>
-        <tr><td>□</td><td>Mix WAV와 Project 백업을 받았다</td><td>Export -> Share</td></tr>
+        <tr><td>□</td><td>믹스 WAV와 프로젝트 파일 백업을 받았다</td><td>상단 공유 버튼</td></tr>
       </tbody>
     </table>
     <p class="footer">생성 산출물: <code>garageband-quickstart-user-manual.html</code>, <code>garageband-quickstart-user-manual.pdf</code>, <code>garageband-quickstart-user-manual.svg</code></p>

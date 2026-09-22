@@ -81,7 +81,7 @@ export function Knob({ label, value, min = 0, max = 1, step = 0.01, onChange, cl
         />
         <span className="h-2.5 w-2.5 rounded-full bg-graphite-600 shadow-inner" />
       </div>
-      <span className="max-w-16 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">{label}</span>
+      <span className="max-w-16 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-ink-body">{label}</span>
     </div>
   );
 }

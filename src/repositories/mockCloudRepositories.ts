@@ -1,6 +1,7 @@
 import type { Assignment, ClassRoom, Enrollment, Lesson, StudentProfile, Submission, TeacherProfile } from "../education/types";
 import type { AudioAsset, Project } from "../types/project";
 import { normalizeProject } from "../utils/projectMigration";
+import { logError } from "../utils/logger";
 import { db } from "../db/projectsDb";
 import type {
   AssignmentRepository,
@@ -30,7 +31,8 @@ function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = globalThis.localStorage?.getItem(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
+  } catch (error) {
+    logError("mockCloudRepositories.readJson", error);
     return fallback;
   }
 }
@@ -83,7 +85,8 @@ export class MockCloudProjectRepository implements ProjectRepository {
       PROJECTS_KEY,
       readJson<Project[]>(PROJECTS_KEY, []).filter((project) => project.id !== projectId)
     );
-    await db.audioAssets.where("projectId").equals(cloudProjectId(projectId)).delete();
+    // Duplicated projects can share source asset IDs; a project delete must
+    // not remove raw audio still referenced by another project.
     if (globalThis.localStorage?.getItem(LAST_PROJECT_KEY) === projectId) {
       globalThis.localStorage.removeItem(LAST_PROJECT_KEY);
     }

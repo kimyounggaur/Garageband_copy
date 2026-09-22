@@ -89,7 +89,7 @@ function interfaceMapSvg() {
     ${pill(197, 45, 112, 26, "LCD", "#4ade80", "#07131b")}
     ${pill(326, 45, 148, 26, "Tempo / Key", "#fbbf24", "#171104")}
     ${pill(610, 45, 124, 26, "Modes", "#38bdf8", "#07131b")}
-    ${pill(750, 45, 110, 26, "Export", "#a78bfa", "#120f1f")}
+    ${pill(750, 45, 110, 26, "공유", "#a78bfa", "#120f1f")}
 
     <rect x="34" y="112" width="600" height="230" rx="16" fill="#0b111b" stroke="#273244"/>
     <rect x="34" y="112" width="115" height="230" rx="16" fill="#111827" stroke="#273244"/>
@@ -118,7 +118,7 @@ function transportSvg() {
     }).join("")}
     <rect x="665" y="88" width="180" height="60" rx="14" fill="#06291f" stroke="#2dd4bf"/>
     <text x="755" y="125" text-anchor="middle" font-size="28" font-weight="900" fill="#86efac">001|1|000</text>
-    ${textLines(["기본 순서", "1. Tempo / Key 설정", "2. Cycle 또는 Count-in 선택", "3. Record / Play", "4. Save / Export"], 88, 220, { size: 24, fill: "#e2e8f0", gap: 40 })}
+    ${textLines(["기본 순서", "1. Tempo / Key 설정", "2. Cycle 또는 Count-in 선택", "3. Record / Play", "4. 저장 / 공유"], 88, 220, { size: 24, fill: "#e2e8f0", gap: 40 })}
     ${arrow(288, 250, 548, 250, "#fbbf24")}
     ${textLines(["상단 바는 프로젝트 전체를 제어하는 콘솔입니다."], 428, 324, { size: 24, fill: "#fde68a" })}
   `, 920, 430, "Transport controls");
@@ -245,20 +245,21 @@ function liveLoopsSvg() {
 
 function shareSvg() {
   return cardSvg(`
-    <rect x="230" y="54" width="460" height="330" rx="22" fill="#111827" stroke="#465568" filter="url(#softShadow)"/>
-    ${textLines(["Share"], 268, 102, { size: 34, fill: "#f8fafc" })}
-    ${["WAV", "MP3", "Standard", "High", "Full", "Cycle"].map((label, i) => {
+    <rect x="230" y="46" width="460" height="354" rx="22" fill="#111827" stroke="#465568" filter="url(#softShadow)"/>
+    ${textLines(["공유 및 내보내기"], 268, 94, { size: 30, fill: "#f8fafc" })}
+    ${textLines(["형식: WAV (PCM)"], 268, 128, { size: 19, fill: "#dbeafe" })}
+    ${pill(268, 145, 310, 34, "표준 44.1 kHz / 16비트", "#38bdf8", "#0b111b")}
+    ${pill(268, 187, 310, 34, "고음질 48 kHz / 24비트", "#a78bfa", "#0b111b")}
+    ${textLines(["범위"], 268, 249, { size: 18, fill: "#dbeafe" })}
+    ${pill(268, 257, 140, 34, "전체", "#38bdf8", "#0b111b")}
+    ${pill(438, 257, 140, 34, "반복", "#38bdf8", "#0b111b")}
+    ${["믹스 WAV", "트랙별 WAV ZIP", "프로젝트 파일", "프로젝트 가져오기"].map((label, i) => {
       const x = 268 + (i % 2) * 170;
-      const y = 132 + Math.floor(i / 2) * 54;
-      return pill(x, y, 140, 34, label, i === 1 ? "#a78bfa" : "#38bdf8", "#0b111b");
+      const y = 303 + Math.floor(i / 2) * 45;
+      return `<rect x="${x}" y="${y}" width="150" height="36" rx="10" fill="${i === 0 ? "#5ec26b" : "#172033"}" stroke="#465568"/><text x="${x + 75}" y="${y + 24}" text-anchor="middle" font-size="15" font-weight="900" fill="${i === 0 ? "#07111c" : "#e5f2ff"}">${label}</text>`;
     }).join("")}
-    ${["Mix", "Stems ZIP", "Project", "Import"].map((label, i) => {
-      const x = 268 + (i % 2) * 170;
-      const y = 304 + Math.floor(i / 2) * 48;
-      return `<rect x="${x}" y="${y}" width="140" height="36" rx="10" fill="${i === 0 ? "#5ec26b" : "#172033"}" stroke="#465568"/><text x="${x + 70}" y="${y + 24}" text-anchor="middle" font-size="17" font-weight="900" fill="${i === 0 ? "#07111c" : "#e5f2ff"}">${label}</text>`;
-    }).join("")}
-    ${textLines(["MP3 선택 시 현재 엔진은 WAV로 안전 폴백합니다.", "프로젝트 파일은 .webband.json으로 저장/복원됩니다."], 82, 392, { size: 19, fill: "#fde68a", gap: 24 })}
-  `, 920, 430, "Share export modal");
+    ${textLines(["믹스와 트랙별 오디오는 WAV로 저장됩니다."], 82, 420, { size: 18, fill: "#fde68a" })}
+  `, 920, 430, "공유 및 내보내기 대화상자");
 }
 
 function lessonSvg() {
@@ -284,7 +285,7 @@ function workflowSvg() {
     }).join("")}
     ${[0,1,2,3,4].map((i) => arrow(150 + i * 138, 166, 190 + i * 138, 166, "#cbd5e1")).join("")}
     ${textLines(["10분 첫 곡 만들기 루틴"], 58, 64, { size: 34, fill: "#f8fafc" })}
-    ${textLines(["1. BPM/Key를 정한다  2. 드럼과 베이스 루프를 놓는다  3. 건반 MIDI를 쓴다", "4. 녹음이 필요하면 Audio 트랙을 Arm한다  5. Mixer에서 밸런스를 맞춘다  6. Share에서 Mix 또는 Stems ZIP"], 74, 332, { size: 21, fill: "#dbeafe", gap: 32 })}
+    ${textLines(["1. BPM/Key를 정한다  2. 드럼과 베이스 루프를 놓는다  3. 건반 MIDI를 쓴다", "4. 녹음이 필요하면 Audio 트랙을 Arm한다  5. Mixer에서 밸런스를 맞춘다  6. 공유에서 믹스 WAV 또는 트랙별 ZIP"], 74, 332, { size: 21, fill: "#dbeafe", gap: 32 })}
   `, 920, 430, "First song workflow");
 }
 
@@ -292,10 +293,10 @@ function troubleshootSvg() {
   return cardSvg(`
     ${pill(70, 62, 230, 48, "소리가 안 나요", "#fb7185", "#1a1014")}
     ${pill(350, 62, 230, 48, "녹음이 안 돼요", "#fbbf24", "#171104")}
-    ${pill(630, 62, 230, 48, "Export가 달라요", "#a78bfa", "#130f1f")}
+    ${pill(630, 62, 230, 48, "내보내기가 달라요", "#a78bfa", "#130f1f")}
     ${textLines(["트랙 M/S 확인", "Master 볼륨 확인", "브라우저 오디오 허용"], 96, 156, { size: 21, fill: "#fecdd3", gap: 32 })}
     ${textLines(["Audio 트랙 추가", "Record enable", "마이크 권한 허용"], 382, 156, { size: 21, fill: "#fde68a", gap: 32 })}
-    ${textLines(["Cycle 범위 확인", "MP3는 WAV 폴백", "프로젝트 저장 후 재시도"], 662, 156, { size: 21, fill: "#ddd6fe", gap: 32 })}
+    ${textLines(["전체/반복 범위 확인", "WAV 음질 설정 확인", "프로젝트 저장 후 재시도"], 662, 156, { size: 21, fill: "#ddd6fe", gap: 32 })}
     ${arrow(184, 256, 184, 320, "#fb7185")}
     ${arrow(464, 256, 464, 320, "#fbbf24")}
     ${arrow(744, 256, 744, 320, "#a78bfa")}
@@ -331,7 +332,7 @@ function quickMapSvg() {
     ["편집기", "Piano Roll, Touch, Drummer, Audio 파형 편집을 선택 클립에 맞춰 사용합니다."],
     ["믹서와 자동화", "볼륨, 팬, FX, Send, Automation 포인트로 곡의 움직임을 만듭니다."],
     ["Live Loops", "Scene과 Cell 단위로 루프를 큐잉하고 즉흥 연주처럼 실행합니다."],
-    ["Share / Export", "Mix, Stems ZIP, Project 파일, Import를 한 모달에서 처리합니다."]
+    ["공유 및 내보내기", "믹스 WAV, 트랙별 WAV ZIP, 프로젝트 파일, 가져오기를 한 창에서 처리합니다."]
   ];
   const panels = names
     .map(([title, body], index) => {
@@ -360,7 +361,7 @@ function quickMapSvg() {
   <text x="70" y="164" font-size="28" font-weight="700" fill="#94a3b8">작곡, 녹음, 믹싱, 수업, 공유까지 한눈에 보는 비주얼 지도</text>
   <rect x="70" y="214" width="1460" height="56" rx="22" fill="#111827" stroke="#334155"/>
   <text x="106" y="251" font-size="24" font-weight="900" fill="#38bdf8">추천 순서</text>
-  <text x="250" y="251" font-size="24" font-weight="800" fill="#e5f2ff">새 프로젝트 -> 루프 배치 -> MIDI/오디오 편집 -> 믹서/자동화 -> Share Export</text>
+  <text x="250" y="251" font-size="24" font-weight="800" fill="#e5f2ff">새 프로젝트 -> 루프 배치 -> MIDI/오디오 편집 -> 믹서/자동화 -> WAV 내보내기</text>
   ${panels}
 </svg>`;
 }
@@ -456,7 +457,7 @@ function htmlManual() {
     <section class="cover">
       <div class="eyebrow">User's Manual - Korean Edition</div>
       <h1>GarageBand Copy<br/>사용자 설명서</h1>
-      <p class="lead">브라우저에서 작곡, 녹음, 루프 배치, MIDI 편집, 믹싱, 수업/리뷰, Share Export까지 단계적으로 수행하기 위한 시각 중심 매뉴얼입니다.</p>
+      <p class="lead">브라우저에서 작곡, 녹음, 루프 배치, MIDI 편집, 믹싱, 수업/리뷰, WAV 내보내기까지 단계적으로 수행하기 위한 시각 중심 매뉴얼입니다.</p>
       <div class="meta-grid">
         <div class="meta"><strong>대상</strong><span>처음 쓰는 사용자</span></div>
         <div class="meta"><strong>형식</strong><span>HTML / PDF / SVG</span></div>
@@ -476,7 +477,7 @@ function htmlManual() {
       <li>7. Mixer, Smart Controls, Automation</li>
       <li>8. Live Loops 즉흥 연주</li>
       <li>9. Lesson, Review, Teacher 흐름</li>
-      <li>10. Share Export와 파일 관리</li>
+      <li>10. 공유 및 내보내기와 파일 관리</li>
       <li>11. 10분 첫 곡 만들기</li>
       <li>12. 단축키와 문제 해결</li>
     </ul>
@@ -486,7 +487,7 @@ function htmlManual() {
 
     <h2>1. 화면 구조와 기본 개념</h2>
     <div class="grid-2">
-      <div class="card"><strong>Transport Bar</strong>재생, 정지, 녹음, 사이클, Undo/Redo, BPM, 박자표, Key, 메트로놈, 튜너, 저장, Export가 모여 있는 앱의 조종석입니다.</div>
+      <div class="card"><strong>Transport Bar</strong>재생, 정지, 녹음, 사이클, Undo/Redo, BPM, 박자표, Key, 메트로놈, 튜너, 저장, 공유가 모여 있는 앱의 조종석입니다.</div>
       <div class="card"><strong>Arrangement Timeline</strong>트랙별로 클립을 놓고 곡의 구조를 만드는 영역입니다. Tracks 보기와 Live Loops 보기를 전환할 수 있습니다.</div>
       <div class="card"><strong>Studio Panel</strong>Library, Loops, Audio, Smart, Lesson 탭이 있으며 소리 선택, 녹음, 믹서, 교육 기능을 제공합니다.</div>
       <div class="card"><strong>Clip Editor</strong>선택한 클립의 세부 편집 영역입니다. MIDI면 Piano Roll/Touch/Drummer, 오디오면 파형 편집이 나타납니다.</div>
@@ -514,7 +515,7 @@ function htmlManual() {
     ${callout("녹음 전 추천 설정", "BPM, Key, Count-in, Metronome, 녹음할 Audio 트랙의 Record enable을 먼저 확인하세요.", "green")}
 
     <h2>3. Timeline에서 클립 배치하기</h2>
-    ${figure("fig-timeline", "그림 3. Timeline 편곡 구조", "트랙 헤더, 룰러, 클립, 재생 헤드, Cycle 영역이 곡의 뼈대를 만듭니다.", figures.timelineSvg(), "노란 Cycle 영역은 반복 재생뿐 아니라 Share Export에서 Cycle 범위를 선택할 때도 사용됩니다.")}
+    ${figure("fig-timeline", "그림 3. Timeline 편곡 구조", "트랙 헤더, 룰러, 클립, 재생 헤드, Cycle 영역이 곡의 뼈대를 만듭니다.", figures.timelineSvg(), "노란 Cycle 영역은 반복 재생뿐 아니라 공유 창에서 반복 범위를 선택할 때도 사용됩니다.")}
     <h3>트랙 추가와 기본 편곡</h3>
     ${steps([
       "Timeline 상단의 <code>+ 드럼</code>, <code>Drummer</code>, <code>+ 악기</code> 버튼으로 트랙이나 클립을 추가합니다.",
@@ -529,7 +530,7 @@ function htmlManual() {
       <tbody>
         <tr><td>Tracks / Live Loops</td><td>편곡형 타임라인과 라이브 루프 그리드를 전환</td><td>곡 구조를 만들 때 Tracks, 즉흥 트리거는 Live Loops</td></tr>
         <tr><td>겹침 방지</td><td>클립 이동 시 같은 트랙에서 겹치지 않게 보정</td><td>처음 편곡하거나 수업용 과제를 만들 때</td></tr>
-        <tr><td>Cycle</td><td>반복 재생 범위 켜기/끄기</td><td>특정 구간 연습, 녹음, 구간 Export</td></tr>
+        <tr><td>Cycle</td><td>반복 재생 범위 켜기/끄기</td><td>특정 구간 연습, 녹음, 구간 내보내기</td></tr>
         <tr><td>확대 슬라이더</td><td>Timeline 가로 배율 조절</td><td>세밀한 MIDI/오디오 위치 편집</td></tr>
       </tbody>
     </table>
@@ -610,7 +611,7 @@ function htmlManual() {
       "Pan으로 좌우 위치를 정합니다. 베이스와 킥은 중앙에 두는 편이 안정적입니다.",
       "Mute는 잠시 숨기기, Solo는 특정 트랙만 듣기에 사용합니다.",
       "Reverb/Delay Send로 공간감을 더합니다.",
-      "Master Limiter를 켜면 Export 시 갑작스러운 피크를 줄이는 데 도움이 됩니다."
+      "Master Limiter를 켜면 WAV 내보내기 시 갑작스러운 피크를 줄이는 데 도움이 됩니다."
     ])}
     ${figure("fig-automation", "그림 8. Automation Lane", "Automation은 곡이 진행되면서 볼륨, 팬, Send 값이 자동으로 변하게 만드는 기능입니다.", figures.automationSvg(), "포인트를 적게 쓰고 큰 흐름을 먼저 만든 뒤, 필요한 부분만 세밀하게 다듬는 편이 좋습니다.")}
     <h3>Automation 작성 절차</h3>
@@ -620,7 +621,7 @@ function htmlManual() {
       "Lane 위를 클릭해 포인트를 추가합니다.",
       "포인트를 드래그해 박자와 값을 조절합니다.",
       "포인트를 삭제하려면 포인트를 선택하거나 보조 클릭 메뉴를 사용합니다.",
-      "Export에는 Automation 움직임이 반영됩니다."
+      "WAV 내보내기에는 Automation 움직임이 반영됩니다."
     ])}
 
     <h2>8. Live Loops 즉흥 연주</h2>
@@ -642,36 +643,34 @@ function htmlManual() {
       <div class="card"><strong>Teacher</strong>반, 학생, 과제, 피드백을 관리합니다. 로컬 저장소, Mock Cloud, Supabase 모드를 선택할 수 있습니다.</div>
     </div>
 
-    <h2>10. Share Export와 파일 관리</h2>
-    ${figure("fig-share", "그림 11. Share / Export 모달", "Export 버튼은 Mix, Stems ZIP, Project 파일, Import를 한곳에서 처리하는 Share 모달을 엽니다.", figures.shareSvg(), "MP3를 선택해도 현재 오프라인 렌더러는 안전하게 WAV 파일로 폴백합니다. 이 동작은 실패가 아니라 호환성을 위한 설계입니다.")}
-    <h3>Mix 내보내기</h3>
+    <h2>10. 공유 및 내보내기와 파일 관리</h2>
+    ${figure("fig-share", "그림 11. 공유 및 내보내기 창", "상단 공유 버튼은 믹스 WAV, 트랙별 WAV ZIP, 프로젝트 파일과 가져오기를 한곳에서 처리하는 창을 엽니다.", figures.shareSvg(), "오디오는 WAV(PCM) 형식입니다. 표준은 44.1 kHz/16비트, 고음질은 48 kHz/24비트입니다.")}
+    <h3>믹스 WAV 내보내기</h3>
     ${steps([
-      "상단 오른쪽 <code>Export</code>를 누릅니다.",
-      "Format에서 WAV 또는 MP3를 고릅니다. MP3는 현재 WAV 폴백 메시지가 표시될 수 있습니다.",
-      "Quality에서 Standard 또는 High를 고릅니다.",
-      "Range에서 Full 또는 Cycle을 고릅니다. Cycle은 사이클 영역이 켜져 있어야 사용할 수 있습니다.",
-      "<code>Mix</code>를 누르면 전체 믹스 파일을 다운로드합니다."
+      "상단 오른쪽 <code>공유</code>를 누릅니다. 형식은 <code>WAV (PCM)</code>으로 표시됩니다.",
+      "음질에서 <code>표준 44.1 kHz / 16비트</code> 또는 <code>고음질 48 kHz / 24비트</code>를 고릅니다.",
+      "범위에서 <code>전체</code> 또는 <code>반복</code>을 고릅니다. 반복은 사이클 영역이 켜져 있어야 사용할 수 있습니다.",
+      "<code>믹스 WAV</code>를 누르면 선택한 범위의 스테레오 WAV 파일을 다운로드합니다. 파일 끝에는 효과 잔향이 약 1초 포함됩니다."
     ])}
-    <h3>Stems ZIP 내보내기</h3>
+    <h3>트랙별 WAV ZIP 내보내기</h3>
     ${steps([
-      "Share 모달에서 Range를 확인합니다.",
-      "<code>Stems ZIP</code>을 누릅니다.",
+      "공유 및 내보내기 창에서 음질과 범위를 확인합니다.",
+      "<code>트랙별 WAV ZIP</code>을 누릅니다.",
       "각 트랙이 개별 WAV 파일로 렌더링되어 ZIP 안에 들어갑니다.",
       "외부 DAW에서 믹싱하거나 선생님에게 트랙별 피드백을 받을 때 사용합니다."
     ])}
     <h3>프로젝트 파일 저장/불러오기</h3>
     ${steps([
-      "<code>Project</code>를 누르면 현재 프로젝트가 <code>.webband.json</code> 파일로 다운로드됩니다.",
-      "다른 브라우저나 다른 컴퓨터에서 이어서 작업하려면 같은 Share 모달의 <code>Import</code>를 누릅니다.",
+      "<code>프로젝트 파일</code>을 누르면 현재 프로젝트가 <code>.webband.json</code> 파일로 다운로드됩니다.",
+      "다른 브라우저나 다른 컴퓨터에서 이어서 작업하려면 같은 창의 <code>프로젝트 가져오기</code>를 누릅니다.",
       "가져오기 전에 현재 프로젝트가 저장되어 자동 백업 역할을 합니다.",
       "불러온 프로젝트는 현재 앱 버전에 맞춰 자동 보정됩니다."
     ])}
     <table>
       <thead><tr><th>파일</th><th>내용</th><th>사용 목적</th></tr></thead>
       <tbody>
-        <tr><td>WAV</td><td>전체 믹스 오디오</td><td>제출, 공유, 영상 편집, 마스터 확인</td></tr>
-        <tr><td>MP3 선택</td><td>현재는 WAV 폴백</td><td>MP3 UI 흐름 유지, 인코더 미지원 환경 보호</td></tr>
-        <tr><td>Stems ZIP</td><td>트랙별 WAV 묶음</td><td>외부 믹싱, 협업, 교사용 피드백</td></tr>
+        <tr><td>믹스 WAV</td><td>표준 44.1 kHz/16비트 또는 고음질 48 kHz/24비트 PCM 오디오</td><td>제출, 공유, 영상 편집, 마스터 확인</td></tr>
+        <tr><td>트랙별 WAV ZIP</td><td>선택한 음질과 범위의 트랙별 WAV 묶음</td><td>외부 믹싱, 협업, 교사용 피드백</td></tr>
         <tr><td>.webband.json</td><td>프로젝트 구조 데이터</td><td>백업, 이동, 복원, 과제 전달</td></tr>
       </tbody>
     </table>
@@ -687,7 +686,7 @@ function htmlManual() {
       "필요하면 Audio 탭에서 보컬이나 악기를 녹음합니다.",
       "Smart 탭에서 트랙별 볼륨을 조정하고 Master Limiter를 확인합니다.",
       "Review에서 제출 가능성을 확인합니다.",
-      "Export -> Mix로 WAV를 받고, 백업용 Project 파일도 저장합니다."
+      "공유 -> 믹스 WAV로 오디오를 받고, 백업용 프로젝트 파일도 저장합니다."
     ])}
 
     <h2>12. 단축키와 문제 해결</h2>
@@ -701,10 +700,10 @@ function htmlManual() {
         <tr><td><span class="kbd">Ctrl</span> + <span class="kbd">Y</span></td><td>Redo</td><td>Undo한 작업을 다시 적용합니다.</td></tr>
       </tbody>
     </table>
-    ${figure("fig-troubleshooting", "그림 13. 자주 생기는 문제 해결 흐름", "소리, 녹음, 내보내기 문제는 대부분 권한, 선택 상태, 사이클 범위, 저장 상태에서 시작합니다.", figures.troubleshootSvg(), "문제가 반복되면 먼저 Save와 Project export로 백업을 만든 뒤 새로고침하세요.")}
+    ${figure("fig-troubleshooting", "그림 13. 자주 생기는 문제 해결 흐름", "소리, 녹음, 내보내기 문제는 대부분 권한, 선택 상태, 사이클 범위, 저장 상태에서 시작합니다.", figures.troubleshootSvg(), "문제가 반복되면 먼저 저장하고 프로젝트 파일을 내려받은 뒤 새로고침하세요.")}
     ${callout("소리가 안 날 때", "Master volume, 트랙 Mute/Solo, 브라우저 탭 음소거, 시스템 출력 장치, 클립 위치를 차례로 확인하세요.", "rose")}
     ${callout("녹음이 안 될 때", "마이크 권한을 허용했는지, Audio 트랙이 있는지, 해당 트랙의 Record enable이 켜져 있는지 확인하세요.", "yellow")}
-    ${callout("Export가 예상과 다를 때", "Cycle 범위가 켜져 있으면 Range가 Cycle일 수 있습니다. Full로 바꾸거나 사이클을 끄고 다시 내보내세요.", "blue")}
+    ${callout("내보내기 구간이 예상과 다를 때", "반복 구간이 켜져 있으면 범위가 반복일 수 있습니다. 전체로 바꾸거나 사이클을 끄고 다시 내보내세요.", "blue")}
 
     <p class="footer-note">이 설명서는 앱 소스 기준으로 생성되었습니다. 최종 업데이트 산출물: <code>garageband-user-manual.html</code>, <code>garageband-user-manual.pdf</code>, <code>garageband-user-manual.svg</code>.</p>
   </main>
@@ -723,7 +722,7 @@ function findChrome() {
 }
 
 writeFileSync(svgPath, quickMapSvg(), "utf8");
-writeFileSync(htmlPath, htmlManual(), "utf8");
+writeFileSync(htmlPath, htmlManual().replace(/^[\t ]+$/gm, ""), "utf8");
 
 const chrome = findChrome();
 if (!chrome) {

@@ -11,8 +11,11 @@ import {
 } from "../../db/studioRepository";
 import { rubricForLesson } from "../../education/assignments";
 import { LESSONS, getLessonById, registerCustomLessons } from "../../education/lessons";
+import { effectiveDecision, effectiveStatusLabel, withTeacherDecision, type TeacherDecision } from "../../education/teacherReview";
 import type { Assignment, ClassRoom, Enrollment, Lesson, ReviewSummary, StudentProfile, Submission } from "../../education/types";
 import { makeId } from "../../utils/id";
+import { logError } from "../../utils/logger";
+import { setAppBusy, setUnsavedDraft, whileAppBusy } from "../../utils/unsavedDrafts";
 import { LessonBuilderPanel } from "./LessonBuilderPanel";
 
 function formatDate(value?: number) {
@@ -67,6 +70,23 @@ export function TeacherPanel() {
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>();
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>({});
+  const [decisionSavingId, setDecisionSavingId] = useState<string>();
+  const [decisionError, setDecisionError] = useState("");
+  const feedbackDirty = Object.entries(feedbackDrafts).some(([id, text]) =>
+    text !== (submissions.find((submission) => submission.id === id)?.teacherFeedback ?? ""));
+  useEffect(() => {
+    setUnsavedDraft("teacher-feedback", feedbackDirty);
+    return () => setUnsavedDraft("teacher-feedback", false);
+  }, [feedbackDirty]);
+  useEffect(() => {
+    setAppBusy("teacher-decision", Boolean(decisionSavingId));
+    return () => setAppBusy("teacher-decision", false);
+  }, [decisionSavingId]);
+  useEffect(() => () => {
+    setUnsavedDraft("teacher-class", false);
+    setUnsavedDraft("teacher-student", false);
+    setUnsavedDraft("teacher-assignment", false);
+  }, []);
   const [classTitle, setClassTitle] = useState("1학년 음악 A반");
   const [classDescription, setClassDescription] = useState("웹밴드 스튜디오 수업");
   const [studentName, setStudentName] = useState("새 학생");
@@ -86,12 +106,13 @@ export function TeacherPanel() {
 
   const dashboard = useMemo(() => {
     const total = selectedSubmissions.length;
-    const ready = selectedSubmissions.filter((submission) => submission.reviewSnapshot.ready).length;
-    const needsWork = total - ready;
+    const ready = selectedSubmissions.filter((submission) => effectiveDecision(submission.reviewSnapshot) === "ready").length;
+    const needsWork = selectedSubmissions.filter((submission) => effectiveDecision(submission.reviewSnapshot) === "needsWork").length;
+    const ignored = total - ready - needsWork;
     const averageScore =
       total > 0 ? Math.round(selectedSubmissions.reduce((sum, submission) => sum + scorePercent(submission.reviewSnapshot), 0) / total) : 0;
     const openWarnings = selectedSubmissions.reduce((sum, submission) => sum + warningCount(submission.reviewSnapshot), 0);
-    return { total, ready, needsWork, averageScore, openWarnings };
+    return { total, ready, needsWork, ignored, averageScore, openWarnings };
   }, [selectedSubmissions]);
 
   async function refresh() {
@@ -127,6 +148,7 @@ export function TeacherPanel() {
     await classRoomRepository.saveClassRoom(classRoom);
     setSelectedClassId(classRoom.id);
     await refresh();
+    setUnsavedDraft("teacher-class", false);
   }
 
   async function addStudent() {
@@ -149,6 +171,7 @@ export function TeacherPanel() {
     }
     setStudentName("");
     await refresh();
+    setUnsavedDraft("teacher-student", false);
   }
 
   async function createAssignment() {
@@ -172,6 +195,7 @@ export function TeacherPanel() {
     setDescription("");
     setDueDate("");
     await refresh();
+    setUnsavedDraft("teacher-assignment", false);
   }
 
   async function deleteAssignment(id: string) {
@@ -185,13 +209,31 @@ export function TeacherPanel() {
     await refresh();
   }
 
+  async function saveTeacherDecision(submission: Submission, decision: TeacherDecision) {
+    setDecisionSavingId(submission.id);
+    setDecisionError("");
+    try {
+      await submissionRepository.saveSubmission({
+        ...submission,
+        reviewSnapshot: withTeacherDecision(submission.reviewSnapshot, decision),
+        status: decision === "auto" ? submission.status : "reviewed"
+      });
+      await refresh();
+    } catch (error) {
+      logError("TeacherPanel.saveTeacherDecision", error);
+      setDecisionError("교사 판단을 저장하지 못했습니다. 다시 선택해 주세요.");
+    } finally {
+      setDecisionSavingId(undefined);
+    }
+  }
+
   function exportCsv() {
     const header = ["반", "학생", "과제", "상태", "점수", "경고", "미션", "제출일", "교사 피드백"];
     const rows = selectedSubmissions.map((submission) => [
       selectedClass?.title ?? submission.classId ?? "",
       submission.studentName ?? submission.studentId ?? "학생",
       submission.reviewSnapshot.assignmentTitle ?? submission.assignmentId,
-      submission.reviewSnapshot.statusLabel,
+      effectiveStatusLabel(submission.reviewSnapshot),
       scoreLabel(submission.reviewSnapshot),
       warningCount(submission.reviewSnapshot),
       `${completedMissionCount(submission.reviewSnapshot)}/${submission.reviewSnapshot.missionResults.length || 0}`,
@@ -208,7 +250,7 @@ export function TeacherPanel() {
 
   return (
     <aside className="panel grid min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg">
-      <div className="flex items-center justify-between border-b border-white/10 px-3">
+      <div className="flex items-center justify-between border-b border-line px-3">
         <span className="panel-title">교사 보기</span>
         <div className="flex items-center gap-1">
           <button className="studio-icon-button h-7 w-7" onClick={exportCsv} title="CSV 내보내기" aria-label="CSV 내보내기">
@@ -222,32 +264,35 @@ export function TeacherPanel() {
 
       <div className="min-h-0 overflow-y-auto p-3">
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-md border border-white/10 bg-black/20 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">제출물</div>
-            <div className="mt-1 text-xl font-black text-slate-100">{dashboard.total}</div>
+          <div className="rounded-md border border-line bg-surface-raised/50 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">제출물</div>
+            <div className="mt-1 text-xl font-black text-ink-high">{dashboard.total}</div>
           </div>
-          <div className="rounded-md border border-white/10 bg-black/20 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">평균 점수</div>
-            <div className="mt-1 text-xl font-black text-slate-100">{dashboard.averageScore}%</div>
+          <div className="rounded-md border border-line bg-surface-raised/50 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">자동 평균 점수</div>
+            <div className="mt-1 text-xl font-black text-ink-high">{dashboard.averageScore}%</div>
           </div>
           <div className="rounded-md border border-meter-green/25 bg-meter-green/10 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">제출 가능</div>
-            <div className="mt-1 text-xl font-black text-green-100">{dashboard.ready}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">제출 가능</div>
+            <div className="mt-1 text-xl font-black text-ink-high">{dashboard.ready}</div>
           </div>
           <div className="rounded-md border border-meter-amber/25 bg-meter-amber/10 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100/75">보완 필요</div>
-            <div className="mt-1 text-xl font-black text-amber-100">{dashboard.needsWork}</div>
-            <div className="text-[10px] font-bold text-amber-100/65">경고 {dashboard.openWarnings}개</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">보완 필요</div>
+            <div className="mt-1 text-xl font-black text-ink-high">{dashboard.needsWork}</div>
+            <div className="text-[10px] font-bold text-ink-body">자동 경고 {dashboard.openWarnings}개</div>
           </div>
         </div>
+        {dashboard.ignored > 0 ? (
+          <div className="mt-2 text-xs text-ink-body">자동 판단 제외 {dashboard.ignored}개 · 교사 확인을 기다립니다.</div>
+        ) : null}
 
-        <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        <div className="mt-3 rounded-md border border-line bg-surface-raised/40 p-3">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
             <Users size={14} />
             반과 학생
           </div>
           <div className="space-y-2">
-            <select className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)}>
+            <select className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)}>
               <option value="">전체 수업</option>
               {classRooms.map((classRoom) => (
                 <option key={classRoom.id} value={classRoom.id}>
@@ -255,34 +300,34 @@ export function TeacherPanel() {
                 </option>
               ))}
             </select>
-            <input className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={classTitle} onChange={(event) => setClassTitle(event.target.value)} placeholder="반 이름" />
-            <input className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={classDescription} onChange={(event) => setClassDescription(event.target.value)} placeholder="수업 설명" />
-            <button className="studio-button w-full" onClick={() => void createClassRoom()}>
+            <input className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={classTitle} onChange={(event) => { setClassTitle(event.target.value); setUnsavedDraft("teacher-class", true); }} placeholder="반 이름" />
+            <input className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={classDescription} onChange={(event) => { setClassDescription(event.target.value); setUnsavedDraft("teacher-class", true); }} placeholder="수업 설명" />
+            <button className="studio-button w-full" onClick={() => void whileAppBusy(createClassRoom)}>
               <Plus size={14} />
               반 만들기
             </button>
             <div className="grid grid-cols-[1fr_auto] gap-2">
-              <input className="h-8 rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="학생 이름" />
-              <button className="studio-button" onClick={() => void addStudent()}>
+              <input className="h-8 rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={studentName} onChange={(event) => { setStudentName(event.target.value); setUnsavedDraft("teacher-student", true); }} placeholder="학생 이름" />
+              <button className="studio-button" onClick={() => void whileAppBusy(addStudent)}>
                 <UserPlus size={14} />
                 추가
               </button>
             </div>
-            <div className="rounded border border-white/10 bg-white/[0.045] p-2 text-xs leading-5 text-slate-400">
+            <div className="rounded border border-line bg-surface-panel p-2 text-xs leading-5 text-ink-body">
               {selectedClass ? `${selectedClass.title} 학생 ${selectedStudents.length}명` : `전체 학생 ${students.length}명`}
             </div>
           </div>
         </div>
 
-        <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        <div className="mt-3 rounded-md border border-line bg-surface-raised/40 p-3">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
             <ClipboardList size={14} />
             과제 만들기
           </div>
           <div className="space-y-2">
-            <input className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="과제 제목" />
-            <textarea className="min-h-16 w-full resize-none rounded border border-white/10 bg-studio-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="과제 설명" />
-            <select className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
+            <input className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={title} onChange={(event) => { setTitle(event.target.value); setUnsavedDraft("teacher-assignment", true); }} placeholder="과제 제목" />
+            <textarea className="min-h-16 w-full resize-none rounded border border-line bg-surface-base px-2 py-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={description} onChange={(event) => { setDescription(event.target.value); setUnsavedDraft("teacher-assignment", true); }} placeholder="과제 설명" />
+            <select className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={lessonId} onChange={(event) => { setLessonId(event.target.value); setUnsavedDraft("teacher-assignment", true); }}>
               <option value="">자유 프로젝트</option>
               {allLessons.map((lesson) => (
                 <option key={lesson.id} value={lesson.id}>
@@ -290,8 +335,8 @@ export function TeacherPanel() {
                 </option>
               ))}
             </select>
-            <input className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-            <button className="studio-button w-full" onClick={() => void createAssignment()}>
+            <input className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" type="datetime-local" value={dueDate} onChange={(event) => { setDueDate(event.target.value); setUnsavedDraft("teacher-assignment", true); }} />
+            <button className="studio-button w-full" onClick={() => void whileAppBusy(createAssignment)}>
               <Plus size={14} />
               선택한 반에 과제 배정
             </button>
@@ -299,26 +344,26 @@ export function TeacherPanel() {
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">과제</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">과제</div>
           <div className="space-y-2">
             {selectedAssignments.length === 0 ? (
-              <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">아직 배정된 과제가 없습니다.</div>
+              <div className="rounded-md border border-line bg-surface-raised/40 p-3 text-sm text-ink-body">아직 배정된 과제가 없습니다.</div>
             ) : (
               selectedAssignments.map((assignment) => (
-                <div key={assignment.id} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+                <div key={assignment.id} className="rounded-md border border-line bg-surface-raised/40 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-slate-100">{assignment.title}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">
+                      <div className="truncate text-sm font-black text-ink-high">{assignment.title}</div>
+                      <div className="mt-1 text-[11px] text-ink-body">
                         {getLessonById(assignment.lessonId)?.title ?? "자유 프로젝트"} · {formatDate(assignment.dueDate)}
                       </div>
                     </div>
-                    <button className="studio-icon-button h-7 w-7" title="과제 삭제" aria-label="과제 삭제" onClick={() => void deleteAssignment(assignment.id)}>
+                    <button className="studio-icon-button h-7 w-7" title="과제 삭제" aria-label="과제 삭제" onClick={() => void whileAppBusy(() => deleteAssignment(assignment.id))}>
                       <Trash2 size={12} />
                     </button>
                   </div>
-                  <div className="mt-2 text-xs leading-5 text-slate-400">{assignment.description}</div>
-                  <div className="mt-2 text-[11px] font-bold text-slate-500">
+                  <div className="mt-2 text-xs leading-5 text-ink-body">{assignment.description}</div>
+                  <div className="mt-2 text-[11px] font-bold text-ink-body">
                     대상 {assignment.assignedStudentIds?.length ?? selectedStudents.length}명 · 제출 {submissions.filter((submission) => submission.assignmentId === assignment.id).length}개
                   </div>
                 </div>
@@ -328,42 +373,42 @@ export function TeacherPanel() {
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">제출 현황</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">제출 현황</div>
           <div className="space-y-2">
             {selectedSubmissions.length === 0 ? (
-              <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">아직 제출된 작업이 없습니다.</div>
+              <div className="rounded-md border border-line bg-surface-raised/40 p-3 text-sm text-ink-body">아직 제출된 작업이 없습니다.</div>
             ) : (
               selectedSubmissions.map((submission) => (
                 <button
                   key={submission.id}
-                  className={`w-full rounded-md border p-3 text-left ${selectedSubmission?.id === submission.id ? "border-meter-cyan bg-meter-cyan/10" : "border-white/10 bg-black/20"}`}
+                  className={`w-full rounded-md border p-3 text-left ${selectedSubmission?.id === submission.id ? "border-ink-accent bg-surface-raised" : "border-line bg-surface-raised/40"}`}
                   onClick={() => setSelectedSubmissionId(submission.id)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-slate-100">{submission.studentName ?? "학생"} · {submission.reviewSnapshot.projectName}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">{submission.reviewSnapshot.assignmentTitle ?? submission.assignmentId} · {formatDate(submission.submittedAt)}</div>
+                      <div className="truncate text-sm font-black text-ink-high">{submission.studentName ?? "학생"} · {submission.reviewSnapshot.projectName}</div>
+                      <div className="mt-1 text-[11px] text-ink-body">{submission.reviewSnapshot.assignmentTitle ?? submission.assignmentId} · {formatDate(submission.submittedAt)}</div>
                     </div>
-                    <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-black ${submission.reviewSnapshot.ready ? "bg-meter-green/15 text-green-100" : "bg-meter-amber/15 text-amber-100"}`}>
-                      {submission.reviewSnapshot.statusLabel}
+                    <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-black ${effectiveDecision(submission.reviewSnapshot) === "ready" ? "bg-meter-green/15 text-ink-high" : effectiveDecision(submission.reviewSnapshot) === "ignore" ? "bg-surface-raised text-ink-high" : "bg-meter-amber/15 text-ink-high"}`}>
+                      {effectiveStatusLabel(submission.reviewSnapshot)}
                     </span>
                   </div>
                   <div className="mt-2 grid grid-cols-4 gap-1">
-                    <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">점수</div>
-                      <div className="mt-1 text-sm font-black text-slate-100">{scoreLabel(submission.reviewSnapshot)}</div>
+                    <div className="rounded border border-line bg-surface-panel p-2">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">자동 점수</div>
+                      <div className="mt-1 text-sm font-black text-ink-high">{scoreLabel(submission.reviewSnapshot)}</div>
                     </div>
-                    <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">경고</div>
-                      <div className="mt-1 text-sm font-black text-slate-100">{warningCount(submission.reviewSnapshot)}</div>
+                    <div className="rounded border border-line bg-surface-panel p-2">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">경고</div>
+                      <div className="mt-1 text-sm font-black text-ink-high">{warningCount(submission.reviewSnapshot)}</div>
                     </div>
-                    <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">미션</div>
-                      <div className="mt-1 text-sm font-black text-slate-100">{completedMissionCount(submission.reviewSnapshot)}/{submission.reviewSnapshot.missionResults.length || 0}</div>
+                    <div className="rounded border border-line bg-surface-panel p-2">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">미션</div>
+                      <div className="mt-1 text-sm font-black text-ink-high">{completedMissionCount(submission.reviewSnapshot)}/{submission.reviewSnapshot.missionResults.length || 0}</div>
                     </div>
-                    <div className="rounded border border-white/10 bg-white/[0.045] p-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">시도</div>
-                      <div className="mt-1 text-sm font-black text-slate-100">{submission.attemptNumber ?? submissionAttempts(submission, submissions)}</div>
+                    <div className="rounded border border-line bg-surface-panel p-2">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">시도</div>
+                      <div className="mt-1 text-sm font-black text-ink-high">{submission.attemptNumber ?? submissionAttempts(submission, submissions)}</div>
                     </div>
                   </div>
                 </button>
@@ -374,24 +419,42 @@ export function TeacherPanel() {
 
         {selectedSubmission ? (
           <div className="mt-3 rounded-md border border-meter-cyan/30 bg-meter-cyan/10 p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-cyan-100/80">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
               <Eye size={14} />
               제출 상세
             </div>
-            <div className="text-sm font-black text-slate-100">{selectedSubmission.reviewSnapshot.projectName}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-300">{selectedSubmission.reviewSnapshot.teacherSummary}</div>
-            <div className="mt-2 text-[11px] leading-5 text-slate-400">
-              다음 추천: <span className="font-bold text-slate-200">{selectedSubmission.reviewSnapshot.nextAction.title}</span>
+            <div className="text-sm font-black text-ink-high">{selectedSubmission.reviewSnapshot.projectName}</div>
+            <div className="mt-1 text-xs leading-5 text-ink-body">자동 참고: {selectedSubmission.reviewSnapshot.teacherSummary}</div>
+            <div className="mt-2 text-[11px] leading-5 text-ink-body">
+              자동 추천: <span className="font-bold text-ink-high">{selectedSubmission.reviewSnapshot.nextAction.title}</span>
             </div>
-            <label className="mt-3 block text-xs font-bold text-slate-300">
+            <label className="mt-3 block text-xs font-bold text-ink-body">
+              교사 판단
+              <select
+                className="mt-1 h-9 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high focus-visible:ring-2 focus-visible:ring-ink-accent"
+                value={selectedSubmission.reviewSnapshot.teacherDecision?.decision ?? "auto"}
+                disabled={decisionSavingId === selectedSubmission.id}
+                onChange={(event) => void whileAppBusy(() => saveTeacherDecision(selectedSubmission, event.target.value as TeacherDecision))}
+              >
+                <option value="auto">자동 평가를 참고</option>
+                <option value="ready">교사 확인: 제출 가능</option>
+                <option value="needsWork">교사 확인: 보완 필요</option>
+                <option value="ignore">자동 판단 제외 · 교사 검토 중</option>
+              </select>
+            </label>
+            {decisionError ? <div role="alert" className="mt-2 text-xs text-ink-high">{decisionError}</div> : null}
+            <label className="mt-3 block text-xs font-bold text-ink-body">
               교사 피드백
               <textarea
-                className="mt-1 min-h-20 w-full resize-none rounded border border-white/10 bg-studio-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-meter-cyan"
+                className="mt-1 min-h-20 w-full resize-none rounded border border-line bg-surface-base px-2 py-2 text-sm text-ink-high outline-none focus:border-ink-accent"
                 value={feedbackDrafts[selectedSubmission.id] ?? selectedSubmission.teacherFeedback ?? ""}
-                onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [selectedSubmission.id]: event.target.value }))}
+                onChange={(event) => {
+                  setFeedbackDrafts((current) => ({ ...current, [selectedSubmission.id]: event.target.value }));
+                  setUnsavedDraft("teacher-feedback", true);
+                }}
               />
             </label>
-            <button className="studio-button mt-2 w-full" onClick={() => void saveFeedback(selectedSubmission)}>
+            <button className="studio-button mt-2 w-full" onClick={() => void whileAppBusy(() => saveFeedback(selectedSubmission))}>
               <MessageSquare size={14} />
               피드백 저장
             </button>

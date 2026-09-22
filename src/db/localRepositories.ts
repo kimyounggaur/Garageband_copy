@@ -38,9 +38,10 @@ export class LocalProjectRepository implements ProjectRepository {
   }
 
   async deleteProject(projectId: string) {
-    await db.transaction("rw", db.projects, db.audioAssets, db.metadata, async () => {
+    // Duplicated projects may still reference these audio IDs. Keep the raw
+    // assets until a global reference-aware cleanup is available.
+    await db.transaction("rw", db.projects, db.metadata, async () => {
       await db.projects.delete(projectId);
-      await db.audioAssets.where("projectId").equals(projectId).delete();
     });
     const metadata = await db.metadata.get("lastProjectId");
     if (metadata?.value === projectId) {

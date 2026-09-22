@@ -1,5 +1,6 @@
 import type { DragEvent } from "react";
 import { useDawStore } from "../../store/useDawStore";
+import { barLengthBeats, notatedBeatLength } from "../../utils/meterMath";
 import type { Track } from "../../types/project";
 import { AUTOMATION_LANE_HEIGHT, TRACK_HEIGHT, snapBeat, xToBeat } from "../../utils/timeline";
 import { AutomationLane } from "./AutomationLane";
@@ -14,9 +15,10 @@ type TrackLaneProps = {
 
 export function TrackLane({ track, width, pixelsPerBeat, automationOpen = false }: TrackLaneProps) {
   const snapBeats = useDawStore((state) => state.snapBeats);
+  const timeSignature = useDawStore((state) => state.project.timeSignature);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const selectClip = useDawStore((state) => state.selectClip);
-  const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
+  const seekToBeat = useDawStore((state) => state.seekToBeat);
   const addLoopClip = useDawStore((state) => state.addLoopClip);
   const addMidiClip = useDawStore((state) => state.addMidiClip);
 
@@ -40,12 +42,12 @@ export function TrackLane({ track, width, pixelsPerBeat, automationOpen = false 
         minWidth: "100%",
         backgroundImage:
           "linear-gradient(to right, rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.045) 1px, transparent 1px)",
-        backgroundSize: `${pixelsPerBeat * 4}px 100%, ${pixelsPerBeat}px 100%`
+        backgroundSize: `${pixelsPerBeat * barLengthBeats(timeSignature)}px 100%, ${pixelsPerBeat * notatedBeatLength(timeSignature)}px 100%`
       }}
       onClick={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
         const rawBeat = xToBeat(event.clientX - rect.left, pixelsPerBeat);
-        setCurrentBeat(event.ctrlKey || event.metaKey ? Math.max(0, rawBeat) : snapBeat(rawBeat, snapBeats));
+        seekToBeat(event.ctrlKey || event.metaKey ? Math.max(0, rawBeat) : snapBeat(rawBeat, snapBeats));
         selectTrack(track.id);
         selectClip(undefined);
       }}

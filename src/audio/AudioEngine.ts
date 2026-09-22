@@ -1,25 +1,37 @@
 import * as Tone from "tone";
-import { getLoopById, transposeLoopNote } from "../data/loops";
+import { getLoopById, resolveLoopPattern } from "../data/loops";
 import type { AutomationParam, Clip, Project, Track } from "../types/project";
 import { normalizeCountInBars } from "../utils/transport";
+import { barLengthBeats, metronomeClickPattern, type MetronomeClick } from "../utils/meterMath";
+import { logError } from "../utils/logger";
 import { automationBaseValue, normalizeTrackAutomation } from "./automation";
-import { clipGain, createClipAudioUrl, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudio";
+import { clipGain, createClipAudioUrl, resolveClipAudioSegment, secondsPerBeat, segmentGainAt } from "./clipAudio";
 import { gainToDb, normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackMute } from "./fx";
-import { createInstrumentSynth } from "./instrumentSynth";
+import { createInstrumentVoice } from "./instrumentVoice";
 import { liveLoopCellToClip, liveLoopTriggerBeat, resolveProjectLiveLoops } from "./liveLoops";
+import { getInstrumentPatch } from "../data/instruments";
+import { sampleLibrary } from "./sampleLibrary";
+import { reportSampleFallback } from "./sampleNotice";
 
 type BeatCallback = (beat: number) => void;
 type EndCallback = () => void;
 type MeterCallback = (level: number) => void;
 type PlayOptions = {
+  startBeat?: number;
   countIn?: boolean;
   onMeter?: MeterCallback;
+  onTransportStart?: (beat: number) => void;
+  resumeLiveLoopCellIds?: string[];
 };
 
 const PPQ = 192;
 
 function tickTime(beat: number) {
   return `${Math.max(0, Math.round(beat * PPQ))}i`;
+}
+
+function safeBeat(beat: number | undefined) {
+  return typeof beat === "number" && Number.isFinite(beat) ? Math.max(0, beat) : 0;
 }
 
 function beatDuration(beats = 0.25) {
@@ -33,10 +45,17 @@ function midiToNoteName(pitch: number) {
 }
 
 function projectLength(project: Project) {
+  const minimumBeats = 4 * barLengthBeats(project.timeSignature);
   const end = project.tracks.flatMap((track) => track.clips).reduce((max, clip) => {
     return Math.max(max, clip.startBeat + clip.lengthBeats);
-  }, 16);
-  return Math.max(16, end);
+  }, minimumBeats);
+  return Math.max(minimumBeats, end);
+}
+
+function clickNote(accent: MetronomeClick["accent"]) {
+  if (accent === "primary") return { pitch: "C6", velocity: 0.9 };
+  if (accent === "secondary") return { pitch: "G5", velocity: 0.7 };
+  return { pitch: "C5", velocity: 0.45 };
 }
 
 type TrackFxRuntime = {
@@ -57,7 +76,9 @@ export class AudioEngine {
   private nodes: Tone.ToneAudioNode[] = [];
   private scheduledIds: number[] = [];
   private liveLoopScheduledIds: number[] = [];
+  private activeLiveLoopCellIds: string[] = [];
   private audioUrlCleanups: Array<() => void> = [];
+  private players = new Set<Tone.Player>();
   private countInTimeouts: number[] = [];
   private masterBus?: Tone.Gain;
   private masterOutput?: Tone.Gain;
@@ -70,37 +91,80 @@ export class AudioEngine {
   private frameId = 0;
   private lengthBeats = 16;
   private cycleEnabled = false;
+  private cycleStart = 0;
+  private cycleEnd = 0;
+  private generation = 0;
+  private sampleLoadController = new AbortController();
+  private liveLoopLoadController = new AbortController();
+  private requestedBeat = 0;
+  private playback?: {
+    project: Project;
+    onBeat: BeatCallback;
+    onEnded: EndCallback;
+    options: PlayOptions;
+  };
 
   async play(project: Project, onBeat: BeatCallback, onEnded: EndCallback, options: PlayOptions = {}) {
-    await Tone.start();
     this.stop();
+    const generation = this.generation;
+    this.cycleStart = safeBeat(project.cycleStart);
+    this.cycleEnd = Math.max(this.cycleStart + 0.25, safeBeat(project.cycleEnd));
+    this.cycleEnabled = Boolean(project.cycleEnabled && this.cycleEnd > this.cycleStart);
+    this.requestedBeat = this.normalizeBeat(options.startBeat);
+    this.playback = { project, onBeat, onEnded, options };
 
-    Tone.Transport.PPQ = PPQ;
-    Tone.Transport.bpm.value = project.bpm;
-    const cycleStart = Math.max(0, project.cycleStart ?? 0);
-    const cycleEnd = Math.max(cycleStart + 0.25, project.cycleEnd ?? cycleStart + 0.25);
-    this.cycleEnabled = Boolean(project.cycleEnabled && cycleEnd > cycleStart);
-    Tone.Transport.loop = this.cycleEnabled;
-    Tone.Transport.loopStart = tickTime(cycleStart);
-    Tone.Transport.loopEnd = tickTime(cycleEnd);
-    Tone.Transport.position = this.cycleEnabled ? tickTime(cycleStart) : 0;
-    Tone.Transport.cancel(0);
+    try {
+      await Tone.start();
+      if (generation !== this.generation) return;
 
-    this.lengthBeats = this.cycleEnabled ? cycleEnd : projectLength(project);
-    this.createMasterOutput(project);
-    this.createChannels(project);
-    this.scheduleTrackAutomation(project);
-    await this.scheduleProject(project);
-    this.scheduleMetronome(project);
-    await Tone.loaded();
-    const countInBeats = options.countIn ? normalizeCountInBars(project.countInBars) * Math.max(1, project.timeSignature[0]) : 0;
-    const delaySeconds = countInBeats * (60 / Math.max(1, project.bpm));
-    if (countInBeats > 0) this.scheduleCountInClicks(project, countInBeats);
-    this.startBeatLoop(onBeat, onEnded, options.onMeter);
-    Tone.Transport.start(`+${delaySeconds + 0.04}`);
+      Tone.Transport.PPQ = PPQ;
+      Tone.Transport.bpm.value = project.bpm;
+      Tone.Transport.loop = this.cycleEnabled;
+      Tone.Transport.loopStart = tickTime(this.cycleStart);
+      Tone.Transport.loopEnd = tickTime(this.cycleEnd);
+      Tone.Transport.cancel(0);
+      Tone.Transport.position = tickTime(this.requestedBeat);
+
+      this.lengthBeats = this.cycleEnabled ? this.cycleEnd : projectLength(project);
+      this.createMasterOutput(project);
+      this.createChannels(project);
+      this.scheduleTrackAutomation(project);
+      await this.scheduleProject(project, generation, this.requestedBeat);
+      if (generation !== this.generation) return;
+      this.scheduleMetronome(project);
+      await Tone.loaded();
+      if (generation !== this.generation) return;
+      if (options.resumeLiveLoopCellIds?.length) {
+        await this.triggerLiveLoopCells(project, options.resumeLiveLoopCellIds, this.requestedBeat);
+        if (generation !== this.generation) return;
+      }
+
+      const countInBars = options.countIn ? normalizeCountInBars(project.countInBars) : 0;
+      const countInBeats = countInBars * barLengthBeats(project.timeSignature);
+      const delaySeconds = countInBeats * secondsPerBeat(project.bpm);
+      if (countInBars > 0) this.scheduleCountInClicks(project, countInBars);
+      if (options.onTransportStart) {
+        const startId = Tone.Transport.scheduleOnce(() => {
+          if (generation === this.generation) options.onTransportStart?.(this.requestedBeat);
+        }, tickTime(this.requestedBeat));
+        this.scheduledIds.push(startId);
+      }
+      this.startBeatLoop(onBeat, onEnded, options.onMeter, generation);
+      Tone.Transport.start(`+${delaySeconds + 0.04}`, tickTime(this.requestedBeat));
+    } catch (error) {
+      if (generation === this.generation) this.stop();
+      throw error;
+    }
   }
 
   stop() {
+    this.generation += 1;
+    this.sampleLoadController.abort();
+    this.sampleLoadController = new AbortController();
+    this.liveLoopLoadController.abort();
+    this.liveLoopLoadController = new AbortController();
+    this.playback = undefined;
+    this.requestedBeat = 0;
     cancelAnimationFrame(this.frameId);
     this.countInTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     this.countInTimeouts = [];
@@ -110,6 +174,9 @@ export class AudioEngine {
     this.cycleEnabled = false;
     this.scheduledIds = [];
     this.liveLoopScheduledIds = [];
+    this.activeLiveLoopCellIds = [];
+    this.players.forEach((player) => player.stop());
+    this.players.clear();
     this.nodes.forEach((node) => node.dispose());
     this.nodes = [];
     this.channels.clear();
@@ -123,6 +190,42 @@ export class AudioEngine {
     this.masterDelayReturn = undefined;
     this.audioUrlCleanups.forEach((cleanup) => cleanup());
     this.audioUrlCleanups = [];
+  }
+
+  pause() {
+    const beat = Tone.Transport.state === "started"
+      ? this.normalizeBeat(Tone.Transport.ticks / PPQ)
+      : this.requestedBeat;
+    this.stop();
+    this.requestedBeat = beat;
+    Tone.Transport.position = tickTime(beat);
+    return beat;
+  }
+
+  seek(beat: number) {
+    const nextBeat = this.normalizeBeat(beat);
+    const playback = this.playback;
+    if (playback) {
+      const liveCellIds = [...this.activeLiveLoopCellIds];
+      void this.play(playback.project, playback.onBeat, playback.onEnded, {
+        ...playback.options,
+        startBeat: nextBeat,
+        countIn: false,
+        onTransportStart: undefined,
+        resumeLiveLoopCellIds: liveCellIds
+      }).catch((error) => logError("AudioEngine.seek", error));
+    } else {
+      this.requestedBeat = nextBeat;
+      Tone.Transport.position = tickTime(nextBeat);
+    }
+    return nextBeat;
+  }
+
+  private normalizeBeat(beat: number | undefined) {
+    const normalized = safeBeat(beat);
+    return this.cycleEnabled && (normalized < this.cycleStart || normalized >= this.cycleEnd)
+      ? this.cycleStart
+      : normalized;
   }
 
   updateTrackControls(project: Project) {
@@ -150,14 +253,33 @@ export class AudioEngine {
     });
   }
 
-  async triggerLiveLoopCells(project: Project, cellIds: string[], triggerBeat?: number) {
+  async triggerLiveLoopCells(project: Project, cellIds: string[], triggerBeat?: number, onTriggered?: () => void) {
     if (cellIds.length === 0 || this.channels.size === 0) return;
+    const generation = this.generation;
     this.stopLiveLoops();
     const liveLoops = resolveProjectLiveLoops(project);
     const targetIds = new Set(cellIds);
-    const startBeat =
-      triggerBeat ??
-      liveLoopTriggerBeat(Tone.Transport.ticks / PPQ, project.timeSignature, liveLoops.quantizeBeats);
+    const liveLoadSignal = this.liveLoopLoadController.signal;
+    const samplePackIds = [...new Set(liveLoops.cells.filter((cell) => targetIds.has(cell.id) && cell.type === "midi")
+      .map((cell) => project.tracks.find((track) => track.id === cell.trackId))
+      .filter((track) => track?.type === "instrument")
+      .map((track) => getInstrumentPatch(track?.instrumentId).samplePackId)
+      .filter((id): id is string => Boolean(id)))];
+    const failedSamplePacks = new Set<string>();
+    if (samplePackIds.length > 0) {
+      await Promise.all(samplePackIds.map((id) => sampleLibrary.loadPack(id, liveLoadSignal).catch((error) => {
+        if (liveLoadSignal.aborted) return;
+        failedSamplePacks.add(id);
+        reportSampleFallback(error);
+      })));
+      if (generation !== this.generation || liveLoadSignal.aborted) return;
+    }
+    const readyBeat = samplePackIds.length > 0 && Tone.Transport.state === "started"
+      ? liveLoopTriggerBeat(Tone.Transport.ticks / PPQ + 0.02, project.timeSignature, liveLoops.quantizeBeats, liveLoops.quantizeMode)
+      : 0;
+    const startBeat = this.normalizeBeat(
+      Math.max(readyBeat, triggerBeat ?? liveLoopTriggerBeat(Tone.Transport.ticks / PPQ, project.timeSignature, liveLoops.quantizeBeats, liveLoops.quantizeMode))
+    );
     const audioSchedules: Promise<void>[] = [];
 
     liveLoops.cells
@@ -170,7 +292,7 @@ export class AudioEngine {
         const beforeScheduleCount = this.scheduledIds.length;
 
         if (clip.type === "loop") this.scheduleLoopClip(project, clip, runtime.channel);
-        if (clip.type === "midi") this.scheduleMidiClip(track, clip, runtime.channel);
+        if (clip.type === "midi") audioSchedules.push(this.scheduleMidiClip(track, clip, runtime.channel, generation, this.liveLoopLoadController.signal, failedSamplePacks.has(getInstrumentPatch(track.instrumentId).samplePackId ?? "")));
         if (clip.type === "audio") audioSchedules.push(this.scheduleAudioClip(project, clip, runtime.channel));
 
         this.liveLoopScheduledIds.push(...this.scheduledIds.slice(beforeScheduleCount));
@@ -179,13 +301,28 @@ export class AudioEngine {
     if (audioSchedules.length > 0) {
       const beforeScheduleCount = this.scheduledIds.length;
       await Promise.all(audioSchedules);
+      if (generation !== this.generation) return;
       this.liveLoopScheduledIds.push(...this.scheduledIds.slice(beforeScheduleCount));
+    }
+    this.activeLiveLoopCellIds = [...cellIds];
+    if (onTriggered) {
+      if (!this.cycleEnabled && startBeat <= Tone.Transport.ticks / PPQ) {
+        onTriggered();
+      } else {
+        const id = Tone.Transport.scheduleOnce(() => {
+          if (generation === this.generation) onTriggered();
+        }, tickTime(startBeat));
+        this.liveLoopScheduledIds.push(id);
+      }
     }
   }
 
   stopLiveLoops() {
+    this.liveLoopLoadController.abort();
+    this.liveLoopLoadController = new AbortController();
     this.liveLoopScheduledIds.forEach((id) => Tone.Transport.clear(id));
     this.liveLoopScheduledIds = [];
+    this.activeLiveLoopCellIds = [];
   }
 
   private createMasterOutput(project: Project) {
@@ -289,7 +426,7 @@ export class AudioEngine {
     });
   }
 
-  private async scheduleProject(project: Project) {
+  private async scheduleProject(project: Project, generation: number, startBeat: number) {
     const audioLoads: Promise<void>[] = [];
     project.tracks.forEach((track) => {
       const channel = this.channels.get(track.id);
@@ -300,10 +437,10 @@ export class AudioEngine {
           this.scheduleLoopClip(project, clip, channel.channel);
         }
         if (clip.type === "midi") {
-          this.scheduleMidiClip(track, clip, channel.channel);
+          audioLoads.push(this.scheduleMidiClip(track, clip, channel.channel, generation));
         }
         if (clip.type === "audio") {
-          audioLoads.push(this.scheduleAudioClip(project, clip, channel.channel));
+          audioLoads.push(this.scheduleAudioClip(project, clip, channel.channel, generation, startBeat));
         }
       });
     });
@@ -324,29 +461,37 @@ export class AudioEngine {
   private scheduleMetronome(project: Project) {
     if (!project.metronomeOn) return;
     const click = this.createClickSynth();
-    const beatsPerBar = Math.max(1, project.timeSignature[0]);
-    const endBeat = Math.ceil(this.lengthBeats);
+    const barBeats = barLengthBeats(project.timeSignature);
+    const pattern = metronomeClickPattern(project.timeSignature);
 
-    for (let beat = 0; beat <= endBeat; beat += 1) {
-      const id = Tone.Transport.schedule((time) => {
-        const strong = beat % beatsPerBar === 0;
-        click.triggerAttackRelease(strong ? "C6" : "C5", "32n", time, strong ? 0.9 : 0.45);
-      }, tickTime(beat));
-      this.scheduledIds.push(id);
+    for (let bar = 0; bar * barBeats <= this.lengthBeats; bar += 1) {
+      for (const step of pattern) {
+        const atBeat = bar * barBeats + step.offsetBeats;
+        if (atBeat > this.lengthBeats) break;
+        const sound = clickNote(step.accent);
+        const id = Tone.Transport.schedule((time) => {
+          click.triggerAttackRelease(sound.pitch, "32n", time, sound.velocity);
+        }, tickTime(atBeat));
+        this.scheduledIds.push(id);
+      }
     }
   }
 
-  private scheduleCountInClicks(project: Project, countInBeats: number) {
+  private scheduleCountInClicks(project: Project, countInBars: number) {
     const click = this.createClickSynth();
-    const secondsPerBeat = 60 / Math.max(1, project.bpm);
-    const beatsPerBar = Math.max(1, project.timeSignature[0]);
+    const barBeats = barLengthBeats(project.timeSignature);
+    const pattern = metronomeClickPattern(project.timeSignature);
+    const millisecondsPerBeat = secondsPerBeat(project.bpm) * 1000;
 
-    for (let beat = 0; beat < countInBeats; beat += 1) {
-      const timeoutId = window.setTimeout(() => {
-        const strong = beat % beatsPerBar === 0;
-        click.triggerAttackRelease(strong ? "C6" : "C5", "32n", undefined, strong ? 0.9 : 0.45);
-      }, beat * secondsPerBeat * 1000);
-      this.countInTimeouts.push(timeoutId);
+    for (let bar = 0; bar < countInBars; bar += 1) {
+      for (const step of pattern) {
+        const sound = clickNote(step.accent);
+        const offsetBeats = bar * barBeats + step.offsetBeats;
+        const timeoutId = window.setTimeout(() => {
+          click.triggerAttackRelease(sound.pitch, "32n", undefined, sound.velocity);
+        }, offsetBeats * millisecondsPerBeat);
+        this.countInTimeouts.push(timeoutId);
+      }
     }
   }
 
@@ -373,7 +518,7 @@ export class AudioEngine {
       }).connect(channel);
       this.nodes.push(kick, snare, hat);
 
-      this.scheduleRepeatedLoop(clip, loop.lengthBeats, (absoluteBeat, step) => {
+      this.scheduleRepeatedLoop(clip, loop.lengthBeats, project.key, (absoluteBeat, step) => {
         const id = Tone.Transport.schedule((time) => {
           const velocity = step.velocity ?? 0.75;
           if (step.drum === "kick") kick.triggerAttackRelease("C1", "8n", time, velocity);
@@ -399,11 +544,11 @@ export class AudioEngine {
           }).connect(channel);
 
     this.nodes.push(synth);
-    this.scheduleRepeatedLoop(clip, loop.lengthBeats, (absoluteBeat, step) => {
+    this.scheduleRepeatedLoop(clip, loop.lengthBeats, project.key, (absoluteBeat, step) => {
       if (!step.note) return;
       const id = Tone.Transport.schedule((time) => {
         synth.triggerAttackRelease(
-          transposeLoopNote(step.note!, loop.key, project.key),
+          step.note!,
           beatDuration(step.durationBeats ?? 0.25),
           time,
           step.velocity ?? 0.7
@@ -416,12 +561,14 @@ export class AudioEngine {
   private scheduleRepeatedLoop(
     clip: Clip,
     loopLengthBeats: number,
+    projectKey: string | undefined,
     schedule: (absoluteBeat: number, step: NonNullable<ReturnType<typeof getLoopById>>["pattern"][number]) => void
   ) {
     const loop = getLoopById(clip.loopId);
     if (!loop) return;
+    const pattern = resolveLoopPattern(loop, projectKey);
     for (let offset = 0; offset < clip.lengthBeats; offset += loopLengthBeats) {
-      loop.pattern.forEach((step) => {
+      pattern.forEach((step) => {
         const absoluteBeat = clip.startBeat + offset + step.beat;
         if (absoluteBeat < clip.startBeat + clip.lengthBeats) {
           schedule(absoluteBeat, step);
@@ -430,21 +577,38 @@ export class AudioEngine {
     }
   }
 
-  private scheduleMidiClip(track: Pick<Track, "type" | "role" | "instrumentId">, clip: Clip, channel: Tone.Channel) {
+  private async scheduleMidiClip(
+    track: Pick<Track, "type" | "role" | "instrumentId">,
+    clip: Clip,
+    channel: Tone.Channel,
+    generation = this.generation,
+    signal = this.sampleLoadController.signal,
+    forceSynth = false
+  ) {
     if (track.type === "drum" || track.role === "beat" || track.role === "drummer") {
       this.scheduleDrumMidiClip(clip, channel);
       return;
     }
 
-    const synth = createInstrumentSynth(track.instrumentId).connect(channel);
-    this.nodes.push(synth);
+    let voice;
+    try {
+      voice = await createInstrumentVoice(track.instrumentId, channel, signal, forceSynth);
+    } catch (error) {
+      if (generation !== this.generation || signal.aborted) return;
+      throw error;
+    }
+    if (generation !== this.generation || signal.aborted) {
+      voice.dispose();
+      return;
+    }
+    this.nodes.push(...voice.nodes);
 
     (clip.notes ?? []).forEach((note) => {
       const absoluteBeat = clip.startBeat + note.startBeat;
       if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
       const id = Tone.Transport.schedule((time) => {
-        synth.triggerAttackRelease(
-          midiToNoteName(note.pitch),
+        voice.trigger(
+          note.pitch,
           beatDuration(note.durationBeats),
           time,
           note.velocity
@@ -485,33 +649,80 @@ export class AudioEngine {
     });
   }
 
-  private async scheduleAudioClip(project: Project, clip: Clip, channel: Tone.Channel) {
+  private async scheduleAudioClip(
+    project: Project,
+    clip: Clip,
+    channel: Tone.Channel,
+    generation = this.generation,
+    startBeat?: number
+  ) {
     const source = await createClipAudioUrl(clip);
     if (!source) return;
+    if (generation !== this.generation) {
+      source.revoke?.();
+      return;
+    }
     const gain = new Tone.Gain(clipGain(clip)).connect(channel);
-    const player = new Tone.Player({
-      url: source.url,
-      fadeIn: 0,
-      fadeOut: 0
-    }).connect(gain);
+    const player = new Tone.Player({ fadeIn: 0, fadeOut: 0 }).connect(gain);
     try {
       await player.load(source.url);
+      if (generation !== this.generation) {
+        player.dispose();
+        gain.dispose();
+        source.revoke?.();
+        return;
+      }
       this.nodes.push(gain, player);
+      this.players.add(player);
       if (source.revoke) this.audioUrlCleanups.push(source.revoke);
+      const baseGain = clipGain(clip);
 
-      const timing = resolveClipAudioTiming(clip, project.bpm, player.buffer.duration);
-      if (timing.durationSeconds <= 0) return;
-      const fades = resolveClipFadeDurations(clip, timing.durationSeconds, project.bpm);
-      player.playbackRate = timing.playbackRate;
-      player.fadeIn = fades.fadeInSeconds;
-      player.fadeOut = fades.fadeOutSeconds;
+      const scheduleAt = (entryBeat: number, once: boolean) => {
+        const segment = resolveClipAudioSegment(clip, project.bpm, player.buffer.duration, entryBeat);
+        if (segment.durationSeconds <= 0) return;
+        const availableSeconds = this.cycleEnabled
+          ? Math.max(0, (this.cycleEnd - entryBeat) * secondsPerBeat(project.bpm))
+          : segment.durationSeconds;
+        const durationSeconds = Math.min(segment.durationSeconds, availableSeconds);
+        if (durationSeconds <= 0) return;
 
-      const id = Tone.Transport.schedule((time) => {
-        player.start(time, timing.offsetSeconds, timing.sourceDurationToPlaySeconds);
-        player.stop(time + timing.durationSeconds);
-      }, tickTime(clip.startBeat));
-      this.scheduledIds.push(id);
-    } catch {
+        const callback = (time: number) => {
+          const clippedByCycle = durationSeconds < segment.durationSeconds;
+          const cutFade = clippedByCycle ? Math.min(0.005, durationSeconds / 2) : 0;
+          const lastEnvelopePoint = durationSeconds - cutFade;
+          const fadeInEnd = Math.min(segment.fadeInSeconds, lastEnvelopePoint);
+          const fadeOutStart = segment.durationSeconds - segment.fadeOutSeconds;
+          const points = [0, fadeInEnd, fadeOutStart, lastEnvelopePoint]
+            .filter((point) => point >= 0 && point <= lastEnvelopePoint)
+            .sort((left, right) => left - right)
+            .filter((point, index, all) => index === 0 || point > all[index - 1]);
+          const parameter = gain.gain;
+          parameter.cancelScheduledValues(time);
+          points.forEach((point, index) => {
+            const value = baseGain * segmentGainAt(segment, point);
+            if (index === 0) parameter.setValueAtTime(value, time);
+            else parameter.linearRampToValueAtTime(value, time + point);
+          });
+          if (clippedByCycle) {
+            parameter.linearRampToValueAtTime(0, time + durationSeconds);
+          }
+          player.playbackRate = segment.playbackRate;
+          player.start(time, segment.offsetSeconds, durationSeconds * segment.playbackRate);
+        };
+        const id = once
+          ? Tone.Transport.scheduleOnce(callback, tickTime(entryBeat))
+          : Tone.Transport.schedule(callback, tickTime(entryBeat));
+        this.scheduledIds.push(id);
+      };
+
+      const entryBeat = this.cycleEnabled ? Math.max(this.cycleStart, clip.startBeat) : clip.startBeat;
+      if (!this.cycleEnabled || entryBeat < this.cycleEnd) scheduleAt(entryBeat, false);
+      if (startBeat !== undefined && startBeat > entryBeat && startBeat < clip.startBeat + clip.lengthBeats) {
+        scheduleAt(startBeat, true);
+      }
+    } catch (error) {
+      if (generation === this.generation) logError("AudioEngine.scheduleAudioClip", error);
+      this.players.delete(player);
       player.dispose();
       gain.dispose();
       source.revoke?.();
@@ -525,8 +736,9 @@ export class AudioEngine {
     return Math.max(0, Math.min(1, finiteLevel));
   }
 
-  private startBeatLoop(onBeat: BeatCallback, onEnded: EndCallback, onMeter?: MeterCallback) {
+  private startBeatLoop(onBeat: BeatCallback, onEnded: EndCallback, onMeter: MeterCallback | undefined, generation: number) {
     const loop = () => {
+      if (generation !== this.generation) return;
       const beat = Tone.Transport.ticks / PPQ;
       onBeat(beat);
       onMeter?.(this.getMasterLevel());

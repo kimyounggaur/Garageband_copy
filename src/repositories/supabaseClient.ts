@@ -1,4 +1,5 @@
 import type { CloudIdentity, CloudRole } from "./cloudTypes";
+import { logError } from "../utils/logger";
 
 type SupabaseSessionResponse = {
   access_token: string;
@@ -33,7 +34,8 @@ export function readCloudIdentity(): CloudIdentity | undefined {
   try {
     const raw = globalThis.localStorage?.getItem(IDENTITY_KEY);
     return raw ? (JSON.parse(raw) as CloudIdentity) : undefined;
-  } catch {
+  } catch (error) {
+    logError("supabaseClient.readCloudIdentity", error);
     return undefined;
   }
 }

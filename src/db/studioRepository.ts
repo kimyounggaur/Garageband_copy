@@ -83,6 +83,18 @@ export function getRepositoryMode() {
   return repositoryMode;
 }
 
+export function projectRepositoryForMode(mode: RepositoryMode) {
+  if (mode === "mockCloud") return mockCloudRepositories.projects;
+  if (mode === "supabase") return supabaseRepositories.projects;
+  return localRepositories.projects;
+}
+
+export function audioAssetRepositoryForMode(mode: RepositoryMode) {
+  if (mode === "mockCloud") return mockCloudRepositories.audioAssets;
+  if (mode === "supabase") return supabaseRepositories.audioAssets;
+  return localRepositories.audioAssets;
+}
+
 export function setRepositoryMode(mode: RepositoryMode) {
   if (repositoryMode === mode) return;
   repositoryMode = mode;
@@ -97,6 +109,21 @@ export function subscribeRepositoryMode(listener: (mode: RepositoryMode) => void
   };
 }
 
+function currentProjectKey(mode: RepositoryMode) {
+  return `webband.currentProject.${mode}`;
+}
+
+/** The open-project pointer follows navigation, not completion order of background saves. */
+export function markCurrentProject(projectId: string, mode: RepositoryMode = getRepositoryMode()) {
+  globalThis.localStorage?.setItem(currentProjectKey(mode), projectId);
+}
+
 export async function loadLastProject() {
-  return activeRepositories().projects.loadLastProject();
+  const repositories = activeRepositories();
+  const currentId = globalThis.localStorage?.getItem(currentProjectKey(repositoryMode));
+  if (currentId) {
+    const current = await repositories.projects.loadProject(currentId);
+    if (current) return current;
+  }
+  return repositories.projects.loadLastProject();
 }

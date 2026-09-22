@@ -6,25 +6,27 @@ import { InstrumentLibrary } from "../library/InstrumentLibrary";
 import { LoopBrowser } from "../library/LoopBrowser";
 import { MixerPanel } from "../mixer/MixerPanel";
 import { AudioAssetsPanel } from "../recording/AudioAssetsPanel";
-import { RecorderPanel } from "../recording/RecorderPanel";
+import { RecorderPanel, type RecordingControls } from "../recording/RecorderPanel";
 import { useDawStore } from "../../store/useDawStore";
+import { uiText } from "../../utils/uiText";
 
 type StudioTab = "library" | "loops" | "audio" | "smart" | "lesson";
 
 type StudioPanelProps = {
   mode: StudioMode;
   lessonContent: ReactNode;
+  recordingControls: RecordingControls;
 };
 
 const tabs: Array<{ value: StudioTab; label: string; icon: ReactNode }> = [
-  { value: "library", label: "Library", icon: <Keyboard size={14} /> },
-  { value: "loops", label: "Loops", icon: <Music2 size={14} /> },
-  { value: "audio", label: "Audio", icon: <Mic size={14} /> },
-  { value: "smart", label: "Smart", icon: <SlidersHorizontal size={14} /> },
-  { value: "lesson", label: "Lesson", icon: <GraduationCap size={14} /> }
+  { value: "library", label: "악기", icon: <Keyboard size={14} /> },
+  { value: "loops", label: uiText.common.loop, icon: <Music2 size={14} /> },
+  { value: "audio", label: "오디오", icon: <Mic size={14} /> },
+  { value: "smart", label: uiText.common.mixer, icon: <SlidersHorizontal size={14} /> },
+  { value: "lesson", label: "수업", icon: <GraduationCap size={14} /> }
 ];
 
-export function StudioPanel({ mode, lessonContent }: StudioPanelProps) {
+export function StudioPanel({ mode, lessonContent, recordingControls }: StudioPanelProps) {
   const [tab, setTab] = useState<StudioTab>("loops");
   const addTrack = useDawStore((state) => state.addTrack);
 
@@ -39,14 +41,14 @@ export function StudioPanel({ mode, lessonContent }: StudioPanelProps) {
       return (
         <aside className="panel grid h-full min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg">
           <div className="flex items-center justify-between border-b border-graphite-700 px-3">
-            <span className="panel-title">Audio Recorder</span>
+            <span className="panel-title">오디오 녹음</span>
             <button className="studio-button h-8 px-2 text-[11px]" onClick={() => addTrack("audio", "오디오")}>
               <Plus size={14} />
-              Track
+              {uiText.common.track} 추가
             </button>
           </div>
           <div className="min-h-0 space-y-2 overflow-y-auto p-2">
-            <RecorderPanel />
+            <RecorderPanel controls={recordingControls} />
             <AudioAssetsPanel />
           </div>
         </aside>
@@ -63,7 +65,7 @@ export function StudioPanel({ mode, lessonContent }: StudioPanelProps) {
           <button
             key={item.value}
             className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-md px-1 text-[11px] font-black transition ${
-              tab === item.value ? "bg-accent-sel text-graphite-975" : "text-slate-300 hover:bg-white/[0.08]"
+              tab === item.value ? "bg-state-selected text-ink-selected" : "text-ink-body hover:bg-white/[0.08]"
             }`}
             onClick={() => setTab(item.value)}
             title={item.label}

@@ -1,11 +1,27 @@
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tempRoot = join(tmpdir(), `webband-studio-build-${process.pid}`);
+
+function assertWithin(target, parent, label) {
+  const absoluteTarget = resolve(target);
+  const absoluteParent = resolve(parent);
+  const pathFromParent = relative(absoluteParent, absoluteTarget);
+  if (!pathFromParent || isAbsolute(pathFromParent) || pathFromParent.startsWith("..") || resolve(absoluteParent, pathFromParent) !== absoluteTarget) {
+    throw new Error(`Unsafe ${label} path: ${absoluteTarget}`);
+  }
+  return absoluteTarget;
+}
+
+function verifiedTempRoot() {
+  const target = assertWithin(tempRoot, tmpdir(), "temporary build");
+  if (basename(target) !== `webband-studio-build-${process.pid}`) throw new Error("Unexpected temporary build name");
+  return target;
+}
 const filesToCopy = [
   "index.html",
   "package.json",
@@ -44,7 +60,7 @@ function copyRecursive(source, destination) {
 function copyProject() {
   console.log(`> prepare ${tempRoot}`);
   try {
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(verifiedTempRoot(), { recursive: true, force: true });
     mkdirSync(tempRoot, { recursive: true });
 
     for (const item of filesToCopy) {
@@ -64,9 +80,11 @@ function copyProject() {
 }
 
 function mirrorDist() {
+  const source = assertWithin(join(tempRoot, "dist"), verifiedTempRoot(), "build source");
+  const destination = assertWithin(join(root, "dist"), root, "build destination");
   const result = spawnSync(
     "robocopy",
-    [join(tempRoot, "dist"), join(root, "dist"), "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NC", "/NS"],
+    [source, destination, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NC", "/NS"],
     { stdio: "inherit" }
   );
   if (result.error) {
@@ -84,9 +102,13 @@ function syncPagesDocs(distRoot = join(root, "dist")) {
   mkdirSync(docsRoot, { recursive: true });
   copyFileSync(join(distRoot, "index.html"), join(docsRoot, "index.html"));
   const assetsRoot = join(docsRoot, "assets");
+  rmSync(assertWithin(assetsRoot, root, "docs assets"), { recursive: true, force: true });
   mkdirSync(assetsRoot, { recursive: true });
   copyRecursive(join(distRoot, "assets"), assetsRoot);
-  for (const publicDirectory of ["samples", "manual"]) {
+  for (const publicFile of ["manifest.webmanifest", "sw.js"]) {
+    copyFileSync(join(distRoot, publicFile), join(docsRoot, publicFile));
+  }
+  for (const publicDirectory of ["samples", "manual", "icons", "og"]) {
     if (existsSync(join(distRoot, publicDirectory))) {
       copyRecursive(join(distRoot, publicDirectory), join(docsRoot, publicDirectory));
     }
@@ -99,17 +121,19 @@ try {
   run(process.execPath, [join(root, "node_modules", "typescript", "bin", "tsc"), "-b"], root);
   if (process.platform !== "win32") {
     run(process.execPath, [join(root, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], root);
+    run(process.execPath, [join(root, "scripts", "generate-pwa.mjs"), join(root, "dist")], root);
     syncPagesDocs();
     process.exit(0);
   }
 
   copyProject();
   run(process.execPath, [join(tempRoot, "node_modules", "vite", "bin", "vite.js"), "build", "--base", "./"], tempRoot);
+  run(process.execPath, [join(root, "scripts", "generate-pwa.mjs"), join(tempRoot, "dist")], root);
   console.log("> copy dist");
   mirrorDist();
   syncPagesDocs(join(tempRoot, "dist"));
   console.log("> build complete");
   process.exitCode = 0;
 } finally {
-  rmSync(tempRoot, { recursive: true, force: true });
+  rmSync(verifiedTempRoot(), { recursive: true, force: true });
 }

@@ -6,6 +6,7 @@ export type InstrumentPatch = {
   category: InstrumentCategory;
   iconKey: "drum" | "bass" | "keys" | "synth" | "fx";
   description: string;
+  samplePackId?: string;
   synth: {
     oscillator: "sine" | "triangle" | "square" | "sawtooth";
     attack: number;
@@ -71,6 +72,15 @@ export const INSTRUMENT_PATCHES: InstrumentPatch[] = [
     iconKey: "fx",
     description: "Simple tonal effects for risers and accents.",
     synth: { oscillator: "triangle", attack: 0.02, decay: 0.16, sustain: 0.34, release: 0.5 }
+  },
+  {
+    id: "webband-test-tone",
+    name: "테스트 톤 (악기 음원 아님)",
+    category: "Keys",
+    iconKey: "keys",
+    description: "자체 생성 사인파 테스트 파일입니다. 실제 악기 음원이 아닙니다.",
+    samplePackId: "webband-test-tones",
+    synth: { oscillator: "sine", attack: 0.01, decay: 0.1, sustain: 0.55, release: 0.15 }
   }
 ];
 

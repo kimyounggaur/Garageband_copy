@@ -25,12 +25,12 @@ export function getTheoryHint(project: Project) {
   if (analysis.noteCount === 0) return undefined;
 
   if (analysis.pitchClassNames.length < 3) {
-    return "사용한 음 종류가 적습니다. 3~5개의 음으로 작은 질문-대답 패턴을 만들어보세요.";
+    return `사용한 음 종류는 ${analysis.pitchClassNames.length}개입니다. 다른 음 하나를 더 넣어 앞뒤 느낌을 비교해 보세요.`;
   }
 
   if (!analysis.hasStableBeginnerRange) {
-    return `사용한 음은 ${analysis.pitchClassNames.join(", ")}입니다. 음역이 ${analysis.rangeSemitones}반음이라 넓게 들릴 수 있으니 중심 음 주변으로 조금 모아보세요.`;
+    return `사용한 음은 ${analysis.pitchClassNames.join(", ")}이고 음역은 ${analysis.rangeSemitones}반음입니다. 다음 시도에서는 한 구간의 음역을 좁혀 차이를 들어보세요.`;
   }
 
-  return `사용한 음은 ${analysis.pitchClassNames.join(", ")}입니다. ${analysis.rangeSemitones}반음 안에서 움직여 초보자 멜로디로 안정적입니다.`;
+  return `사용한 음은 ${analysis.pitchClassNames.join(", ")}이고 음역은 ${analysis.rangeSemitones}반음입니다. 한 구간에서 음 하나를 바꿔 느낌을 비교해 보세요.`;
 }

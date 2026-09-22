@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { uiText } from "../../utils/uiText";
 import { buildChordNotes, buildDiatonicChordStrips, type ChordStrip, type TouchNote } from "../../utils/touchInstruments";
 import { Play, Plus } from "../icons";
 import type { TouchInstrumentContext } from "./TouchInstruments";
@@ -38,23 +39,23 @@ export function ChordStrips({ context }: { context: TouchInstrumentContext }) {
 
   return (
     <div className="grid min-h-full gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-      <div className="min-w-0 rounded-md border border-white/10 bg-black/20 p-3">
+      <div className="min-w-0 rounded-md border border-line bg-black/20 p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="panel-title">Chord Strips</span>
-          <span className="text-xs font-black text-slate-300">{context.projectKey}</span>
+          <span className="panel-title">코드 스트립</span>
+          <span className="text-xs font-black text-ink-body">{context.projectKey}</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
           {chords.map((chord) => (
             <button
               key={chord.id}
-              className="flex h-32 min-w-0 flex-col justify-between rounded-md border border-white/10 bg-gradient-to-b from-white/[0.09] to-white/[0.035] p-2 text-left transition hover:border-accent-sel hover:bg-accent-sel/10 active:translate-y-0.5"
+              className="flex h-32 min-w-0 flex-col justify-between rounded-md border border-line bg-gradient-to-b from-white/[0.09] to-white/[0.035] p-2 text-left transition hover:border-accent-sel hover:bg-accent-sel/10 active:translate-y-0.5"
               onPointerDown={() => playChord(chord)}
               title={chord.name}
               aria-label={chord.name}
             >
-              <span className="text-lg font-black text-slate-100">{chord.roman}</span>
-              <span className="truncate text-xs font-bold text-slate-400">{chord.name}</span>
+              <span className="text-lg font-black text-ink-high">{chord.roman}</span>
+              <span className="truncate text-xs font-bold text-ink-body">{chord.name}</span>
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-500">
                 {chord.notes.join(" ")}
               </span>
@@ -63,20 +64,20 @@ export function ChordStrips({ context }: { context: TouchInstrumentContext }) {
         </div>
       </div>
 
-      <div className="space-y-3 rounded-md border border-white/10 bg-white/[0.04] p-3">
+      <div className="space-y-3 rounded-md border border-line bg-white/[0.04] p-3">
         <div className="grid grid-cols-3 gap-1">
           {(["strum", "pulse", "arp"] as const).map((item) => (
             <button
               key={item}
-              className={`studio-button h-8 px-2 text-[11px] ${mode === item ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
+              className={`studio-button h-8 px-2 text-[11px] ${mode === item ? "border-accent-sel bg-accent-sel/15 text-ink-accent" : ""}`}
               onClick={() => setMode(item)}
             >
-              {item}
+              {item === "strum" ? "스트럼" : item === "pulse" ? "펄스" : "아르페지오"}
             </button>
           ))}
         </div>
-        <label className="block text-xs font-bold text-slate-400">
-          Velocity
+        <label className="block text-xs font-bold text-ink-body">
+          연주 세기
           <input
             className="mt-2 w-full"
             type="range"
@@ -87,8 +88,8 @@ export function ChordStrips({ context }: { context: TouchInstrumentContext }) {
             onChange={(event) => setVelocity(Number(event.target.value))}
           />
         </label>
-        <label className="block text-xs font-bold text-slate-400">
-          Strum
+        <label className="block text-xs font-bold text-ink-body">
+          스트럼 간격
           <input
             className="mt-2 w-full"
             type="range"
@@ -99,8 +100,8 @@ export function ChordStrips({ context }: { context: TouchInstrumentContext }) {
             onChange={(event) => setStrum(Number(event.target.value))}
           />
         </label>
-        <label className="block text-xs font-bold text-slate-400">
-          Length
+        <label className="block text-xs font-bold text-ink-body">
+          길이
           <input
             className="mt-2 w-full"
             type="range"
@@ -114,18 +115,18 @@ export function ChordStrips({ context }: { context: TouchInstrumentContext }) {
         <div className="grid grid-cols-2 gap-2">
           <button className="studio-button" onClick={() => playChord(chords[0], false)}>
             <Play size={14} />
-            Play I
+            {uiText.common.play} I
           </button>
           <button className="studio-button" onClick={() => playChord(chords[0], true)}>
             <Plus size={14} />
-            Write I
+            {uiText.common.write} I
           </button>
         </div>
         <button
-          className={`studio-button w-full ${writeArmed ? "border-meter-rose bg-meter-rose/15 text-white" : ""}`}
+          className={`studio-button w-full ${writeArmed ? "border-meter-rose bg-meter-rose/15 text-ink-high" : ""}`}
           onClick={() => setWriteArmed((value) => !value)}
         >
-          {writeArmed || context.isRecording ? "Write On" : "Write Off"}
+          {writeArmed || context.isRecording ? uiText.common.writeOn : uiText.common.writeOff}
         </button>
       </div>
     </div>

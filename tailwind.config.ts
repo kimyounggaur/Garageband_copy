@@ -7,6 +7,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        ink: {
+          high: themeColor("ink-high"),
+          body: themeColor("ink-body"),
+          muted: themeColor("ink-muted"),
+          disabled: themeColor("ink-disabled"),
+          selected: themeColor("ink-selected"),
+          onBright: themeColor("ink-on-bright"),
+          onRecord: themeColor("ink-on-record"),
+          accent: themeColor("ink-accent")
+        },
+        surface: {
+          base: themeColor("surface-base"),
+          panel: themeColor("surface-panel"),
+          raised: themeColor("surface-raised")
+        },
+        line: {
+          DEFAULT: themeColor("line-default"),
+          strong: themeColor("line-strong")
+        },
+        state: {
+          selected: themeColor("state-selected")
+        },
         graphite: {
           975: themeColor("graphite-975"),
           950: themeColor("graphite-950"),

@@ -20,6 +20,8 @@ npm run qa:smoke
 
 빌드는 GitHub Pages의 상대 경로 배포를 위해 `base: ./`로 생성됩니다.
 
+배포는 GitHub Actions가 `dist`를 업로드하며, `docs/`는 로컬 확인용 미러입니다.
+
 ## 수업 흐름
 
 1. 교사 보기에서 반을 만들고 학생을 등록합니다.

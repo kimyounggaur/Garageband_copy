@@ -46,7 +46,7 @@ export function ChannelStrip({
       <div className="flex items-center gap-2">
         <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
         <input
-          className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-xs font-black text-slate-100 outline-none focus:border-graphite-700 focus:bg-black/20"
+          className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-xs font-black text-ink-high outline-none focus-visible:border-ink-accent focus-visible:ring-2 focus-visible:ring-ink-accent"
           value={track.name}
           onChange={(event) => onRename(event.target.value)}
           onClick={(event) => event.stopPropagation()}
@@ -69,7 +69,7 @@ export function ChannelStrip({
         {track.type === "audio" ? (
           <button
             className={`h-7 rounded-md text-[11px] font-black transition ${
-              track.recordEnabled ? "bg-accent-record text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"
+              track.recordEnabled ? "bg-accent-record text-ink-onRecord" : "bg-surface-raised/50 text-ink-body hover:bg-surface-raised"
             }`}
             onClick={(event) => {
               event.stopPropagation();
@@ -86,7 +86,7 @@ export function ChannelStrip({
         )}
         <button
           className={`h-7 rounded-md text-[11px] font-black transition ${
-            track.muted ? "bg-accent-record text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"
+            track.muted ? "bg-accent-record text-ink-onRecord" : "bg-surface-raised/50 text-ink-body hover:bg-surface-raised"
           }`}
           onClick={(event) => {
             event.stopPropagation();
@@ -98,7 +98,7 @@ export function ChannelStrip({
         </button>
         <button
           className={`h-7 rounded-md text-[11px] font-black transition ${
-            track.solo ? "bg-accent-cycle text-graphite-975" : "bg-white/[0.075] text-slate-300 hover:bg-white/[0.11]"
+            track.solo ? "bg-accent-cycle text-ink-onBright" : "bg-surface-raised/50 text-ink-body hover:bg-surface-raised"
           }`}
           onClick={(event) => {
             event.stopPropagation();

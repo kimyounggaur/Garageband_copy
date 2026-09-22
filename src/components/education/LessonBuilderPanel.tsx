@@ -1,11 +1,12 @@
 import { Download, FileInput, Plus } from "../icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { downloadBlob } from "../../audio/exportProject";
 import { lessonRepository } from "../../db/studioRepository";
 import type { Lesson, LessonDifficulty, Mission, MissionCheck, Rubric } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
 import { makeId } from "../../utils/id";
 import { normalizeProject } from "../../utils/projectMigration";
+import { setAppBusy, setUnsavedDraft } from "../../utils/unsavedDrafts";
 
 type MissionPreset = "length" | "midi" | "audio" | "roles";
 
@@ -77,91 +78,108 @@ export function LessonBuilderPanel({ lessons, onRefresh }: Props) {
   const [estimatedMinutes, setEstimatedMinutes] = useState(25);
   const [missionPreset, setMissionPreset] = useState<MissionPreset>("length");
   const [missionTarget, setMissionTarget] = useState(32);
+  useEffect(() => () => {
+    setUnsavedDraft("lesson-builder", false);
+    setAppBusy("lesson-builder-save", false);
+  }, []);
 
   async function createLesson() {
-    const now = Date.now();
-    const templateProject = normalizeProject({
-      ...project,
-      id: makeId("project"),
-      name: `${title.trim() || "커스텀 레슨"} 템플릿`,
-      assignmentId: undefined,
-      classId: undefined,
-      studentId: undefined,
-      lessonId: undefined,
-      createdAt: now,
-      updatedAt: now
-    });
-    const lesson: Lesson = {
-      id: makeId("lesson"),
-      title: title.trim() || "커스텀 레슨",
-      goal: goal.trim() || "학생이 프로젝트를 완성합니다.",
-      difficulty,
-      estimatedMinutes: Math.max(5, Math.round(estimatedMinutes)),
-      templateProject,
-      missions: [missionFromPreset(missionPreset, missionTarget)],
-      rubric: DEFAULT_RUBRIC,
-      custom: true,
-      createdAt: now,
-      updatedAt: now
-    };
-    await lessonRepository.saveLesson(lesson);
-    await onRefresh();
+    setAppBusy("lesson-builder-save", true);
+    try {
+      const now = Date.now();
+      const templateProject = normalizeProject({
+        ...project,
+        id: makeId("project"),
+        name: `${title.trim() || "커스텀 레슨"} 템플릿`,
+        assignmentId: undefined,
+        classId: undefined,
+        studentId: undefined,
+        lessonId: undefined,
+        createdAt: now,
+        updatedAt: now
+      });
+      const lesson: Lesson = {
+        id: makeId("lesson"),
+        title: title.trim() || "커스텀 레슨",
+        goal: goal.trim() || "학생이 프로젝트를 완성합니다.",
+        difficulty,
+        estimatedMinutes: Math.max(5, Math.round(estimatedMinutes)),
+        templateProject,
+        missions: [missionFromPreset(missionPreset, missionTarget)],
+        rubric: DEFAULT_RUBRIC,
+        custom: true,
+        createdAt: now,
+        updatedAt: now
+      };
+      await lessonRepository.saveLesson(lesson);
+      await onRefresh();
+      setUnsavedDraft("lesson-builder", false);
+    } finally {
+      setAppBusy("lesson-builder-save", false);
+    }
   }
 
   async function importLesson(file?: File) {
     if (!file) return;
-    const raw = await file.text();
-    const parsed = JSON.parse(raw) as Lesson;
-    const now = Date.now();
-    await lessonRepository.saveLesson({
-      ...parsed,
-      id: parsed.id || makeId("lesson"),
-      custom: true,
-      createdAt: parsed.createdAt ?? now,
-      updatedAt: now
-    });
-    await onRefresh();
+    setAppBusy("lesson-builder-save", true);
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw) as Lesson;
+      const now = Date.now();
+      await lessonRepository.saveLesson({
+        ...parsed,
+        id: parsed.id || makeId("lesson"),
+        custom: true,
+        createdAt: parsed.createdAt ?? now,
+        updatedAt: now
+      });
+      await onRefresh();
+    } finally {
+      setAppBusy("lesson-builder-save", false);
+    }
   }
 
   return (
-    <div className="rounded-md border border-white/10 bg-black/20 p-3">
-      <div className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">레슨 빌더</div>
+    <div className="rounded-md border border-line bg-surface-raised/40 p-3" onChangeCapture={(event) => {
+      if (!(event.target instanceof HTMLInputElement && event.target.type === "file")) setUnsavedDraft("lesson-builder", true);
+    }}>
+      <div className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">레슨 빌더</div>
       <div className="space-y-2">
-        <label className="block text-xs font-bold text-slate-400">
+        <label className="block text-xs font-bold text-ink-body">
           레슨 제목
-          <input className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input className="mt-1 h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
-        <label className="block text-xs font-bold text-slate-400">
+        <label className="block text-xs font-bold text-ink-body">
           목표
-          <textarea className="mt-1 min-h-16 w-full resize-none rounded border border-white/10 bg-studio-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={goal} onChange={(event) => setGoal(event.target.value)} />
+          <textarea className="mt-1 min-h-16 w-full resize-none rounded border border-line bg-surface-base px-2 py-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={goal} onChange={(event) => setGoal(event.target.value)} />
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <label className="block text-xs font-bold text-slate-400">
+          <label className="block text-xs font-bold text-ink-body">
             난이도
-            <select className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={difficulty} onChange={(event) => setDifficulty(event.target.value as LessonDifficulty)}>
+            <select className="mt-1 h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={difficulty} onChange={(event) => setDifficulty(event.target.value as LessonDifficulty)}>
               <option value="starter">시작</option>
               <option value="builder">확장</option>
               <option value="challenge">도전</option>
             </select>
           </label>
-          <label className="block text-xs font-bold text-slate-400">
+          <label className="block text-xs font-bold text-ink-body">
             예상 시간
-            <input className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" type="number" min={5} value={estimatedMinutes} onChange={(event) => setEstimatedMinutes(Number(event.target.value))} />
+            <input className="mt-1 h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" type="number" min={5} value={estimatedMinutes} onChange={(event) => setEstimatedMinutes(Number(event.target.value))} />
           </label>
         </div>
         <div className="grid grid-cols-[1fr_88px] gap-2">
-          <label className="block text-xs font-bold text-slate-400">
+          <label className="block text-xs font-bold text-ink-body">
             미션 조건
-            <select className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={missionPreset} onChange={(event) => setMissionPreset(event.target.value as MissionPreset)}>
+            <select className="mt-1 h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={missionPreset} onChange={(event) => setMissionPreset(event.target.value as MissionPreset)}>
               <option value="length">곡 길이</option>
               <option value="midi">미디 노트</option>
               <option value="audio">오디오 클립</option>
               <option value="roles">파트 구성</option>
             </select>
           </label>
-          <label className="block text-xs font-bold text-slate-400">
+          <label className="block text-xs font-bold text-ink-body">
             목표값
-            <input className="mt-1 h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" type="number" min={1} value={missionTarget} onChange={(event) => setMissionTarget(Number(event.target.value))} />
+            <input className="mt-1 h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" type="number" min={1} value={missionTarget} onChange={(event) => setMissionTarget(Number(event.target.value))} />
           </label>
         </div>
         <button className="studio-button w-full" onClick={() => void createLesson()}>
@@ -180,13 +198,13 @@ export function LessonBuilderPanel({ lessons, onRefresh }: Props) {
 
       <div className="mt-3 space-y-1">
         {lessons.length === 0 ? (
-          <div className="rounded border border-white/10 bg-white/[0.045] p-2 text-xs text-slate-500">저장한 커스텀 레슨이 없습니다.</div>
+          <div className="rounded border border-line bg-surface-raised/50 p-2 text-xs text-ink-body">저장한 커스텀 레슨이 없습니다.</div>
         ) : (
           lessons.map((lesson) => (
-            <div key={lesson.id} className="flex items-center gap-1 rounded border border-white/10 bg-white/[0.045] p-1">
+            <div key={lesson.id} className="flex items-center gap-1 rounded border border-line bg-surface-raised/50 p-1">
               <div className="min-w-0 flex-1 px-1">
-                <div className="truncate text-xs font-black text-slate-100">{lesson.title}</div>
-                <div className="text-[10px] font-semibold text-slate-500">{lesson.estimatedMinutes}분 · 미션 {lesson.missions.length}개</div>
+                <div className="truncate text-xs font-black text-ink-high">{lesson.title}</div>
+                <div className="text-[10px] font-semibold text-ink-body">{lesson.estimatedMinutes}분 · 미션 {lesson.missions.length}개</div>
               </div>
               <button className="studio-icon-button h-7 w-7" title="레슨 내보내기" aria-label="레슨 내보내기" onClick={() => exportLesson(lesson)}>
                 <Download size={12} />

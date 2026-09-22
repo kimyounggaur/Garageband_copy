@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="웹밴드 스튜디오">
+  <rect width="64" height="64" rx="15" fill="#111827"/>
+  <rect x="7" y="7" width="50" height="50" rx="10" fill="#162334" stroke="#314458"/>
+  <path d="M16 39V27m11 21V17m11 21V24m11 18V20" stroke="#4bd3eb" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="16" cy="27" r="4" fill="#f5b95e"/>
+  <circle cx="27" cy="36" r="4" fill="#9b8af8"/>
+  <circle cx="38" cy="24" r="4" fill="#6ee7b7"/>
+  <circle cx="49" cy="33" r="4" fill="#f27f91"/>
+</svg>

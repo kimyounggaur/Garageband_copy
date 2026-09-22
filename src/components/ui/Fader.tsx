@@ -34,7 +34,7 @@ export function Fader({ label, value, min = 0, max = 1, step = 0.01, orientation
         aria-label={label}
         aria-valuetext={`${percent}%`}
       />
-      <span className="min-w-8 text-center text-[11px] font-bold text-slate-400">{percent}</span>
+      <span className="min-w-8 text-center text-[11px] font-bold text-ink-body">{percent}</span>
     </label>
   );
 }

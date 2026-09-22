@@ -1,6 +1,7 @@
 import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { getClipPeakOverview } from "../../audio/clipAudio";
 import type { Clip } from "../../types/project";
+import { logError } from "../../utils/logger";
 
 type AudioWaveformProps = {
   clip: Clip;
@@ -82,7 +83,8 @@ export function AudioWaveform({
       .then((nextOverview) => {
         if (!cancelled) setOverview(nextOverview);
       })
-      .catch(() => {
+      .catch((error) => {
+        logError("AudioWaveform.getClipPeakOverview", error);
         if (!cancelled) setOverview(undefined);
       });
     return () => {

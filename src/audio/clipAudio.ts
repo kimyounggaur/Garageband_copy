@@ -1,8 +1,9 @@
 import { audioAssetRepository } from "../db/studioRepository";
 import type { Clip } from "../types/project";
+import { logError } from "../utils/logger";
 import { resolveClipAudioTiming } from "./clipAudioMath";
-export { clipGain, resolveClipAudioTiming, resolveClipFadeDurations, secondsPerBeat } from "./clipAudioMath";
-export type { ClipAudioTiming, ClipFadeDurations } from "./clipAudioMath";
+export { clipGain, resolveClipAudioTiming, resolveClipAudioSegment, resolveClipFadeDurations, secondsPerBeat, segmentGainAt } from "./clipAudioMath";
+export type { ClipAudioTiming, ClipAudioSegment, ClipFadeDurations } from "./clipAudioMath";
 
 const MAX_PEAK_CACHE_ENTRIES = 24;
 const MAX_SAMPLES_PER_PEAK_BIN = 2048;
@@ -37,7 +38,8 @@ export async function getClipAudioBlob(clip: Clip) {
     const response = await fetch(clip.audioUrl);
     if (!response.ok) return undefined;
     return response.blob();
-  } catch {
+  } catch (error) {
+    logError("clipAudio.getClipAudioBlob", error);
     return undefined;
   }
 }
@@ -62,14 +64,19 @@ async function decodeAudioBlob(blob: Blob) {
     const arrayBuffer = await blob.arrayBuffer();
     return await context.decodeAudioData(arrayBuffer);
   } finally {
-    await context.close().catch(() => undefined);
+    await context.close().catch((error) => {
+      logError("clipAudio.decodeAudioBlob.close", error);
+    });
   }
 }
 
 export async function getClipPeakOverview(clip: Clip, bins = 512): Promise<PeakOverview | undefined> {
   const key = audioKey(clip, bins);
   const cached = peakCache.get(key);
-  if (cached) return cached.catch(() => undefined);
+  if (cached) return cached.catch((error) => {
+    logError("clipAudio.getClipPeakOverview.cached", error);
+    return undefined;
+  });
 
   const promise = (async () => {
     const blob = await getClipAudioBlob(clip);
@@ -96,7 +103,10 @@ export async function getClipPeakOverview(clip: Clip, bins = 512): Promise<PeakO
   })();
 
   rememberPeak(key, promise);
-  return promise.catch(() => undefined);
+  return promise.catch((error) => {
+    logError("clipAudio.getClipPeakOverview", error);
+    return undefined;
+  });
 }
 
 export async function measureClipPeak(clip: Clip, bpm: number) {
@@ -121,7 +131,8 @@ export async function measureClipPeak(clip: Clip, bpm: number) {
       normalizedGain: peak > 0.0001 ? Math.min(8, 0.95 / peak) : 1,
       durationSeconds: timing.durationSeconds
     };
-  } catch {
+  } catch (error) {
+    logError("clipAudio.measureClipPeak", error);
     return undefined;
   }
 }

@@ -1,11 +1,12 @@
 import { analyzeProjectNotes, getTheoryHint } from "../assist/musicTheory";
 import type { Clip, Project, Track, TrackRole } from "../types/project";
 import { trackRoleLabel } from "../utils/labels";
+import { barLengthBeats } from "../utils/meterMath";
 import { evaluateLesson, getProjectEndBeat } from "./evaluateMission";
 import { getLessonById } from "./lessons";
 import type { Assignment, Lesson, ReviewItem, ReviewNextAction, ReviewRubricCheck, ReviewRubricStatus, ReviewScore, ReviewSummary } from "./types";
 
-const MIN_PROJECT_BEATS = 32;
+const MIN_PROJECT_BARS = 8;
 const MIN_CLIP_BEATS = 1;
 const MIN_MIDI_NOTES = 6;
 
@@ -50,10 +51,10 @@ function shortClips(project: Project) {
 }
 
 function repeatedLoopCount(project: Project) {
-  return clips(project).filter((clip) => clip.type === "loop" && clip.lengthBeats >= 8).length;
+  return clips(project).filter((clip) => clip.type === "loop" && clip.lengthBeats >= 2 * barLengthBeats(project.timeSignature)).length;
 }
 
-function distinctSections(project: Project, minGapBeats = 24) {
+function distinctSections(project: Project, minGapBeats = 6 * barLengthBeats(project.timeSignature)) {
   const starts = clips(project)
     .map((clip) => clip.startBeat)
     .sort((a, b) => a - b);
@@ -70,8 +71,8 @@ function distinctSections(project: Project, minGapBeats = 24) {
   return sections;
 }
 
-function barsForBeat(beat: number) {
-  return Math.round((beat / 4) * 10) / 10;
+function barsForBeat(beat: number, project: Project) {
+  return Math.round((beat / barLengthBeats(project.timeSignature)) * 10) / 10;
 }
 
 function goodCheck(id: string, label: string, detail: string): ReviewRubricCheck {
@@ -90,7 +91,8 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
   const items: ReviewItem[] = [];
   const allClips = clips(project);
   const endBeat = getProjectEndBeat(project);
-  const bars = barsForBeat(endBeat);
+  const minimumProjectBeats = MIN_PROJECT_BARS * barLengthBeats(project.timeSignature);
+  const bars = barsForBeat(endBeat, project);
   const activeTracks = project.tracks.filter((track) => track.clips.length > 0);
   const emptyTracks = project.tracks.filter((track) => track.clips.length === 0);
   const tinyClips = shortClips(project);
@@ -105,14 +107,14 @@ function buildReviewItems(project: Project, lesson?: Lesson): ReviewItem[] {
   items.push({
     id: "length",
     title: "곡 길이",
-    severity: endBeat >= MIN_PROJECT_BEATS ? "good" : "warning",
+    severity: endBeat >= minimumProjectBeats ? "good" : "warning",
     category: "length",
     autoCheck: true,
     message:
-      endBeat >= MIN_PROJECT_BEATS
+      endBeat >= minimumProjectBeats
         ? `${bars}마디입니다. 제출 길이가 충분합니다.`
         : `지금은 ${bars}마디입니다. 8마디까지 늘려보세요.`,
-    detail: `현재 ${endBeat} / ${MIN_PROJECT_BEATS}박`
+    detail: `현재 ${endBeat} / ${minimumProjectBeats}박`
   });
 
   items.push({
@@ -287,6 +289,7 @@ function defaultRubric(project: Project): Lesson["rubric"] {
 function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assignment): ReviewRubricStatus[] {
   const rubric = assignment?.rubric ?? lesson?.rubric ?? defaultRubric(project);
   const endBeat = getProjectEndBeat(project);
+  const minimumProjectBeats = MIN_PROJECT_BARS * barLengthBeats(project.timeSignature);
   const notes = midiNoteCount(project);
   const audioCount = audioClipCount(project);
   const tinyClipCount = shortClips(project).length;
@@ -315,10 +318,10 @@ function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assig
       ];
     } else if (criterion.id === "structure") {
       autoChecks = [
-        endBeat >= MIN_PROJECT_BEATS
-          ? goodCheck("length", "8마디 이상", `${barsForBeat(endBeat)}마디 길이입니다.`)
+        endBeat >= minimumProjectBeats
+          ? goodCheck("length", "8마디 이상", `${barsForBeat(endBeat, project)}마디 길이입니다.`)
           : missingCheck("length", "8마디 이상", "클립을 늘려 8마디를 채우세요."),
-        sections >= 2 || endBeat >= 64
+        sections >= 2 || endBeat >= 2 * minimumProjectBeats
           ? goodCheck("sections", "구간이 나뉨", "두 구간 이상의 흐름이 보입니다.")
           : missingCheck("sections", "구간이 나뉨", "뒤쪽에 다른 클립이나 변화를 추가하세요.")
       ];
@@ -361,8 +364,8 @@ function buildRubricStatus(project: Project, lesson?: Lesson, assignment?: Assig
       manualChecks = [missingCheck("student-name", "제출 전 이름/파일 확인", "교사가 확인하거나 학생이 체크합니다.")];
     } else {
       autoChecks = [
-        endBeat >= MIN_PROJECT_BEATS
-          ? goodCheck("length", "길이 확인", `${barsForBeat(endBeat)}마디입니다.`)
+        endBeat >= minimumProjectBeats
+          ? goodCheck("length", "길이 확인", `${barsForBeat(endBeat, project)}마디입니다.`)
           : missingCheck("length", "길이 확인", "8마디 이상으로 늘려보세요."),
         clips(project).length > 0
           ? goodCheck("content", "소리 있음", "타임라인에 클립이 있습니다.")

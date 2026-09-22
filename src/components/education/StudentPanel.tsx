@@ -12,10 +12,13 @@ import {
 } from "../../db/studioRepository";
 import { cloneLessonProject, getLessonById, registerCustomLessons } from "../../education/lessons";
 import { createReviewSummary } from "../../education/reviewProject";
+import { effectiveDecision, effectiveStatusLabel } from "../../education/teacherReview";
 import type { Assignment, ClassRoom, Enrollment, Lesson, StudentProfile, Submission } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
 import { makeId } from "../../utils/id";
+import { logError } from "../../utils/logger";
 import { statusLabel } from "../../utils/labels";
+import { setAppBusy, whileAppBusy } from "../../utils/unsavedDrafts";
 import { normalizeProject } from "../../utils/projectMigration";
 import { AssistPanel } from "../assist/AssistPanel";
 
@@ -43,11 +46,14 @@ function exportJson(data: unknown, fileName: string) {
 }
 
 function assignmentStatus(assignment: Assignment, projectAssignmentId?: string, latest?: Submission) {
-  if (assignment.id === projectAssignmentId) return "진행 중";
-  if (!latest) return "시작 전";
-  if (latest.status === "needsWork" || !latest.reviewSnapshot.ready) return "보완 필요";
-  if (latest.status === "reviewed") return "검토 완료";
-  return "제출 완료";
+  const isCurrent = assignment.id === projectAssignmentId;
+  if (!latest) return isCurrent ? "진행 중" : "시작 전";
+  const decision = effectiveDecision(latest.reviewSnapshot);
+  const result = latest.reviewSnapshot.teacherDecision ? effectiveStatusLabel(latest.reviewSnapshot)
+    : decision === "needsWork" ? "보완 필요"
+    : decision === "ignore" ? "교사 검토 중"
+      : latest.status === "reviewed" ? "검토 완료" : "제출 완료";
+  return isCurrent ? `진행 중 · ${result}` : result;
 }
 
 export function StudentPanel() {
@@ -63,6 +69,10 @@ export function StudentPanel() {
   const [selectedStudentId, setSelectedStudentId] = useState(() => globalThis.localStorage?.getItem(STUDENT_KEY) ?? "");
   const [newStudentName, setNewStudentName] = useState("내 이름");
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
+  useEffect(() => {
+    setAppBusy("student-submit", submitStatus === "working");
+    return () => setAppBusy("student-submit", false);
+  }, [submitStatus]);
   const currentAssignment = assignments.find((assignment) => assignment.id === project.assignmentId);
   const currentStudent = students.find((student) => student.id === selectedStudentId);
   const currentClassIds = new Set(enrollments.filter((enrollment) => enrollment.studentId === selectedStudentId).map((enrollment) => enrollment.classId));
@@ -177,7 +187,8 @@ export function StudentPanel() {
       });
       setSubmitStatus("done");
       await refresh();
-    } catch {
+    } catch (error) {
+      logError("StudentPanel.handleSubmit", error);
       setSubmitStatus("error");
     }
   }
@@ -188,7 +199,7 @@ export function StudentPanel() {
 
   return (
     <aside className="panel grid min-h-0 grid-rows-[44px_minmax(0,1fr)] rounded-lg">
-      <div className="flex items-center justify-between border-b border-white/10 px-3">
+      <div className="flex items-center justify-between border-b border-line px-3">
         <span className="panel-title">학생 보기</span>
         <button className="studio-icon-button h-7 w-7" onClick={() => void refresh()} title="과제 새로고침" aria-label="과제 새로고침">
           <RefreshCcw size={13} />
@@ -196,9 +207,9 @@ export function StudentPanel() {
       </div>
 
       <div className="min-h-0 overflow-y-auto p-3">
-        <div className="rounded-md border border-white/10 bg-black/20 p-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">내 정보</div>
-          <select className="h-8 w-full rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={selectedStudentId} onChange={(event) => selectStudent(event.target.value)}>
+        <div className="rounded-md border border-line bg-surface-raised/40 p-3">
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">내 정보</div>
+          <select className="h-8 w-full rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={selectedStudentId} onChange={(event) => selectStudent(event.target.value)}>
             <option value="">학생 선택</option>
             {students.map((student) => (
               <option key={student.id} value={student.id}>
@@ -207,56 +218,56 @@ export function StudentPanel() {
             ))}
           </select>
           <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-            <input className="h-8 rounded border border-white/10 bg-studio-950 px-2 text-sm text-slate-100 outline-none focus:border-meter-cyan" value={newStudentName} onChange={(event) => setNewStudentName(event.target.value)} placeholder="학생 이름" />
-            <button className="studio-button" onClick={() => void createStudent()}>
+            <input className="h-8 rounded border border-line bg-surface-base px-2 text-sm text-ink-high outline-none focus:border-ink-accent" value={newStudentName} onChange={(event) => setNewStudentName(event.target.value)} placeholder="학생 이름" />
+            <button className="studio-button" onClick={() => void whileAppBusy(createStudent)}>
               <UserPlus size={14} />
               등록
             </button>
           </div>
-          <div className="mt-2 text-[11px] leading-5 text-slate-500">
+          <div className="mt-2 text-[11px] leading-5 text-ink-body">
             {currentStudent ? `${currentStudent.name} · ${[...currentClassIds].map((id) => classRooms.find((classRoom) => classRoom.id === id)?.title).filter(Boolean).join(", ") || "소속 반 없음"}` : "학생을 선택하면 과제 제출 이력이 연결됩니다."}
           </div>
         </div>
 
         {currentAssignment ? (
           <div className="mt-3 rounded-md border border-meter-cyan/30 bg-meter-cyan/10 p-3">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100/80">현재 과제</div>
-            <div className="mt-1 text-sm font-black text-slate-100">{currentAssignment.title}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-300">{currentAssignment.description}</div>
-            <div className="mt-2 text-[11px] font-bold text-slate-400">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">현재 과제</div>
+            <div className="mt-1 text-sm font-black text-ink-high">{currentAssignment.title}</div>
+            <div className="mt-1 text-xs leading-5 text-ink-body">{currentAssignment.description}</div>
+            <div className="mt-2 text-[11px] font-bold text-ink-body">
               {getLessonById(currentAssignment.lessonId)?.title ?? "자유 프로젝트"} · {formatDate(currentAssignment.dueDate)}
             </div>
           </div>
         ) : (
-          <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3 text-sm leading-6 text-slate-400">
+          <div className="mt-3 rounded-md border border-line bg-surface-raised/40 p-3 text-sm leading-6 text-ink-body">
             과제를 선택하면 템플릿 프로젝트가 열립니다.
           </div>
         )}
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">내 과제</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">내 과제</div>
           <div className="space-y-2">
             {visibleAssignments.length === 0 ? (
-              <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">아직 배정된 과제가 없습니다.</div>
+              <div className="rounded-md border border-line bg-surface-raised/40 p-3 text-sm text-ink-body">아직 배정된 과제가 없습니다.</div>
             ) : (
               visibleAssignments.map((assignment) => {
                 const latest = latestByAssignment.get(assignment.id);
                 const isCurrent = assignment.id === project.assignmentId;
                 return (
-                  <div key={assignment.id} className={`rounded-md border p-3 ${isCurrent ? "border-meter-cyan bg-meter-cyan/10" : "border-white/10 bg-white/[0.045]"}`}>
+                  <div key={assignment.id} className={`rounded-md border p-3 ${isCurrent ? "border-ink-accent bg-surface-raised" : "border-line bg-surface-raised/40"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-slate-100">{assignment.title}</div>
-                        <div className="mt-1 text-[11px] text-slate-500">{getLessonById(assignment.lessonId)?.title ?? "자유 프로젝트"} · {formatDate(assignment.dueDate)}</div>
+                        <div className="truncate text-sm font-black text-ink-high">{assignment.title}</div>
+                        <div className="mt-1 text-[11px] text-ink-body">{getLessonById(assignment.lessonId)?.title ?? "자유 프로젝트"} · {formatDate(assignment.dueDate)}</div>
                       </div>
-                      {latest?.reviewSnapshot.ready ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-meter-green" /> : null}
+                      {latest && effectiveDecision(latest.reviewSnapshot) === "ready" ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-meter-green" /> : null}
                     </div>
-                    <div className="mt-2 text-xs leading-5 text-slate-400">{assignment.description}</div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+                    <div className="mt-2 text-xs leading-5 text-ink-body">{assignment.description}</div>
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-ink-body">
                       <span>{assignmentStatus(assignment, project.assignmentId, latest)}</span>
                       <span>{latest ? `${latest.attemptNumber ?? 1}회 제출` : "미제출"}</span>
                     </div>
-                    <button className="studio-button mt-3 w-full" onClick={() => void handleStartAssignment(assignment)}>
+                    <button className="studio-button mt-3 w-full" onClick={() => void whileAppBusy(() => handleStartAssignment(assignment))}>
                       <PlayCircle size={14} />
                       {isCurrent ? "계속 작업" : latest ? "재제출 작업 시작" : "시작"}
                     </button>
@@ -267,47 +278,47 @@ export function StudentPanel() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        <div className="mt-3 rounded-md border border-line bg-surface-raised/40 p-3">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
             <FileArchive size={14} />
             제출 패키지
           </div>
-          <div className="mt-2 rounded-md border border-white/10 bg-white/[0.045] p-2">
-            <div className={`text-sm font-black ${summary.ready ? "text-green-100" : "text-amber-100"}`}>{summary.statusLabel}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-400">{summary.studentMessage}</div>
+          <div className="mt-2 rounded-md border border-line bg-surface-panel p-2">
+            <div className="text-sm font-black text-ink-high">{summary.statusLabel}</div>
+            <div className="mt-1 text-xs leading-5 text-ink-body">{summary.studentMessage}</div>
             <div className="mt-2 rounded border border-meter-cyan/20 bg-meter-cyan/10 p-2">
-              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100/70">다음 한 가지</div>
-              <div className="mt-1 text-xs font-black text-slate-100">{summary.nextAction.title}</div>
-              <div className="mt-1 text-[11px] leading-5 text-slate-400">{summary.nextAction.message}</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">다음 한 가지</div>
+              <div className="mt-1 text-xs font-black text-ink-high">{summary.nextAction.title}</div>
+              <div className="mt-1 text-[11px] leading-5 text-ink-body">{summary.nextAction.message}</div>
             </div>
           </div>
-          <button className="studio-button mt-3 w-full" onClick={() => void handleSubmit()} disabled={!currentAssignment || submitStatus === "working"}>
+          <button className="studio-button mt-3 w-full" onClick={() => void whileAppBusy(handleSubmit)} disabled={!currentAssignment || submitStatus === "working"}>
             <Download size={15} />
-            {statusLabel(submitStatus, "제출 파일 만들기")}
+            {submitStatus === "error" ? "제출 실패" : statusLabel(submitStatus, "제출 파일 만들기")}
           </button>
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
             <History size={14} />
             제출 이력
           </div>
           <div className="space-y-2">
             {studentSubmissions.length === 0 ? (
-              <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">제출 이력이 없습니다.</div>
+              <div className="rounded-md border border-line bg-surface-raised/40 p-3 text-sm text-ink-body">제출 이력이 없습니다.</div>
             ) : (
               studentSubmissions.map((submission) => (
-                <div key={submission.id} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+                <div key={submission.id} className="rounded-md border border-line bg-surface-raised/40 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-slate-100">{submission.reviewSnapshot.assignmentTitle ?? submission.assignmentId}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">{formatDate(submission.submittedAt)} · {submission.attemptNumber ?? 1}회차</div>
+                      <div className="truncate text-sm font-black text-ink-high">{submission.reviewSnapshot.assignmentTitle ?? submission.assignmentId}</div>
+                      <div className="mt-1 text-[11px] text-ink-body">{formatDate(submission.submittedAt)} · {submission.attemptNumber ?? 1}회차</div>
                     </div>
-                    <span className={`rounded px-2 py-1 text-[10px] font-black ${submission.reviewSnapshot.ready ? "bg-meter-green/15 text-green-100" : "bg-meter-amber/15 text-amber-100"}`}>
-                      {submission.reviewSnapshot.statusLabel}
+                    <span className={`rounded px-2 py-1 text-[10px] font-black text-ink-high ${effectiveDecision(submission.reviewSnapshot) === "ready" ? "bg-meter-green/15" : effectiveDecision(submission.reviewSnapshot) === "ignore" ? "bg-surface-raised" : "bg-meter-amber/15"}`}>
+                      {effectiveStatusLabel(submission.reviewSnapshot)}
                     </span>
                   </div>
-                  {submission.teacherFeedback ? <div className="mt-2 rounded border border-meter-cyan/20 bg-meter-cyan/10 p-2 text-xs leading-5 text-slate-300">교사 피드백: {submission.teacherFeedback}</div> : null}
+                  {submission.teacherFeedback ? <div className="mt-2 rounded border border-meter-cyan/20 bg-meter-cyan/10 p-2 text-xs leading-5 text-ink-body">교사 피드백: {submission.teacherFeedback}</div> : null}
                 </div>
               ))
             )}

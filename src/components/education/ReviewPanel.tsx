@@ -6,6 +6,7 @@ import { createReviewSummary } from "../../education/reviewProject";
 import { getLessonById } from "../../education/lessons";
 import { useDawStore } from "../../store/useDawStore";
 import { statusLabel } from "../../utils/labels";
+import { logError } from "../../utils/logger";
 import type { Assignment, ReviewNextAction, ReviewRubricStatus, ReviewScore, ReviewSeverity } from "../../education/types";
 import { AssistPanel } from "../assist/AssistPanel";
 
@@ -28,8 +29,8 @@ function exportJson(data: unknown, fileName: string) {
 
 function statusClasses(ready: boolean) {
   return ready
-    ? "border-meter-green/40 bg-meter-green/10 text-green-100"
-    : "border-meter-amber/40 bg-meter-amber/10 text-amber-100";
+    ? "border-meter-green/40 bg-meter-green/10 text-ink-high"
+    : "border-meter-amber/40 bg-meter-amber/10 text-ink-high";
 }
 
 function fallbackScore(rubric: ReviewRubricStatus[]): ReviewScore {
@@ -68,9 +69,11 @@ export function ReviewPanel() {
       setAssignment(undefined);
       return;
     }
-    assignmentRepository.loadAssignment(project.assignmentId).then((nextAssignment) => {
-      if (!cancelled) setAssignment(nextAssignment);
-    });
+    assignmentRepository.loadAssignment(project.assignmentId)
+      .then((nextAssignment) => {
+        if (!cancelled) setAssignment(nextAssignment);
+      })
+      .catch((error) => logError("ReviewPanel.loadAssignment", error));
     return () => {
       cancelled = true;
     };
@@ -96,14 +99,15 @@ export function ReviewPanel() {
       const wav = await exportProjectToWav(project);
       downloadBlob(wav, `${name}.wav`);
       setExportStatus("done");
-    } catch {
+    } catch (error) {
+      logError("ReviewPanel.handlePackageExport", error);
       setExportStatus("error");
     }
   }
 
   return (
     <aside className="panel flex min-h-0 flex-col rounded-lg">
-      <div className="flex h-11 items-center justify-between border-b border-white/10 px-3">
+      <div className="flex h-11 items-center justify-between border-b border-line px-3">
         <span className="panel-title">검토</span>
         <span className={`rounded px-2 py-1 text-[11px] font-black ${statusClasses(summary.ready)}`}>
           {summary.statusLabel}
@@ -122,51 +126,51 @@ export function ReviewPanel() {
         </div>
 
         <div className="mt-3 rounded-md border border-meter-cyan/30 bg-meter-cyan/10 p-3">
-          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-100/80">다음 한 가지</div>
-          <div className="mt-1 text-sm font-black text-slate-100">{nextAction.title}</div>
-          <div className="mt-1 text-xs leading-5 text-slate-300">{nextAction.message}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">다음 한 가지</div>
+          <div className="mt-1 text-sm font-black text-ink-high">{nextAction.title}</div>
+          <div className="mt-1 text-xs leading-5 text-ink-body">{nextAction.message}</div>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">점수</div>
-            <div className="mt-1 text-lg font-black text-slate-100">{score.earned}/{score.possible}</div>
-            <div className="text-[10px] font-bold text-slate-500">{score.percent}% · {score.levelLabel}</div>
+          <div className="rounded-md border border-line bg-surface-raised/40 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">점수</div>
+            <div className="mt-1 text-lg font-black text-ink-high">{score.earned}/{score.possible}</div>
+            <div className="text-[10px] font-bold text-ink-body">{score.percent}% · {score.levelLabel}</div>
           </div>
-          <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">자동 점검</div>
-            <div className="mt-1 text-lg font-black text-slate-100">{summary.items.length - warningItems.length}/{summary.items.length}</div>
+          <div className="rounded-md border border-line bg-surface-raised/40 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">자동 점검</div>
+            <div className="mt-1 text-lg font-black text-ink-high">{summary.items.length - warningItems.length}/{summary.items.length}</div>
           </div>
-          <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">미션</div>
-            <div className="mt-1 text-lg font-black text-slate-100">
+          <div className="rounded-md border border-line bg-surface-raised/40 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">미션</div>
+            <div className="mt-1 text-lg font-black text-ink-high">
               {summary.missionResults.length > 0
                 ? `${summary.missionResults.filter((item) => item.completed).length}/${summary.missionResults.length}`
                 : "기본"}
             </div>
           </div>
-          <div className="rounded-md border border-white/10 bg-black/20 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">수동 확인</div>
-            <div className="mt-1 text-lg font-black text-slate-100">{manualDone}/{manualTotal}</div>
+          <div className="rounded-md border border-line bg-surface-raised/40 p-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">수동 확인</div>
+            <div className="mt-1 text-lg font-black text-ink-high">{manualDone}/{manualTotal}</div>
           </div>
         </div>
 
         <div className="mt-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">보완 항목</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">보완 항목</div>
           <div className="space-y-2">
             {warningItems.length === 0 ? (
-              <div className="rounded-md border border-meter-green/30 bg-meter-green/10 p-3 text-sm font-semibold text-green-100">
+              <div className="rounded-md border border-meter-green/30 bg-meter-green/10 p-3 text-sm font-semibold text-ink-high">
                 자동 점검 항목이 모두 좋습니다.
               </div>
             ) : (
               warningItems.map((item) => (
-                <div key={item.id} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+                <div key={item.id} className="rounded-md border border-line bg-surface-raised/40 p-3">
                   <div className="flex items-start gap-2">
                     <div className="mt-0.5 shrink-0">{iconFor(item.severity)}</div>
                     <div className="min-w-0">
-                      <div className="text-sm font-black text-slate-100">{item.title}</div>
-                      <div className="mt-1 text-xs leading-5 text-slate-400">{item.message}</div>
-                      {item.detail ? <div className="mt-1 text-[11px] text-slate-500">{item.detail}</div> : null}
+                      <div className="text-sm font-black text-ink-high">{item.title}</div>
+                      <div className="mt-1 text-xs leading-5 text-ink-body">{item.message}</div>
+                      {item.detail ? <div className="mt-1 text-[11px] text-ink-body">{item.detail}</div> : null}
                     </div>
                   </div>
                 </div>
@@ -177,21 +181,21 @@ export function ReviewPanel() {
 
         {summary.missionResults.length > 0 ? (
           <div className="mt-3">
-            <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">레슨 미션</div>
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">레슨 미션</div>
             <div className="space-y-2">
               {summary.missionResults.map((mission) => (
-                <div key={mission.missionId} className="rounded-md border border-white/10 bg-black/20 p-3">
+                <div key={mission.missionId} className="rounded-md border border-line bg-surface-raised/40 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="truncate text-sm font-black text-slate-100">
+                    <div className="truncate text-sm font-black text-ink-high">
                       {lesson?.missions.find((item) => item.id === mission.missionId)?.title ?? mission.missionId}
                     </div>
                     {mission.completed ? (
                       <CheckCircle2 size={15} className="shrink-0 text-meter-green" />
                     ) : (
-                      <Circle size={15} className="shrink-0 text-slate-500" />
+                      <Circle size={15} className="shrink-0 text-ink-body" />
                     )}
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">{mission.summary}</div>
+                  <div className="mt-1 text-xs text-ink-body">{mission.summary}</div>
                 </div>
               ))}
             </div>
@@ -200,21 +204,21 @@ export function ReviewPanel() {
 
         <div className="mt-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">평가 기준</span>
-            <span className="text-[11px] font-semibold text-slate-500">
+            <span className="text-xs font-bold uppercase tracking-[0.12em] text-ink-body">평가 기준</span>
+            <span className="text-[11px] font-semibold text-ink-body">
               {summary.lessonTitle ?? "기본 기준"}
             </span>
           </div>
           <div className="space-y-2">
             {summary.rubric.map((criterion) => (
-              <div key={criterion.criterionId} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+              <div key={criterion.criterionId} className="rounded-md border border-line bg-surface-raised/40 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-black text-slate-100">{criterion.title}</div>
-                  <span className="rounded border border-white/10 bg-black/20 px-2 py-1 text-[11px] font-bold text-slate-300">
+                  <div className="text-sm font-black text-ink-high">{criterion.title}</div>
+                  <span className="rounded border border-line bg-surface-panel px-2 py-1 text-[11px] font-bold text-ink-body">
                     {criterion.score ?? 0}/{criterion.maxScore ?? criterion.autoChecks.length} · {criterion.suggestedLevel}
                   </span>
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-raised">
                   <div
                     className="h-full rounded-full bg-meter-cyan"
                     style={{ width: `${criterion.percent ?? 0}%` }}
@@ -222,17 +226,17 @@ export function ReviewPanel() {
                 </div>
 
                 <div className="mt-3">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">자동</div>
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">자동</div>
                   <div className="space-y-1">
                     {criterion.autoChecks.map((check) => (
-                      <div key={check.id} className="flex items-start gap-2 text-xs leading-5 text-slate-400">
+                      <div key={check.id} className="flex items-start gap-2 text-xs leading-5 text-ink-body">
                         {check.completed ? (
                           <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-meter-green" />
                         ) : (
                           <TriangleAlert size={14} className="mt-0.5 shrink-0 text-meter-amber" />
                         )}
                         <span>
-                          <span className="font-bold text-slate-200">{check.label}</span> · {check.detail}
+                          <span className="font-bold text-ink-high">{check.label}</span> · {check.detail}
                         </span>
                       </div>
                     ))}
@@ -240,13 +244,13 @@ export function ReviewPanel() {
                 </div>
 
                 <div className="mt-3">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">수동</div>
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">수동</div>
                   <div className="space-y-1">
                     {criterion.manualChecks.map((check) => {
                       const id = `${criterion.criterionId}:${check.id}`;
                       const checked = Boolean(manualChecks[id]);
                       return (
-                        <label key={check.id} className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-slate-400">
+                        <label key={check.id} className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-ink-body">
                           <input
                             className="mt-1 h-3.5 w-3.5"
                             type="checkbox"
@@ -254,7 +258,7 @@ export function ReviewPanel() {
                             onChange={() => toggleManualCheck(id)}
                           />
                           <span>
-                            <span className="font-bold text-slate-200">{check.label}</span> · {check.detail}
+                            <span className="font-bold text-ink-high">{check.label}</span> · {check.detail}
                           </span>
                         </label>
                       );
@@ -266,17 +270,17 @@ export function ReviewPanel() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        <div className="mt-3 rounded-md border border-line bg-surface-raised/40 p-3">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
             <FileArchive size={14} />
             제출 패키지
           </div>
-          <div className="mt-2 text-xs leading-5 text-slate-400">
+          <div className="mt-2 text-xs leading-5 text-ink-body">
             프로젝트, WAV, 리뷰 요약 JSON을 함께 내보냅니다.
           </div>
           <button className="studio-button mt-3 w-full" onClick={() => void handlePackageExport()} disabled={exportStatus === "working"}>
             <Download size={15} />
-            {statusLabel(exportStatus, "패키지 내보내기")}
+            {exportStatus === "error" ? "내보내기 실패" : statusLabel(exportStatus, "패키지 내보내기")}
           </button>
         </div>
 

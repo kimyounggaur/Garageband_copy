@@ -11,6 +11,7 @@ import {
   signUpWithPassword
 } from "../../repositories/supabaseClient";
 import { useDawStore } from "../../store/useDawStore";
+import { logError } from "../../utils/logger";
 
 function modeLabel(mode: RepositoryMode) {
   if (mode === "supabase") return "Supabase";
@@ -35,7 +36,8 @@ export function RepositorySwitch() {
       setRepositoryMode(nextMode);
       await projectRepository.saveProject(useDawStore.getState().project);
       setStatus("done");
-    } catch {
+    } catch (error) {
+      logError("RepositorySwitch.changeMode", error);
       setRepositoryMode("local");
       setStatus("error");
     }
@@ -52,7 +54,8 @@ export function RepositorySwitch() {
       setIdentity(nextIdentity ?? readCloudIdentity());
       setPassword("");
       setStatus("done");
-    } catch {
+    } catch (error) {
+      logError("RepositorySwitch.signIn", error);
       setStatus("error");
     }
   }
@@ -64,11 +67,11 @@ export function RepositorySwitch() {
   }
 
   return (
-    <div className="rounded-lg border border-white/10 bg-studio-900/80 p-1">
+    <div className="rounded-lg border border-line bg-surface-panel/80 p-1">
       <div className="grid grid-cols-3 gap-1">
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-black transition ${
-            mode === "local" ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            mode === "local" ? "bg-meter-cyan text-ink-onBright" : "text-ink-body hover:bg-white/[0.08]"
           }`}
           onClick={() => void changeMode("local")}
           title="로컬 저장소 사용"
@@ -78,7 +81,7 @@ export function RepositorySwitch() {
         </button>
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-black transition ${
-            mode === "mockCloud" ? "bg-meter-amber text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            mode === "mockCloud" ? "bg-meter-amber text-ink-onBright" : "text-ink-body hover:bg-white/[0.08]"
           }`}
           onClick={() => void changeMode("mockCloud")}
           title="모의 클라우드 저장소 사용"
@@ -88,7 +91,7 @@ export function RepositorySwitch() {
         </button>
         <button
           className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-black transition ${
-            mode === "supabase" ? "bg-meter-green text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+            mode === "supabase" ? "bg-meter-green text-ink-onBright" : "text-ink-body hover:bg-white/[0.08]"
           }`}
           onClick={() => void changeMode("supabase")}
           disabled={!supabaseConfigured}
@@ -99,7 +102,7 @@ export function RepositorySwitch() {
         </button>
       </div>
 
-      <div className="mt-1 truncate px-1 text-[10px] font-semibold text-slate-500">
+      <div className="mt-1 truncate px-1 text-[10px] font-semibold text-ink-body">
         {status === "syncing"
           ? "전환 중..."
           : status === "error"
@@ -107,10 +110,10 @@ export function RepositorySwitch() {
             : `${modeLabel(mode)} 저장소`}
       </div>
 
-      <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
+      <div className="mt-2 space-y-1 border-t border-line pt-2">
         <div className="grid grid-cols-2 gap-1">
           <select
-            className="h-7 rounded border border-white/10 bg-studio-950 px-2 text-[11px] font-bold text-slate-100 outline-none"
+            className="h-7 rounded border border-line bg-surface-base px-2 text-[11px] font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
             value={role}
             onChange={(event) => {
               const nextRole = event.target.value === "teacher" ? "teacher" : "student";
@@ -132,19 +135,19 @@ export function RepositorySwitch() {
           )}
         </div>
         {identity ? (
-          <div className="truncate px-1 text-[10px] font-semibold text-slate-500">
+          <div className="truncate px-1 text-[10px] font-semibold text-ink-body">
             {identity.displayName} · {identity.role === "teacher" ? "교사" : "학생"}
           </div>
         ) : (
           <div className="grid grid-cols-[1fr_1fr_auto] gap-1">
             <input
-              className="h-7 min-w-0 rounded border border-white/10 bg-studio-950 px-2 text-[11px] text-slate-100 outline-none"
+              className="h-7 min-w-0 rounded border border-line bg-surface-base px-2 text-[11px] text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="이메일"
             />
             <input
-              className="h-7 min-w-0 rounded border border-white/10 bg-studio-950 px-2 text-[11px] text-slate-100 outline-none"
+              className="h-7 min-w-0 rounded border border-line bg-surface-base px-2 text-[11px] text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="비밀번호"

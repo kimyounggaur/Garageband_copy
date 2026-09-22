@@ -189,6 +189,10 @@ export type ReviewSummary = {
   items: ReviewItem[];
   missionResults: MissionEvaluation[];
   rubric: ReviewRubricStatus[];
+  teacherDecision?: {
+    decision: "ready" | "needsWork" | "ignore";
+    updatedAt: number;
+  };
 };
 
 export type Submission = {

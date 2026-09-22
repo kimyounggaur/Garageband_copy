@@ -3,6 +3,7 @@ import type { MouseEvent, PointerEvent, WheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "../../store/useDawStore";
 import { trackRoleLabel } from "../../utils/labels";
+import { barLengthBeats } from "../../utils/meterMath";
 import {
   DEFAULT_PROJECT_BEATS,
   MAX_TIMELINE_ZOOM,
@@ -14,13 +15,14 @@ import {
   buildRulerTicks,
   clamp,
   formatBarBeatTick,
-  normalizeCycleRange,
   pixelsPerBeatForZoom,
   snapBeat,
   xToBeat,
-  type SnapBeats
+  type SnapBeats,
+  type SnapOption
 } from "../../utils/timeline";
 import { TrackLane } from "./TrackLane";
+import { TimelinePlayhead } from "./TimelinePlayhead";
 import { LIVE_LOOP_ROW_HEIGHT, LiveLoopsGrid } from "./LiveLoopsGrid";
 import type { Track } from "../../types/project";
 
@@ -32,19 +34,21 @@ type TrackMenuState = {
   trackId: string;
 };
 
-function snapLabel(snapBeats: number) {
-  if (snapBeats === 0.25) return "1/4";
-  if (snapBeats === 0.5) return "1/2";
-  if (snapBeats === 1) return "1박";
+function snapLabel(selection: SnapOption) {
+  if (selection === 0.25) return "1/4";
+  if (selection === 0.5) return "1/2";
+  if (selection === 1) return "1박";
+  if (selection === 4) return "4박";
   return "1마디";
 }
 
 function getTimelineBeats() {
   const project = useDawStore.getState().project;
+  const barBeats = barLengthBeats(project.timeSignature);
   const end = project.tracks.flatMap((track) => track.clips).reduce((max, clip) => {
-    return Math.max(max, clip.startBeat + clip.lengthBeats + 4);
-  }, Math.max(DEFAULT_PROJECT_BEATS, (project.cycleEnd ?? 0) + 4));
-  return Math.max(DEFAULT_PROJECT_BEATS, Math.ceil(end / 4) * 4);
+    return Math.max(max, clip.startBeat + clip.lengthBeats + barBeats);
+  }, Math.max((DEFAULT_PROJECT_BEATS / 4) * barBeats, (project.cycleEnd ?? 0) + barBeats));
+  return Math.max((DEFAULT_PROJECT_BEATS / 4) * barBeats, Math.ceil(end / barBeats) * barBeats);
 }
 
 function menuPosition(clientX: number, clientY: number) {
@@ -56,20 +60,20 @@ function menuPosition(clientX: number, clientY: number) {
 
 export function ArrangementTimeline() {
   const timelineViewportRef = useRef<HTMLDivElement>(null);
+  const trackMenuOpenerRef = useRef<HTMLButtonElement | null>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [trackMenu, setTrackMenu] = useState<TrackMenuState | undefined>();
   const [automationOpenTrackIds, setAutomationOpenTrackIds] = useState<string[]>([]);
   const [timelineView, setTimelineView] = useState<TimelineView>("tracks");
   const project = useDawStore((state) => state.project);
-  const currentBeat = useDawStore((state) => state.currentBeat);
-  const isPlaying = useDawStore((state) => state.isPlaying);
   const selectedTrackId = useDawStore((state) => state.selectedTrackId);
   const snapBeats = useDawStore((state) => state.snapBeats);
+  const snapSelection = useDawStore((state) => state.snapSelection);
   const timelineZoom = useDawStore((state) => state.timelineZoom);
   const preventClipOverlap = useDawStore((state) => state.preventClipOverlap);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const selectClip = useDawStore((state) => state.selectClip);
-  const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
+  const seekToBeat = useDawStore((state) => state.seekToBeat);
   const addTrack = useDawStore((state) => state.addTrack);
   const addMidiClip = useDawStore((state) => state.addMidiClip);
   const addDrummerClip = useDawStore((state) => state.addDrummerClip);
@@ -91,7 +95,8 @@ export function ArrangementTimeline() {
   const rulerTicks = useMemo(() => buildRulerTicks(totalBeats, project.timeSignature), [project.timeSignature, totalBeats]);
   const pixelsPerBeat = pixelsPerBeatForZoom(timelineZoom);
   const width = Math.max(totalBeats * pixelsPerBeat, viewportWidth);
-  const cycleRange = normalizeCycleRange(project.cycleStart ?? 0, project.cycleEnd ?? 8, snapBeats);
+  const cycleStart = Math.max(0, project.cycleStart ?? 0);
+  const cycleRange = { start: cycleStart, end: Math.max(cycleStart + 0.25, project.cycleEnd ?? 8) };
   const cycleEnabled = Boolean(project.cycleEnabled);
   const cycleLeft = beatToX(cycleRange.start, pixelsPerBeat);
   const cycleWidth = Math.max(beatToX(cycleRange.end - cycleRange.start, pixelsPerBeat), pixelsPerBeat * 0.25);
@@ -111,9 +116,14 @@ export function ArrangementTimeline() {
 
   useEffect(() => {
     if (!trackMenu) return;
+    const menu = document.querySelector<HTMLElement>('[data-track-menu]');
+    menu?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')?.focus();
     const closeMenu = () => setTrackMenu(undefined);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeMenu();
+      if (event.key === "Escape") {
+        closeMenu();
+        trackMenuOpenerRef.current?.focus();
+      }
     };
 
     window.addEventListener("click", closeMenu);
@@ -133,12 +143,52 @@ export function ArrangementTimeline() {
     event.stopPropagation();
     selectTrack(track.id);
     selectClip(undefined);
+    trackMenuOpenerRef.current = event.currentTarget;
     setTrackMenu({ ...menuPosition(event.clientX, event.clientY), trackId: track.id });
   }
 
   function runTrackMenuAction(action: () => void) {
     setTrackMenu(undefined);
     action();
+    requestAnimationFrame(() => {
+      if (trackMenuOpenerRef.current?.isConnected) trackMenuOpenerRef.current.focus();
+    });
+  }
+
+  function handleTrackKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, track: Track) {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      const index = project.tracks.findIndex((entry) => entry.id === track.id);
+      const next = project.tracks[Math.max(0, Math.min(project.tracks.length - 1, index + (event.key === "ArrowUp" ? -1 : 1)))];
+      if (!next) return;
+      selectTrack(next.id);
+      document.querySelector<HTMLButtonElement>(`[data-track-id="${CSS.escape(next.id)}"]`)?.focus();
+    } else if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      trackMenuOpenerRef.current = event.currentTarget;
+      selectTrack(track.id);
+      selectClip(undefined);
+      setTrackMenu({ ...menuPosition(rect.left + 24, rect.top + 24), trackId: track.id });
+    }
+  }
+
+  function handleTrackMenuKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])')];
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setTrackMenu(undefined);
+      trackMenuOpenerRef.current?.focus();
+    }
   }
 
   function toggleAutomationLane(event: MouseEvent<HTMLButtonElement>, trackId: string) {
@@ -168,10 +218,10 @@ export function ArrangementTimeline() {
     event.stopPropagation();
     const element = event.currentTarget;
     const shouldSnap = !event.ctrlKey && !event.metaKey;
-    setCurrentBeat(beatFromClientX(event.clientX, element, shouldSnap));
+    seekToBeat(beatFromClientX(event.clientX, element, shouldSnap));
 
     function handleMove(moveEvent: globalThis.PointerEvent) {
-      setCurrentBeat(beatFromClientX(moveEvent.clientX, element, shouldSnap));
+      seekToBeat(beatFromClientX(moveEvent.clientX, element, shouldSnap));
     }
 
     function handleUp() {
@@ -186,17 +236,17 @@ export function ArrangementTimeline() {
   }
 
   function beginPlayheadDrag(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 || isPlaying) return;
+    if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     const surface = event.currentTarget.parentElement;
     if (!surface) return;
     const surfaceElement = surface;
     const shouldSnap = !event.ctrlKey && !event.metaKey;
-    setCurrentBeat(beatFromClientX(event.clientX, surfaceElement, shouldSnap));
+    seekToBeat(beatFromClientX(event.clientX, surfaceElement, shouldSnap));
 
     function handleMove(moveEvent: globalThis.PointerEvent) {
-      setCurrentBeat(beatFromClientX(moveEvent.clientX, surfaceElement, shouldSnap));
+      seekToBeat(beatFromClientX(moveEvent.clientX, surfaceElement, shouldSnap));
     }
 
     function handleUp() {
@@ -282,14 +332,14 @@ export function ArrangementTimeline() {
   }
 
   return (
-    <section className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+    <section data-timeline-surface className="panel grid min-h-[260px] min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg lg:min-h-0">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="panel-title">편곡</span>
-          <div className="flex h-8 overflow-hidden rounded-md border border-white/10 bg-black/20 p-0.5">
+          <div className="flex h-8 overflow-hidden rounded-md border border-line bg-surface-base/20 p-0.5">
             <button
               className={`flex items-center gap-1 rounded px-2 text-[11px] font-black transition ${
-                timelineView === "tracks" ? "bg-meter-cyan text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+                timelineView === "tracks" ? "bg-meter-cyan text-ink-onBright" : "text-ink-body hover:bg-surface-raised"
               }`}
               onClick={() => setTimelineView("tracks")}
               aria-pressed={timelineView === "tracks"}
@@ -299,7 +349,7 @@ export function ArrangementTimeline() {
             </button>
             <button
               className={`flex items-center gap-1 rounded px-2 text-[11px] font-black transition ${
-                timelineView === "liveLoops" ? "bg-accent-play text-studio-950" : "text-slate-300 hover:bg-white/[0.08]"
+                timelineView === "liveLoops" ? "bg-accent-play text-ink-onBright" : "text-ink-body hover:bg-surface-raised"
               }`}
               onClick={() => setTimelineView("liveLoops")}
               aria-pressed={timelineView === "liveLoops"}
@@ -310,12 +360,12 @@ export function ArrangementTimeline() {
           </div>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
+          <label className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface-raised/50 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-body">
             스냅
             <select
-              className="h-6 rounded border border-white/10 bg-studio-950 px-2 text-xs font-bold normal-case tracking-normal text-slate-100 outline-none focus:border-meter-cyan"
-              value={snapBeats}
-              onChange={(event) => setSnapBeats(Number(event.target.value) as SnapBeats)}
+              className="h-6 rounded border border-line bg-surface-base px-2 text-xs font-bold normal-case tracking-normal text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
+              value={snapSelection}
+              onChange={(event) => setSnapBeats(event.target.value === "bar" ? "bar" : Number(event.target.value) as SnapBeats)}
               aria-label="스냅 단위"
             >
               {SNAP_OPTIONS.map((option) => (
@@ -325,7 +375,7 @@ export function ArrangementTimeline() {
               ))}
             </select>
           </label>
-          <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
+          <label className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface-raised/50 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-body">
             <input
               type="checkbox"
               className="h-3.5 w-3.5"
@@ -336,14 +386,14 @@ export function ArrangementTimeline() {
             겹침 방지
           </label>
           <button
-            className={`studio-button ${cycleEnabled ? "border-accent-sel bg-accent-sel/15 text-white" : ""}`}
+            className={`studio-button ${cycleEnabled ? "border-accent-sel bg-accent-sel/15 text-ink-high" : ""}`}
             onClick={() => toggleCycle()}
             title={cycleEnabled ? "사이클 끄기" : "사이클 켜기"}
           >
             <Repeat2 size={14} />
             Cycle
           </button>
-          <label className="flex h-8 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
+          <label className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface-raised/50 px-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-body">
             확대
             <input
               className="w-24"
@@ -360,7 +410,7 @@ export function ArrangementTimeline() {
             <Plus size={14} />
             드럼
           </button>
-          <button className="studio-button" onClick={() => addDrummerClip(undefined, currentBeat)}>
+          <button className="studio-button" onClick={() => addDrummerClip(undefined, useDawStore.getState().currentBeat)}>
             <Drum size={14} />
             Drummer
           </button>
@@ -372,8 +422,8 @@ export function ArrangementTimeline() {
       </div>
 
       <div className="grid min-h-0 min-w-0 grid-cols-[132px_minmax(0,1fr)] sm:grid-cols-[178px_minmax(0,1fr)]">
-        <div className="border-r border-white/10 bg-black/10">
-          <div className="flex h-12 items-end border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+        <div className="border-r border-line bg-surface-base/10">
+          <div className="flex h-12 items-end border-b border-line px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-body">
             트랙
           </div>
           {project.tracks.map((track) => {
@@ -382,21 +432,25 @@ export function ArrangementTimeline() {
             return (
               <div
                 key={track.id}
-                className={`flex w-full items-start border-b border-white/10 transition ${
-                  selectedTrackId === track.id ? "bg-meter-cyan/10" : "hover:bg-white/[0.045]"
+                className={`flex w-full items-start border-b border-line transition ${
+                  selectedTrackId === track.id ? "bg-meter-cyan/10" : "hover:bg-surface-raised/40"
                 }`}
                 style={{ height: trackHeaderHeight + (automationOpen ? AUTOMATION_LANE_HEIGHT : 0) }}
               >
                 <button
+                  data-track-id={track.id}
                   className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left"
                   style={{ height: trackHeaderHeight }}
                   onClick={() => selectTrack(track.id)}
                   onContextMenu={(event) => openTrackMenu(event, track)}
+                  onKeyDown={(event) => handleTrackKeyDown(event, track)}
+                  aria-pressed={selectedTrackId === track.id}
+                  aria-label={`${track.name} 트랙, ${trackRoleLabel(track.role ?? track.type)}, 클립 ${track.clips.length}개${selectedTrackId === track.id ? ", 선택됨" : ""}. 방향키로 트랙 이동, Shift+F10으로 메뉴 열기`}
                 >
                   <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: track.color }} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-bold text-slate-100">{track.name}</span>
-                    <span className="block text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                    <span className="block truncate text-sm font-bold text-ink-high">{track.name}</span>
+                    <span className="block text-[11px] uppercase tracking-[0.08em] text-ink-body">
                       {trackRoleLabel(track.role ?? track.type)}
                     </span>
                   </span>
@@ -405,8 +459,8 @@ export function ArrangementTimeline() {
                   <button
                     className={`mr-2 mt-[22px] flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-black transition ${
                       automationOpen
-                        ? "border-meter-green/70 bg-meter-green/18 text-white"
-                        : "border-white/10 bg-black/20 text-slate-400 hover:border-meter-green/45 hover:text-slate-100"
+                        ? "border-meter-green/70 bg-meter-green/18 text-ink-high"
+                        : "border-line bg-surface-raised/50 text-ink-body hover:border-meter-green/45 hover:text-ink-high"
                     }`}
                     onClick={(event) => toggleAutomationLane(event, track.id)}
                     title={automationOpen ? "Automation lane off" : "Automation lane on"}
@@ -421,23 +475,25 @@ export function ArrangementTimeline() {
           })}
           {trackMenu && menuTrack ? (
             <div
-              className="fixed z-[85] w-56 overflow-hidden rounded-lg border border-white/10 bg-studio-900/98 p-1 text-slate-100 shadow-2xl shadow-black/50 backdrop-blur"
+              data-track-menu
+              className="fixed z-[85] w-56 overflow-hidden rounded-lg border border-line bg-surface-panel p-1 text-ink-high shadow-2xl shadow-black/50 backdrop-blur"
               style={{ left: trackMenu.x, top: trackMenu.y }}
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               role="menu"
               aria-label={`${menuTrack.name} 트랙 메뉴`}
+              onKeyDown={handleTrackMenuKeyDown}
             >
-              <div className="border-b border-white/10 px-2 py-2">
-                <div className="truncate text-xs font-black text-slate-100">{menuTrack.name}</div>
-                <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+              <div className="border-b border-line px-2 py-2">
+                <div className="truncate text-xs font-black text-ink-high">{menuTrack.name}</div>
+                <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-body">
                   <span>{trackRoleLabel(menuTrack.role ?? menuTrack.type)}</span>
                   <span>클립 {menuTrack.clips.length}개</span>
                 </div>
               </div>
 
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
                 onClick={() => runTrackMenuAction(() => renameSelectedTrack(menuTrack))}
                 role="menuitem"
               >
@@ -446,10 +502,10 @@ export function ArrangementTimeline() {
               </button>
               <button
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-                  menuTrack.type === "audio" ? "cursor-not-allowed text-slate-600" : "text-slate-200 hover:bg-white/[0.08]"
+                  menuTrack.type === "audio" ? "cursor-not-allowed text-ink-disabled" : "text-ink-high hover:bg-surface-raised"
                 }`}
                 onClick={() =>
-                  menuTrack.type === "audio" ? undefined : runTrackMenuAction(() => addMidiClip(menuTrack.id, currentBeat))
+                  menuTrack.type === "audio" ? undefined : runTrackMenuAction(() => addMidiClip(menuTrack.id, useDawStore.getState().currentBeat))
                 }
                 disabled={menuTrack.type === "audio"}
                 role="menuitem"
@@ -459,10 +515,10 @@ export function ArrangementTimeline() {
               </button>
               <button
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-                  menuTrack.type === "audio" ? "cursor-not-allowed text-slate-600" : "text-slate-200 hover:bg-white/[0.08]"
+                  menuTrack.type === "audio" ? "cursor-not-allowed text-ink-disabled" : "text-ink-high hover:bg-surface-raised"
                 }`}
                 onClick={() =>
-                  menuTrack.type === "audio" ? undefined : runTrackMenuAction(() => addDrummerClip(menuTrack.id, currentBeat))
+                  menuTrack.type === "audio" ? undefined : runTrackMenuAction(() => addDrummerClip(menuTrack.id, useDawStore.getState().currentBeat))
                 }
                 disabled={menuTrack.type === "audio"}
                 role="menuitem"
@@ -471,7 +527,7 @@ export function ArrangementTimeline() {
                 현재 위치에 Drummer 클립
               </button>
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
                 onClick={() => runTrackMenuAction(() => duplicateTrack(menuTrack.id))}
                 role="menuitem"
               >
@@ -479,7 +535,7 @@ export function ArrangementTimeline() {
                 트랙 복제
               </button>
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
                 onClick={() => runTrackMenuAction(() => toggleMute(menuTrack.id))}
                 role="menuitem"
               >
@@ -487,7 +543,7 @@ export function ArrangementTimeline() {
                 {menuTrack.muted ? "음소거 해제" : "트랙 음소거"}
               </button>
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
                 onClick={() => runTrackMenuAction(() => toggleSolo(menuTrack.id))}
                 role="menuitem"
               >
@@ -496,7 +552,7 @@ export function ArrangementTimeline() {
               </button>
               {menuTrack.type === "audio" ? (
                 <button
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
                   onClick={() => runTrackMenuAction(() => setTrackRecordEnabled(menuTrack.id))}
                   role="menuitem"
                 >
@@ -506,7 +562,7 @@ export function ArrangementTimeline() {
               ) : null}
               <button
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-                  project.tracks.length <= 1 ? "cursor-not-allowed text-slate-600" : "text-red-200 hover:bg-red-500/12"
+                  project.tracks.length <= 1 ? "cursor-not-allowed text-ink-disabled" : "text-ink-high hover:bg-red-500/12"
                 }`}
                 onClick={() => (project.tracks.length <= 1 ? undefined : runTrackMenuAction(() => removeTrack(menuTrack.id)))}
                 disabled={project.tracks.length <= 1}
@@ -522,9 +578,9 @@ export function ArrangementTimeline() {
         {timelineView === "tracks" ? (
         <div ref={timelineViewportRef} className="min-w-0 overflow-auto bg-studio-950/80" onWheel={handleTimelineWheel}>
           <div className="relative min-w-full" style={{ width }}>
-            <div className="sticky top-0 z-20 h-12 border-b border-white/10 bg-studio-900/95" style={{ width }}>
+            <div className="sticky top-0 z-20 h-12 border-b border-line bg-surface-raised/95" style={{ width }}>
               <div
-                className="relative h-4 cursor-crosshair border-b border-white/10 bg-black/20"
+                className="relative h-4 cursor-crosshair border-b border-line bg-surface-base/20"
                 style={{ width }}
                 onPointerDown={beginCycleCreate}
                 title="드래그해서 사이클 구간 만들기"
@@ -564,6 +620,24 @@ export function ArrangementTimeline() {
                 style={{ width }}
                 onPointerDown={beginRulerScrub}
                 title="클릭하거나 드래그해서 재생 위치 이동"
+                role="slider"
+                tabIndex={0}
+                aria-label="타임라인 재생 위치"
+                aria-valuemin={0}
+                aria-valuemax={totalBeats}
+                aria-valuenow={Math.min(totalBeats, useDawStore.getState().currentBeat)}
+                aria-valuetext={formatBarBeatTick(useDawStore.getState().currentBeat, project.timeSignature)}
+                onKeyDown={(event) => {
+                  const bar = barLengthBeats(project.timeSignature);
+                  const step = event.key === "PageUp" || event.key === "PageDown" ? bar : snapBeats;
+                  const direction = event.key === "ArrowLeft" || event.key === "PageDown" ? -1 : event.key === "ArrowRight" || event.key === "PageUp" ? 1 : 0;
+                  if (direction || event.key === "Home" || event.key === "End") {
+                    event.preventDefault();
+                    if (event.key === "Home") seekToBeat(0);
+                    else if (event.key === "End") seekToBeat(totalBeats);
+                    else seekToBeat(clamp(useDawStore.getState().currentBeat + direction * step, 0, totalBeats));
+                  }
+                }}
               >
                 {rulerTicks.map((tick) => (
                   <div
@@ -572,26 +646,17 @@ export function ArrangementTimeline() {
                     style={{ left: beatToX(tick.beat, pixelsPerBeat) }}
                   >
                     <div
-                      className={`h-full ${tick.kind === "bar" ? "w-[2px] bg-white/24" : "w-px bg-white/10"}`}
+                      className={`h-full ${tick.kind === "bar" ? "w-[2px] bg-ink-body/60" : "w-px bg-ink-body/25"}`}
                     />
                     {tick.label ? (
-                      <span className="absolute left-1 top-1 text-[11px] font-bold text-slate-400">{tick.label}</span>
+                      <span className="absolute left-1 top-1 text-[11px] font-bold text-ink-body">{tick.label}</span>
                     ) : null}
                   </div>
                 ))}
               </div>
             </div>
 
-            <div
-              className={`absolute bottom-0 top-0 z-30 w-px bg-meter-green shadow-[0_0_0_1px_rgba(74,222,128,0.18)] ${
-                isPlaying ? "pointer-events-none" : "cursor-ew-resize"
-              }`}
-              style={{ left: beatToX(currentBeat, pixelsPerBeat) }}
-              onPointerDown={beginPlayheadDrag}
-              title={formatBarBeatTick(currentBeat, project.timeSignature)}
-            >
-              <div className="-ml-1.5 h-3 w-3 rounded-sm bg-meter-green shadow-[0_0_12px_rgba(94,194,107,0.55)]" />
-            </div>
+            <TimelinePlayhead pixelsPerBeat={pixelsPerBeat} timeSignature={project.timeSignature} onPointerDown={beginPlayheadDrag} />
 
             {project.tracks.map((track) => (
               <TrackLane

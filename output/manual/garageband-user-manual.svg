@@ -5,7 +5,7 @@
   <text x="70" y="164" font-size="28" font-weight="700" fill="#94a3b8">작곡, 녹음, 믹싱, 수업, 공유까지 한눈에 보는 비주얼 지도</text>
   <rect x="70" y="214" width="1460" height="56" rx="22" fill="#111827" stroke="#334155"/>
   <text x="106" y="251" font-size="24" font-weight="900" fill="#38bdf8">추천 순서</text>
-  <text x="250" y="251" font-size="24" font-weight="800" fill="#e5f2ff">새 프로젝트 -> 루프 배치 -> MIDI/오디오 편집 -> 믹서/자동화 -> Share Export</text>
+  <text x="250" y="251" font-size="24" font-weight="800" fill="#e5f2ff">새 프로젝트 -> 루프 배치 -> MIDI/오디오 편집 -> 믹서/자동화 -> WAV 내보내기</text>
   
         <g transform="translate(70 330)">
           <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
@@ -80,9 +80,9 @@
         <g transform="translate(826 1368)">
           <rect width="720" height="310" rx="28" fill="#111827" stroke="#334155" stroke-width="2"/>
           <circle cx="70" cy="72" r="36" fill="#f0abfc"/>
-          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">Share / Export</text>
+          <text x="126" y="68" font-size="34" font-weight="900" fill="#f8fafc">공유 및 내보내기</text>
           <text x="126" y="104" font-size="19" font-weight="700" fill="#94a3b8">WebBand Studio</text>
-          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">Mix, Stems ZIP, Project 파일,</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">Import를 한 모달에서 처리합니다.</text>
+          <text x="54" y="168" font-size="24" font-weight="700" fill="#dbeafe">믹스 WAV, 트랙별 WAV ZIP, 프로젝트</text><text x="54" y="202" font-size="24" font-weight="700" fill="#dbeafe">파일, 가져오기를 한 창에서 처리합니다.</text>
           <rect x="54" y="250" width="612" height="16" rx="8" fill="#243041"/>
           <rect x="54" y="250" width="456" height="16" rx="8" fill="#f0abfc"/>
         </g>

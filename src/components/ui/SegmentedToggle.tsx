@@ -30,7 +30,7 @@ export function SegmentedToggle<T extends string>({
           key={item.value}
           type="button"
           className={`inline-flex h-7 min-w-0 items-center justify-center gap-1.5 rounded px-2 text-xs font-black transition ${
-            value === item.value ? "bg-accent-sel text-graphite-975" : "text-slate-300 hover:bg-white/[0.08]"
+            value === item.value ? "bg-state-selected text-ink-selected" : "text-ink-body hover:bg-white/[0.08]"
           }`}
           onClick={() => onChange(item.value)}
           aria-pressed={value === item.value}

@@ -127,22 +127,22 @@ export function AssistPanel() {
   ];
 
   return (
-    <div className="rounded-md border border-white/10 bg-black/20">
-      <div className="flex items-center justify-between border-b border-white/10 p-2">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+    <div className="rounded-md border border-line bg-surface-panel">
+      <div className="flex items-center justify-between border-b border-line p-2">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-ink-body">
           <Sparkles size={14} />
           창작 보조
         </div>
-        <span className="rounded border border-white/10 bg-white/[0.045] px-2 py-1 text-[10px] font-bold text-slate-500">
+        <span className="rounded border border-line bg-surface-raised/50 px-2 py-1 text-[10px] font-bold text-ink-body">
           {adapter.label}
         </span>
       </div>
-      <div className="grid grid-cols-4 gap-1 border-b border-white/10 p-1">
+      <div className="grid grid-cols-4 gap-1 border-b border-line p-1">
         {tabs.map((item) => (
           <button
             key={item.id}
             className={`h-7 rounded text-[11px] font-black transition ${
-              tab === item.id ? "bg-meter-cyan text-studio-950" : "text-slate-400 hover:bg-white/[0.08]"
+              tab === item.id ? "bg-meter-cyan text-ink-onBright" : "text-ink-body hover:bg-white/[0.08]"
             }`}
             onClick={() => setTab(item.id)}
           >
@@ -154,9 +154,9 @@ export function AssistPanel() {
       <div className="max-h-[420px] overflow-y-auto p-2">
         {lastApplied ? (
           <div className="mb-2 rounded-md border border-meter-green/30 bg-meter-green/10 p-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-100/75">적용됨</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">적용됨</div>
             <div className="mt-1 flex items-center justify-between gap-2">
-              <div className="min-w-0 truncate text-xs font-black text-green-100">{lastApplied}</div>
+              <div className="min-w-0 truncate text-xs font-black text-ink-high">{lastApplied}</div>
               <button className="studio-icon-button h-7 w-7" title="창작 보조 적용 되돌리기" onClick={undoLastApplied}>
                 <RotateCcw size={13} />
               </button>
@@ -167,11 +167,11 @@ export function AssistPanel() {
         {tab === "chords" ? (
           <div className="space-y-2">
             {chordSuggestions.map((suggestion) => (
-              <div key={suggestion.id} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+              <div key={suggestion.id} className="rounded-md border border-line bg-surface-raised/50 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-black text-slate-100">{suggestion.title}</div>
-                    <div className="mt-1 text-[11px] font-bold text-meter-cyan">{suggestion.mood}</div>
+                    <div className="text-sm font-black text-ink-high">{suggestion.title}</div>
+                    <div className="mt-1 text-[11px] font-bold text-ink-accent">{suggestion.mood}</div>
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <button
@@ -179,15 +179,15 @@ export function AssistPanel() {
                       title="코드 진행 미리듣기"
                       onClick={() => void preview(`chord:${suggestion.id}`, suggestion.notes)}
                     >
-                      <Play size={13} className={previewingId === `chord:${suggestion.id}` ? "text-meter-cyan" : undefined} />
+                      <Play size={13} className={previewingId === `chord:${suggestion.id}` ? "text-ink-accent" : undefined} />
                     </button>
                     <button className="studio-icon-button h-7 w-7" title="코드 진행 적용" onClick={() => applyChord(suggestion)}>
                       <Plus size={13} />
                     </button>
                   </div>
                 </div>
-                <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">설명</div>
-                <div className="mt-2 text-xs leading-5 text-slate-400">{suggestion.reason}</div>
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-ink-body">설명</div>
+                <div className="mt-2 text-xs leading-5 text-ink-body">{suggestion.reason}</div>
               </div>
             ))}
           </div>
@@ -196,13 +196,13 @@ export function AssistPanel() {
         {tab === "drums" ? (
           <div className="space-y-2">
             {drumSuggestions.map((suggestion) => (
-              <div key={suggestion.id} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+              <div key={suggestion.id} className="rounded-md border border-line bg-surface-raised/50 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-start gap-2">
-                    <Drum size={15} className="mt-0.5 shrink-0 text-meter-cyan" />
+                    <Drum size={15} className="mt-0.5 shrink-0 text-ink-accent" />
                     <div className="min-w-0">
-                      <div className="text-sm font-black text-slate-100">{suggestion.title}</div>
-                      <div className="mt-1 text-xs leading-5 text-slate-400">{suggestion.description}</div>
+                      <div className="text-sm font-black text-ink-high">{suggestion.title}</div>
+                      <div className="mt-1 text-xs leading-5 text-ink-body">{suggestion.description}</div>
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
@@ -211,7 +211,7 @@ export function AssistPanel() {
                       title="드럼 패턴 미리듣기"
                       onClick={() => void preview(`drum:${suggestion.id}`, suggestion.notes, true)}
                     >
-                      <Play size={13} className={previewingId === `drum:${suggestion.id}` ? "text-meter-cyan" : undefined} />
+                      <Play size={13} className={previewingId === `drum:${suggestion.id}` ? "text-ink-accent" : undefined} />
                     </button>
                     <button className="studio-icon-button h-7 w-7" title="드럼 패턴 적용" onClick={() => applyDrum(suggestion)}>
                       <Plus size={13} />
@@ -226,18 +226,18 @@ export function AssistPanel() {
         {tab === "melody" ? (
           <div className="space-y-2">
             {melodySuggestions.length === 0 ? (
-              <div className="rounded-md border border-white/10 bg-white/[0.045] p-3 text-sm text-slate-500">
+              <div className="rounded-md border border-line bg-surface-raised/50 p-3 text-sm text-ink-body">
                 미디 클립을 하나 만들면 이어쓰기 후보가 나옵니다.
               </div>
             ) : (
               melodySuggestions.map((suggestion) => (
-                <div key={suggestion.id} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+                <div key={suggestion.id} className="rounded-md border border-line bg-surface-raised/50 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-start gap-2">
                       <Music2 size={15} className="mt-0.5 shrink-0 text-meter-amber" />
                       <div className="min-w-0">
-                        <div className="text-sm font-black text-slate-100">{suggestion.title}</div>
-                        <div className="mt-1 text-xs leading-5 text-slate-400">{suggestion.explanation}</div>
+                        <div className="text-sm font-black text-ink-high">{suggestion.title}</div>
+                        <div className="mt-1 text-xs leading-5 text-ink-body">{suggestion.explanation}</div>
                       </div>
                     </div>
                     <div className="flex shrink-0 gap-1">
@@ -246,7 +246,7 @@ export function AssistPanel() {
                         title="멜로디 이어쓰기 미리듣기"
                         onClick={() => void preview(`melody:${suggestion.id}`, suggestion.notes)}
                       >
-                        <Play size={13} className={previewingId === `melody:${suggestion.id}` ? "text-meter-cyan" : undefined} />
+                        <Play size={13} className={previewingId === `melody:${suggestion.id}` ? "text-ink-accent" : undefined} />
                       </button>
                       <button className="studio-icon-button h-7 w-7" title="멜로디 이어쓰기 적용" onClick={() => applyMelody(suggestion)}>
                         <Plus size={13} />
@@ -262,10 +262,10 @@ export function AssistPanel() {
         {tab === "why" ? (
           <div className="space-y-2">
             {Object.entries(feedback).map(([key, value]) => (
-              <div key={key} className="rounded-md border border-white/10 bg-white/[0.045] p-3">
+              <div key={key} className="rounded-md border border-line bg-surface-raised/50 p-3">
                 <div className="flex items-start gap-2">
                   <Lightbulb size={15} className="mt-0.5 shrink-0 text-meter-amber" />
-                  <div className="text-xs leading-5 text-slate-300">{value}</div>
+                  <div className="text-xs leading-5 text-ink-body">{value}</div>
                 </div>
               </div>
             ))}

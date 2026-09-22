@@ -1,4 +1,5 @@
 export type AppTheme = "dark" | "light" | "pretty" | "cute";
+import { logError } from "./logger";
 
 type ThemeOption = {
   value: AppTheme;
@@ -32,7 +33,8 @@ function safeStorage(storage?: StorageLike): StorageLike | undefined {
 export function readStoredTheme(storage?: StorageLike): AppTheme {
   try {
     return normalizeTheme(safeStorage(storage)?.getItem(THEME_STORAGE_KEY));
-  } catch {
+  } catch (error) {
+    logError("theme.readStoredTheme", error);
     return "dark";
   }
 }
@@ -40,7 +42,8 @@ export function readStoredTheme(storage?: StorageLike): AppTheme {
 export function writeStoredTheme(theme: AppTheme, storage?: StorageLike) {
   try {
     safeStorage(storage)?.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
+  } catch (error) {
+    logError("theme.writeStoredTheme", error);
     // Storage can be unavailable in private contexts; the in-memory theme still works.
   }
 }

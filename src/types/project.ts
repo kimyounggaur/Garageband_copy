@@ -67,6 +67,7 @@ export type LiveLoopCell = {
 export type LiveLoops = {
   scenes: LiveLoopScene[];
   cells: LiveLoopCell[];
+  quantizeMode?: "bar";
   quantizeBeats?: number;
 };
 
@@ -192,15 +193,18 @@ export type LoopDefinition = {
   id: string;
   name: string;
   category: LoopCategory;
+  musicalRole: "drums" | "bass" | "harmony" | "melody";
   type: LoopPlaybackType;
   trackType: TrackType;
   key?: string;
-  genre?: string;
-  mood?: string[];
+  genre: string;
+  mood: string[];
   bpm: number;
+  timeSignature: [number, number];
   lengthBeats: number;
   color: string;
   description: string;
+  progression?: string;
   audioUrl?: string;
   pattern: LoopStep[];
 };

@@ -1,4 +1,4 @@
-const LCD_TICKS_PER_BEAT = 480;
+import { barPositionAtBeat } from "../../utils/meterMath";
 
 export function clamp01(value: number) {
   if (!Number.isFinite(value)) return 0;
@@ -27,14 +27,6 @@ export function meterLevelToPercent(value: number) {
 }
 
 export function formatLcdBeat(beat: number, timeSignature: [number, number]) {
-  const beatsPerBar = Math.max(1, timeSignature[0] || 4);
-  const safeBeat = Math.max(0, Number.isFinite(beat) ? beat : 0);
-  const barIndex = Math.floor(safeBeat / beatsPerBar);
-  const beatInBar = safeBeat - barIndex * beatsPerBar;
-  const beatIndex = Math.floor(beatInBar);
-  const tick = Math.round((beatInBar - beatIndex) * LCD_TICKS_PER_BEAT);
-  const measureText = String(barIndex + 1).padStart(3, "0");
-  const tickText = String(tick).padStart(3, "0");
-
-  return `${measureText}|${beatIndex + 1}|${tickText}`;
+  const position = barPositionAtBeat(beat, timeSignature);
+  return `${String(position.bar).padStart(3, "0")}|${position.beat}|${String(position.tick).padStart(3, "0")}`;
 }

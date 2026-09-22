@@ -9,6 +9,7 @@ import {
   trackAutomationEntry
 } from "../audio/automation";
 import { buildCompedAudioClip, normalizeTakeSections } from "../audio/audioComping";
+import { withoutUnpersistedAudioAsset } from "../audio/recordingAttachment";
 import { defaultDrummerSettings, generateDrummerPattern, normalizeDrummerSettings } from "../audio/drummer";
 import {
   buildSmartControlPatch,
@@ -49,6 +50,7 @@ import {
   type TrackType
 } from "../types/project";
 import { makeId } from "../utils/id";
+import { barLengthBeats, resolveSnapInterval } from "../utils/meterMath";
 import { loopCategoryLabel } from "../utils/labels";
 import { normalizePianoRollScale } from "../utils/pianoRoll";
 import { normalizeProject } from "../utils/projectMigration";
@@ -69,7 +71,7 @@ import {
   clamp,
   normalizeCycleRange,
   snapBeat,
-  type SnapBeats
+  type SnapOption
 } from "../utils/timeline";
 
 type ClipDraft = Omit<Clip, "id" | "trackId"> & Partial<Pick<Clip, "id" | "trackId">>;
@@ -102,11 +104,15 @@ type LiveLoopPlayback = {
 
 const HISTORY_LIMIT = 80;
 
+export type TransportState = "stopped" | "playing" | "paused";
+
 type DawState = {
   project: Project;
   mode: StudioMode;
   isPlaying: boolean;
+  transportState: TransportState;
   currentBeat: number;
+  seekRevision: number;
   lcdMode: LcdMode;
   isRecording: boolean;
   masterLevel: number;
@@ -118,7 +124,8 @@ type DawState = {
   undoStack: Project[];
   redoStack: Project[];
   pendingHistory?: Project;
-  snapBeats: SnapBeats;
+  snapBeats: number;
+  snapSelection: SnapOption;
   timelineZoom: number;
   preventClipOverlap: boolean;
   tapTempoTimes: number[];
@@ -136,7 +143,7 @@ type DawState = {
   redo: () => void;
   beginHistorySnapshot: () => void;
   commitHistorySnapshot: () => void;
-  setSnapBeats: (snapBeats: SnapBeats) => void;
+  setSnapBeats: (selection: SnapOption) => void;
   setTimelineZoom: (timelineZoom: number) => void;
   setPreventClipOverlap: (preventClipOverlap: boolean) => void;
   setCycleRange: (startBeat: number, endBeat: number, options?: EditOptions) => void;
@@ -180,6 +187,7 @@ type DawState = {
   ) => string;
   updateClipAudioSettings: (clipId: string, settings: ClipAudioSettings) => void;
   addAudioTake: (clipId: string, audioAssetId: string, options?: { activate?: boolean }) => void;
+  discardUnpersistedAudioAsset: (audioAssetId: string) => void;
   setClipActiveTake: (clipId: string, takeId: string) => void;
   setClipTakeSections: (clipId: string, sections: AudioTakeSection[]) => void;
   createCompedAudioClip: (clipId: string) => string | undefined;
@@ -197,7 +205,9 @@ type DawState = {
   selectClips: (clipIds: string[]) => void;
   setBpm: (bpm: number) => void;
   setPlaying: (isPlaying: boolean) => void;
+  stopTransport: () => void;
   setCurrentBeat: (beat: number) => void;
+  seekToBeat: (beat: number) => void;
   toggleMute: (trackId: string) => void;
   toggleSolo: (trackId: string) => void;
   setTrackVolume: (trackId: string, volume: number) => void;
@@ -451,7 +461,7 @@ function getValidClipIds(project: Project, clipIds: string[]) {
   return clipIds.filter((clipId, index) => existingClipIds.has(clipId) && clipIds.indexOf(clipId) === index);
 }
 
-function snapWithOptions(beat: number, snapBeats: SnapBeats, options?: EditOptions) {
+function snapWithOptions(beat: number, snapBeats: number, options?: EditOptions) {
   return options?.snap === false ? Math.max(0, beat) : snapBeat(beat, snapBeats);
 }
 
@@ -498,10 +508,11 @@ function commitProjectChange(
   options: EditOptions = {}
 ): Partial<DawState> {
   if (options.recordHistory === false || state.pendingHistory) {
-    return { project, ...extra };
+    return { project, snapBeats: resolveSnapInterval(state.snapSelection, project.timeSignature), ...extra };
   }
   return {
     project,
+    snapBeats: resolveSnapInterval(state.snapSelection, project.timeSignature),
     undoStack: pushHistory(state.undoStack, state.project),
     redoStack: [],
     ...extra
@@ -560,7 +571,9 @@ export const useDawStore = create<DawState>((set, get) => ({
   project: createInitialProject(),
   mode: "studio",
   isPlaying: false,
+  transportState: "stopped",
   currentBeat: 0,
+  seekRevision: 0,
   lcdMode: "beats",
   isRecording: false,
   masterLevel: 0,
@@ -573,6 +586,7 @@ export const useDawStore = create<DawState>((set, get) => ({
   redoStack: [],
   pendingHistory: undefined,
   snapBeats: SNAP_BEAT,
+  snapSelection: SNAP_BEAT,
   timelineZoom: 1,
   preventClipOverlap: true,
   tapTempoTimes: [],
@@ -582,8 +596,10 @@ export const useDawStore = create<DawState>((set, get) => ({
     const project = createInitialProject();
     set({
       project: { ...project, id: makeId("project"), name },
+      snapBeats: resolveSnapInterval(get().snapSelection, project.timeSignature),
       mode: "studio",
       isPlaying: false,
+      transportState: "stopped",
       currentBeat: 0,
       lcdMode: "beats",
       isRecording: false,
@@ -604,8 +620,10 @@ export const useDawStore = create<DawState>((set, get) => ({
     const migratedProject = normalizeProject(project);
     set({
       project: migratedProject,
+      snapBeats: resolveSnapInterval(get().snapSelection, migratedProject.timeSignature),
       mode: migratedProject.lessonId ? "lesson" : "studio",
       isPlaying: false,
+      transportState: "stopped",
       currentBeat: 0,
       lcdMode: "beats",
       isRecording: false,
@@ -635,8 +653,10 @@ export const useDawStore = create<DawState>((set, get) => ({
     const project = cloneProject(source, `${source.name} 복사본`);
     set({
       project,
+      snapBeats: resolveSnapInterval(get().snapSelection, project.timeSignature),
       mode: project.lessonId ? "lesson" : "studio",
       isPlaying: false,
+      transportState: "stopped",
       currentBeat: 0,
       lcdMode: "beats",
       isRecording: false,
@@ -657,8 +677,10 @@ export const useDawStore = create<DawState>((set, get) => ({
     if (!project) return;
     set({
       project,
+      snapBeats: resolveSnapInterval(get().snapSelection, project.timeSignature),
       mode: "lesson",
       isPlaying: false,
+      transportState: "stopped",
       currentBeat: 0,
       lcdMode: "beats",
       isRecording: false,
@@ -689,8 +711,10 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
     set({
       project: nextProject,
+      snapBeats: resolveSnapInterval(get().snapSelection, nextProject.timeSignature),
       mode: assignment.lessonId ? "lesson" : "studio",
       isPlaying: false,
+      transportState: "stopped",
       currentBeat: 0,
       lcdMode: "beats",
       isRecording: false,
@@ -740,6 +764,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       const project = snapshotProject(previous);
       return {
         project,
+        snapBeats: resolveSnapInterval(state.snapSelection, project.timeSignature),
         undoStack: state.undoStack.slice(0, -1),
         redoStack: pushHistory(state.redoStack, state.project),
         pendingHistory: undefined,
@@ -755,6 +780,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       const project = snapshotProject(next);
       return {
         project,
+        snapBeats: resolveSnapInterval(state.snapSelection, project.timeSignature),
         undoStack: pushHistory(state.undoStack, state.project),
         redoStack: state.redoStack.slice(0, -1),
         pendingHistory: undefined,
@@ -784,7 +810,10 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
-  setSnapBeats: (snapBeats) => set({ snapBeats }),
+  setSnapBeats: (snapSelection) => set((state) => ({
+    snapSelection,
+    snapBeats: resolveSnapInterval(snapSelection, state.project.timeSignature)
+  })),
 
   setTimelineZoom: (timelineZoom) => set({ timelineZoom: clamp(timelineZoom, MIN_TIMELINE_ZOOM, MAX_TIMELINE_ZOOM) }),
 
@@ -1057,7 +1086,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         liveLoopPlayback: {
           activeCellIds: state.liveLoopPlayback.activeCellIds,
           queuedCellIds: [cell.id],
-          triggerBeat: liveLoopTriggerBeat(state.currentBeat, state.project.timeSignature, liveLoops.quantizeBeats),
+          triggerBeat: liveLoopTriggerBeat(state.currentBeat, state.project.timeSignature, liveLoops.quantizeBeats, liveLoops.quantizeMode),
           sceneId
         }
       };
@@ -1073,7 +1102,7 @@ export const useDawStore = create<DawState>((set, get) => ({
         liveLoopPlayback: {
           activeCellIds: state.liveLoopPlayback.activeCellIds,
           queuedCellIds: cellIds,
-          triggerBeat: liveLoopTriggerBeat(state.currentBeat, state.project.timeSignature, liveLoops.quantizeBeats),
+          triggerBeat: liveLoopTriggerBeat(state.currentBeat, state.project.timeSignature, liveLoops.quantizeBeats, liveLoops.quantizeMode),
           sceneId
         }
       };
@@ -1194,8 +1223,11 @@ export const useDawStore = create<DawState>((set, get) => ({
     const id = clipDraft.id ?? makeId("clip");
     set((state) => {
       const targetTrack = state.project.tracks.find((track) => track.id === trackId);
-      if (!targetTrack) return state;
-      const lengthBeats = Math.max(0.25, snapBeat(clipDraft.lengthBeats, state.snapBeats));
+      if (!targetTrack) throw new Error("클립을 넣을 트랙을 찾지 못했습니다.");
+      const rawLength = Number.isFinite(clipDraft.lengthBeats) ? clipDraft.lengthBeats : 0;
+      const lengthBeats = clipDraft.type === "audio"
+        ? Math.max(0.25, rawLength)
+        : Math.max(0.25, snapBeat(rawLength, state.snapBeats));
       const startBeat = state.preventClipOverlap
         ? resolveNonOverlappingStart(targetTrack.clips, undefined, clipDraft.startBeat, lengthBeats, state.snapBeats)
         : snapBeat(clipDraft.startBeat, state.snapBeats);
@@ -1238,11 +1270,15 @@ export const useDawStore = create<DawState>((set, get) => ({
       type: "loop",
       name: loop.name,
       startBeat,
-      lengthBeats: loop.lengthBeats * 2,
+      lengthBeats: loop.lengthBeats,
       color: loop.color,
       loopId,
       loopEnabled: true,
-      instructions: [match.needsTempoMatch ? match.tempoLabel : undefined, match.needsKeyMatch ? match.keyLabel : undefined]
+      instructions: [
+        match.needsTempoMatch ? match.tempoLabel : undefined,
+        match.needsKeyMatch ? match.keyLabel : undefined,
+        match.needsMeterMatch ? match.meterLabel : undefined
+      ]
         .filter(Boolean)
         .join(" | ") || undefined
     });
@@ -1260,7 +1296,7 @@ export const useDawStore = create<DawState>((set, get) => ({
       type: "midi",
       name: "미디 클립",
       startBeat,
-      lengthBeats: 16,
+      lengthBeats: 4 * barLengthBeats(state.project.timeSignature),
       color: "#a78bfa",
       notes: []
     });
@@ -1297,13 +1333,19 @@ export const useDawStore = create<DawState>((set, get) => ({
 
   addAudioClip: (trackId, startBeat, name, audioUrl, durationSeconds, audioAssetId) => {
     const state = get();
+    if (trackId !== undefined && !state.project.tracks.some((track) => track.id === trackId)) {
+      throw new Error("오디오 클립을 넣을 트랙이 없어졌습니다.");
+    }
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      throw new Error("오디오 길이를 확인할 수 없습니다.");
+    }
     const selectedTrack = state.project.tracks.find((track) => track.id === state.selectedTrackId);
     const targetTrackId =
       trackId ??
       (selectedTrack?.type === "audio" || selectedTrack?.role === "recording" ? selectedTrack.id : undefined) ??
       state.project.tracks.find((track) => track.type === "audio" || track.role === "recording")?.id ??
       get().addTrack("audio", "녹음");
-    const lengthBeats = Math.max(1, snapBeat(durationSeconds / (60 / state.project.bpm), state.snapBeats));
+    const lengthBeats = Math.max(0.25, durationSeconds / (60 / state.project.bpm));
 
     return get().addClip(targetTrackId, {
       type: "audio",
@@ -1385,6 +1427,21 @@ export const useDawStore = create<DawState>((set, get) => ({
           takeSections: normalizeTakeSections({ ...item, audioAssetId: activeTakeId, takeIds, activeTakeId })
         }))
       );
+    });
+  },
+
+  discardUnpersistedAudioAsset: (audioAssetId) => {
+    set((state) => {
+      const project = withoutUnpersistedAudioAsset(state.project, audioAssetId);
+      if (project === state.project) return state;
+      const nextProject = touch(project);
+      const clipIds = new Set(nextProject.tracks.flatMap((track) => track.clips.map((clip) => clip.id)));
+      return {
+        ...state,
+        project: nextProject,
+        selectedClipId: state.selectedClipId && clipIds.has(state.selectedClipId) ? state.selectedClipId : undefined,
+        selectedClipIds: state.selectedClipIds.filter((id) => clipIds.has(id))
+      };
     });
   },
 
@@ -1809,8 +1866,24 @@ export const useDawStore = create<DawState>((set, get) => ({
     });
   },
 
-  setPlaying: (isPlaying) => set({ isPlaying }),
-  setCurrentBeat: (beat) => set({ currentBeat: Math.max(0, beat) }),
+  setPlaying: (isPlaying) => set((state) => ({
+    isPlaying,
+    transportState: isPlaying ? "playing" : state.transportState === "playing" ? "paused" : state.transportState
+  })),
+  stopTransport: () => set((state) => ({
+    isPlaying: false,
+    transportState: "stopped",
+    isRecording: false,
+    currentBeat: 0,
+    seekRevision: state.seekRevision + 1,
+    liveLoopPlayback: EMPTY_LIVE_LOOP_PLAYBACK
+  })),
+  setCurrentBeat: (beat) => set({ currentBeat: Number.isFinite(beat) ? Math.max(0, beat) : 0 }),
+  seekToBeat: (beat) => set((state) => {
+    const nextBeat = Number.isFinite(beat) ? Math.max(0, beat) : 0;
+    if (Math.abs(nextBeat - state.currentBeat) < 0.000001) return state;
+    return { currentBeat: nextBeat, seekRevision: state.seekRevision + 1 };
+  }),
 
   toggleMute: (trackId) => {
     set((state) => {

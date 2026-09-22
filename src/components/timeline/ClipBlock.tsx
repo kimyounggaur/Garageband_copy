@@ -1,11 +1,12 @@
-import type { MouseEvent, PointerEvent } from "react";
-import { useEffect, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent, PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Lock, PlayCircle, Scissors, Trash2 } from "../icons";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip } from "../../types/project";
 import { clipTypeLabel } from "../../utils/labels";
-import { CLIP_HEIGHT, beatToX, clamp, clipTypeRegionColor, snapBeat } from "../../utils/timeline";
+import { CLIP_HEIGHT, beatToX, clamp, clipTypeRegionColor, formatBarBeatTick, snapBeat } from "../../utils/timeline";
 import { AudioWaveform } from "../audio/AudioWaveform";
+import { bestTextColor } from "../../utils/colorContrast";
 
 type ClipBlockProps = {
   clip: Clip;
@@ -17,14 +18,6 @@ type ClipMenuState = {
   y: number;
   beat: number;
 };
-
-function textColorFor(hex: string) {
-  const value = hex.replace("#", "");
-  const r = parseInt(value.slice(0, 2), 16);
-  const g = parseInt(value.slice(2, 4), 16);
-  const b = parseInt(value.slice(4, 6), 16);
-  return r * 0.299 + g * 0.587 + b * 0.114 > 160 ? "#10141c" : "#f8fafc";
-}
 
 function menuPosition(clientX: number, clientY: number) {
   return {
@@ -39,13 +32,14 @@ function snapDelta(delta: number, snapBeats: number) {
 
 export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   const [menu, setMenu] = useState<ClipMenuState | undefined>();
+  const clipRef = useRef<HTMLDivElement>(null);
   const selectedClipId = useDawStore((state) => state.selectedClipId);
   const selectedClipIds = useDawStore((state) => state.selectedClipIds);
   const snapBeats = useDawStore((state) => state.snapBeats);
   const selected = selectedClipId === clip.id || selectedClipIds.includes(clip.id);
   const selectTrack = useDawStore((state) => state.selectTrack);
   const selectClip = useDawStore((state) => state.selectClip);
-  const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
+  const seekToBeat = useDawStore((state) => state.seekToBeat);
   const moveClip = useDawStore((state) => state.moveClip);
   const moveSelectedClips = useDawStore((state) => state.moveSelectedClips);
   const resizeClip = useDawStore((state) => state.resizeClip);
@@ -60,8 +54,8 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
   const width = Math.max(pixelsPerBeat * 0.25, beatToX(clip.lengthBeats, pixelsPerBeat));
   const isDrummerClip = Boolean(clip.drummerPreset);
   const regionColor = clipTypeRegionColor(isDrummerClip ? "drummer" : clip.type);
-  const clipKindLabel = isDrummerClip ? "Drummer" : clipTypeLabel(clip.type);
-  const textColor = textColorFor(regionColor);
+  const clipKindLabel = isDrummerClip ? "드러머" : clipTypeLabel(clip.type);
+  const textColor = bestTextColor(regionColor);
   const canSplitAtMenuBeat =
     Boolean(menu) &&
     clip.type === "audio" &&
@@ -71,9 +65,13 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
 
   useEffect(() => {
     if (!menu) return;
+    document.querySelector<HTMLElement>('[data-clip-menu]')?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')?.focus();
     const closeMenu = () => setMenu(undefined);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeMenu();
+      if (event.key === "Escape") {
+        closeMenu();
+        clipRef.current?.focus();
+      }
     };
 
     window.addEventListener("click", closeMenu);
@@ -241,29 +239,87 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
     const position = menuPosition(event.clientX, event.clientY);
     selectTrack(clip.trackId);
     selectClip(clip.id);
-    setCurrentBeat(beat);
+    seekToBeat(beat);
     setMenu({ ...position, beat });
   }
 
   function runMenuAction(action: () => void) {
     setMenu(undefined);
     action();
+    requestAnimationFrame(() => clipRef.current?.isConnected && clipRef.current.focus());
+  }
+
+  function handleClipKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      selectTrack(clip.trackId);
+      selectClip(clip.id);
+      seekToBeat(clip.startBeat);
+      return;
+    }
+    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      selectTrack(clip.trackId);
+      selectClip(clip.id);
+      setMenu({ ...menuPosition(rect.left + 24, rect.top + 24), beat: clip.startBeat });
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const tracks = useDawStore.getState().project.tracks;
+    const trackIndex = tracks.findIndex((track) => track.id === clip.trackId);
+    const track = tracks[trackIndex];
+    const ordered = [...(track?.clips ?? [])].sort((a, b) => a.startBeat - b.startBeat);
+    const clipIndex = ordered.findIndex((item) => item.id === clip.id);
+    const next = event.key === "ArrowLeft" ? ordered[clipIndex - 1]
+      : event.key === "ArrowRight" ? ordered[clipIndex + 1]
+      : [...(tracks[trackIndex + (event.key === "ArrowUp" ? -1 : 1)]?.clips ?? [])]
+          .sort((a, b) => Math.abs(a.startBeat - clip.startBeat) - Math.abs(b.startBeat - clip.startBeat))[0];
+    if (next) document.querySelector<HTMLElement>(`[data-clip-id="${CSS.escape(next.id)}"]`)?.focus();
+  }
+
+  function handleClipMenuKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])')];
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setMenu(undefined);
+      clipRef.current?.focus();
+    }
   }
 
   return (
     <div
-      className={`absolute top-3 overflow-hidden rounded-md border shadow-lg ${
+      ref={clipRef}
+      data-clip-id={clip.id}
+      role="group"
+      tabIndex={0}
+      aria-label={`${clip.name}, ${clipKindLabel}, ${useDawStore.getState().project.tracks.find((track) => track.id === clip.trackId)?.name ?? "트랙"}, 시작 ${formatBarBeatTick(clip.startBeat, useDawStore.getState().project.timeSignature)}, 길이 ${clip.lengthBeats}박${selected ? ", 선택됨" : ""}. Enter로 편집, 방향키로 클립 탐색`}
+      className={`absolute top-3 overflow-hidden rounded-md border shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-accent ${
         selected ? "border-accent-sel ring-2 ring-accent-sel/70" : "border-black/30"
       }`}
       style={{ left, width, height: CLIP_HEIGHT, backgroundColor: regionColor, color: textColor }}
       onPointerDown={beginMove}
+      onKeyDown={handleClipKeyDown}
       onContextMenu={openClipMenu}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => {
         event.stopPropagation();
         selectTrack(clip.trackId);
         selectClip(clip.id);
-        setCurrentBeat(clip.startBeat);
+        seekToBeat(clip.startBeat);
       }}
     >
       {clip.loopEnabled ? (
@@ -291,42 +347,64 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
         </div>
       </div>
       <button
-        className={`absolute left-0 top-0 h-full w-2 bg-black/18 transition hover:bg-black/32 ${
+        className={`absolute left-0 top-0 h-full bg-black/18 transition hover:bg-black/32 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink-accent ${
           clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
         }`}
+        style={{ width: Math.min(24, Math.max(8, width / 4)) }}
         title="클립 시작점 조절"
         aria-label="클립 시작점 조절"
+        disabled={clip.locked}
         onPointerDown={beginResizeStart}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            event.preventDefault();
+            event.stopPropagation();
+            resizeClipStart(clip.id, clip.startBeat + (event.key === "ArrowRight" ? snapBeats : -snapBeats));
+          }
+        }}
       />
       <button
-        className={`absolute right-0 top-0 h-full w-2 bg-black/18 transition hover:bg-black/32 ${
+        className={`absolute right-0 top-0 h-full bg-black/18 transition hover:bg-black/32 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink-accent ${
           clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
         }`}
+        style={{ width: Math.min(24, Math.max(8, width / 4)) }}
         title="클립 길이 조절"
         aria-label="클립 길이 조절"
+        disabled={clip.locked}
         onPointerDown={beginResize}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            event.preventDefault();
+            event.stopPropagation();
+            resizeClip(clip.id, clip.lengthBeats + (event.key === "ArrowRight" ? snapBeats : -snapBeats));
+          }
+        }}
       />
       <button
-        className={`absolute bottom-1 right-2 h-3 w-3 rounded-sm border border-white/60 bg-black/30 transition hover:bg-black/50 ${
+        className={`absolute bottom-1 right-7 h-6 w-6 rounded-sm border border-white/60 bg-black/30 transition hover:bg-black/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink-accent ${
           clip.locked ? "cursor-not-allowed opacity-35" : "cursor-ew-resize"
         }`}
+        style={{ display: width < 80 ? "none" : undefined }}
         title="루프 반복 길이 조절"
         aria-label="루프 반복 길이 조절"
+        disabled={clip.locked}
         onPointerDown={beginLoopResize}
       />
 
       {menu ? (
         <div
-          className="fixed z-[80] w-56 overflow-hidden rounded-lg border border-white/10 bg-studio-900/98 p-1 text-slate-100 shadow-2xl shadow-black/50 backdrop-blur"
+          data-clip-menu
+          className="fixed z-[80] w-56 overflow-hidden rounded-lg border border-line bg-surface-panel p-1 text-ink-high shadow-2xl shadow-black/50 backdrop-blur"
           style={{ left: menu.x, top: menu.y }}
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
           role="menu"
           aria-label={`${clip.name} 클립 메뉴`}
+          onKeyDown={handleClipMenuKeyDown}
         >
-          <div className="border-b border-white/10 px-2 py-2">
-            <div className="truncate text-xs font-black text-slate-100">{clip.name}</div>
-            <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+          <div className="border-b border-line px-2 py-2">
+            <div className="truncate text-xs font-black text-ink-high">{clip.name}</div>
+            <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-body">
               <span>{clipKindLabel}</span>
               <span>{menu.beat.toFixed(2)}박</span>
               {clip.locked ? <span>잠김</span> : null}
@@ -334,15 +412,15 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
           </div>
 
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
-            onClick={() => runMenuAction(() => setCurrentBeat(clip.startBeat))}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
+            onClick={() => runMenuAction(() => seekToBeat(clip.startBeat))}
             role="menuitem"
           >
             <PlayCircle size={14} />
             클립 시작으로 이동
           </button>
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08]"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold text-ink-high transition hover:bg-surface-raised"
             onClick={() => runMenuAction(() => duplicateClip(clip.id))}
             role="menuitem"
           >
@@ -351,12 +429,12 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
           </button>
           <button
             className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-              canSplitAtMenuBeat ? "text-slate-200 hover:bg-white/[0.08]" : "cursor-not-allowed text-slate-600"
+              canSplitAtMenuBeat ? "text-ink-high hover:bg-surface-raised" : "cursor-not-allowed text-ink-disabled"
             }`}
             onClick={() =>
               canSplitAtMenuBeat
                 ? runMenuAction(() => {
-                    setCurrentBeat(menu.beat);
+                    seekToBeat(menu.beat);
                     splitSelectedAudioClip();
                   })
                 : undefined
@@ -369,7 +447,7 @@ export function ClipBlock({ clip, pixelsPerBeat }: ClipBlockProps) {
           </button>
           <button
             className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-              clip.locked ? "cursor-not-allowed text-slate-600" : "text-red-200 hover:bg-red-500/12"
+              clip.locked ? "cursor-not-allowed text-ink-disabled" : "text-ink-high hover:bg-red-500/12"
             }`}
             onClick={() => (clip.locked ? undefined : runMenuAction(() => removeClip(clip.id)))}
             disabled={clip.locked}

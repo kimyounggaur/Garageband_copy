@@ -25,10 +25,11 @@ import {
   Undo2,
   Volume1
 } from "../icons";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { StudioMode } from "../../education/types";
 import { useDawStore } from "../../store/useDawStore";
+import { logError } from "../../utils/logger";
 import type { AppTheme } from "../../utils/theme";
 import { statusLabel } from "../../utils/labels";
 import { detectPitchFromBuffer, pitchToTunerReading, projectKeyOptions } from "../../utils/transport";
@@ -37,6 +38,11 @@ import { IconButton, LcdDisplay, Meter, SegmentedToggle } from "../ui";
 type Status = "idle" | "working" | "done" | "error";
 
 type TransportBarProps = {
+  onPlayToggle: () => void;
+  onStop: () => void;
+  onRecord: () => void;
+  recordingStatus: string;
+  exportDisabled?: boolean;
   onSave: () => void;
   saveStatus: Status;
   onExport: () => void;
@@ -56,7 +62,22 @@ const TIME_SIGNATURE_OPTIONS: Array<[number, number]> = [
   [7, 8]
 ];
 
+function CurrentBeatLcd(props: ComponentProps<typeof LcdDisplay>) {
+  const currentBeat = useDawStore((state) => state.currentBeat);
+  return <LcdDisplay {...props} currentBeat={currentBeat} />;
+}
+
+function CurrentMasterMeter() {
+  const masterLevel = useDawStore((state) => state.masterLevel);
+  return <Meter label="마스터 피크 미터" value={masterLevel} className="w-12" />;
+}
+
 export function TransportBar({
+  onPlayToggle,
+  onStop,
+  onRecord,
+  recordingStatus,
+  exportDisabled,
   onSave,
   saveStatus,
   onExport,
@@ -73,11 +94,7 @@ export function TransportBar({
   const isRecording = useDawStore((state) => state.isRecording);
   const lcdMode = useDawStore((state) => state.lcdMode);
   const tunerReading = useDawStore((state) => state.tunerReading);
-  const masterLevel = useDawStore((state) => state.masterLevel);
-  const currentBeat = useDawStore((state) => state.currentBeat);
-  const setPlaying = useDawStore((state) => state.setPlaying);
-  const setRecording = useDawStore((state) => state.setRecording);
-  const setCurrentBeat = useDawStore((state) => state.setCurrentBeat);
+  const seekToBeat = useDawStore((state) => state.seekToBeat);
   const setBpm = useDawStore((state) => state.setBpm);
   const setMode = useDawStore((state) => state.setMode);
   const renameProject = useDawStore((state) => state.renameProject);
@@ -103,33 +120,33 @@ export function TransportBar({
   const mediaStreamRef = useRef<MediaStream | undefined>(undefined);
 
   const modeOptions: Array<{ value: StudioMode; label: string; icon: ReactNode }> = [
-    { value: "studio", label: "Studio", icon: <SlidersHorizontal size={14} /> },
-    { value: "lesson", label: "Lesson", icon: <GraduationCap size={14} /> },
-    { value: "review", label: "Review", icon: <ClipboardCheck size={14} /> }
+    { value: "studio", label: "스튜디오", icon: <SlidersHorizontal size={14} /> },
+    { value: "lesson", label: "수업", icon: <GraduationCap size={14} /> },
+    { value: "review", label: "검토", icon: <ClipboardCheck size={14} /> }
   ];
   const educationOptions: Array<{ value: "student" | "teacher"; label: string; icon: ReactNode }> = [
-    { value: "student", label: "Student", icon: <GraduationCap size={14} /> },
-    { value: "teacher", label: "Teacher", icon: <School size={14} /> }
+    { value: "student", label: "학생", icon: <GraduationCap size={14} /> },
+    { value: "teacher", label: "교사", icon: <School size={14} /> }
   ];
   const themeOptions: Array<{ value: AppTheme; label: string; icon: ReactNode }> = [
-    { value: "dark", label: "Dark", icon: <Moon size={14} /> },
-    { value: "light", label: "Light", icon: <Sun size={14} /> },
-    { value: "pretty", label: "Pretty", icon: <Sparkles size={14} /> },
-    { value: "cute", label: "Cute", icon: <Heart size={14} /> }
+    { value: "dark", label: "어두운", icon: <Moon size={14} /> },
+    { value: "light", label: "밝은", icon: <Sun size={14} /> },
+    { value: "pretty", label: "화사한", icon: <Sparkles size={14} /> },
+    { value: "cute", label: "귀여운", icon: <Heart size={14} /> }
   ];
   const lcdValue =
     lcdMode === "tuner" && tunerReading
       ? `${tunerReading.note} ${tunerReading.cents > 0 ? "+" : ""}${tunerReading.cents}`
       : lcdMode === "tuner"
-        ? "Mic needed"
+        ? "마이크 필요"
         : undefined;
   const lcdDetail =
     lcdMode === "tuner" && tunerReading
       ? `${tunerReading.frequency.toFixed(1)} Hz`
       : lcdMode === "tuner"
         ? tunerStatus === "blocked"
-          ? "permission needed"
-          : "tuner"
+          ? "마이크 권한 필요"
+          : "튜너"
         : undefined;
 
   useEffect(() => () => stopTuner(false), []);
@@ -137,7 +154,7 @@ export function TransportBar({
   function stopTuner(resetStatus = true) {
     cancelAnimationFrame(tunerFrameRef.current);
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    void audioContextRef.current?.close();
+    void audioContextRef.current?.close().catch((error) => logError("TransportBar.stopTuner", error));
     mediaStreamRef.current = undefined;
     analyserRef.current = undefined;
     audioContextRef.current = undefined;
@@ -166,7 +183,8 @@ export function TransportBar({
       analyserRef.current = analyser;
       setTunerStatus("listening");
       readTuner();
-    } catch {
+    } catch (error) {
+      logError("TransportBar.startTuner", error);
       setTunerStatus("blocked");
     }
   }
@@ -183,90 +201,65 @@ export function TransportBar({
     tunerFrameRef.current = requestAnimationFrame(readTuner);
   }
 
-  function stopTransport() {
-    setPlaying(false);
-    setRecording(false);
-    setCurrentBeat(0);
-  }
-
-  function togglePlay() {
-    if (isPlaying) {
-      setPlaying(false);
-      setRecording(false);
-      return;
-    }
-    setPlaying(true);
-  }
-
-  function toggleRecord() {
-    if (isRecording) {
-      stopTransport();
-      return;
-    }
-    setRecording(true);
-    setPlaying(true);
-  }
-
   return (
-    <header className="flex min-h-16 min-w-0 flex-wrap items-center justify-between gap-2 border-b border-graphite-700 bg-graphite-950 px-2 py-2 shadow-[0_1px_0_rgba(255,255,255,0.04)] lg:h-16 lg:flex-nowrap lg:px-3">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:flex-nowrap">
+    <header className="flex min-h-16 min-w-0 flex-wrap items-center gap-2 border-b border-graphite-700 bg-graphite-950 px-2 py-2 shadow-[0_1px_0_rgba(255,255,255,0.04)] lg:px-3">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
         <div className="flex h-10 items-center gap-1.5 rounded-md border border-graphite-700 bg-graphite-975/80 px-2">
-          <IconButton label="Go to beginning" tooltip="Go to beginning" onClick={() => setCurrentBeat(0)}>
+          <IconButton label="처음으로 이동" tooltip="처음으로 이동" onClick={() => seekToBeat(0)}>
             <Rewind size={15} />
           </IconButton>
-          <IconButton label={isPlaying ? "Pause" : "Play"} tooltip={isPlaying ? "Pause" : "Play"} active={isPlaying} tone="play" onClick={togglePlay}>
+          <IconButton label={isPlaying ? "일시정지" : "재생"} tooltip={isPlaying ? "일시정지" : "재생"} active={isPlaying} tone="play" onClick={onPlayToggle}>
             {isPlaying ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}
           </IconButton>
-          <IconButton label="Stop" tooltip="Stop" onClick={stopTransport}>
+          <IconButton label="정지" tooltip="정지" onClick={onStop}>
             <Square size={15} />
           </IconButton>
-          <IconButton label="Record" tooltip="Record" active={isRecording} tone="record" onClick={toggleRecord}>
+          <IconButton label={recordingStatus === "requesting" ? "마이크 권한 확인 중" : "녹음"} tooltip={recordingStatus === "requesting" ? "마이크 권한 확인 중" : "녹음"} active={isRecording || recordingStatus !== "idle" && recordingStatus !== "error"} tone="record" onClick={onRecord}>
             <Circle size={15} fill={isRecording ? "currentColor" : "none"} />
           </IconButton>
-          <IconButton label="Cycle" tooltip="Cycle region" active={Boolean(project.cycleEnabled)} tone="cycle" onClick={() => toggleCycle()}>
+          <IconButton label="반복 구간" tooltip="반복 구간" active={Boolean(project.cycleEnabled)} tone="cycle" onClick={() => toggleCycle()}>
             <Repeat2 size={15} />
           </IconButton>
-          <IconButton label="Undo" tooltip="Undo" onClick={undo} disabled={!canUndo}>
+          <IconButton label="실행 취소" tooltip="실행 취소" onClick={undo} disabled={!canUndo}>
             <Undo2 size={15} />
           </IconButton>
-          <IconButton label="Redo" tooltip="Redo" onClick={redo} disabled={!canRedo}>
+          <IconButton label="다시 실행" tooltip="다시 실행" onClick={redo} disabled={!canRedo}>
             <Redo2 size={15} />
           </IconButton>
         </div>
 
-        <LcdDisplay
+        <CurrentBeatLcd
           mode={lcdMode}
-          currentBeat={currentBeat}
           bpm={project.bpm}
           timeSignature={project.timeSignature}
           value={lcdValue}
           detail={lcdDetail}
-          label="Playback LCD"
+          label="재생 위치 표시"
           className="h-10 min-w-[148px]"
           onClick={cycleLcdMode}
         />
 
         <div className="flex h-10 items-center gap-1.5 rounded-md border border-graphite-700 bg-graphite-975/80 px-2">
           <label className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-graphite-600">Tempo</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-graphite-600">템포</span>
             <input
-              className="h-7 w-16 rounded border border-graphite-700 bg-graphite-900 px-2 text-center text-sm font-bold text-slate-100 outline-none focus:border-accent-sel"
+              className="h-7 w-16 rounded border border-line bg-surface-panel px-2 text-center text-sm font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
               type="number"
               min={40}
               max={220}
               value={project.bpm}
               onChange={(event) => setBpm(Number(event.target.value))}
-              aria-label="Tempo"
+              aria-label="템포"
             />
           </label>
-          <button className="studio-button h-7 px-2 text-[11px]" onClick={() => tapTempo()} title="Tap tempo">
-            Tap
+          <button className="studio-button h-7 px-2 text-[11px]" onClick={() => tapTempo()} title="누른 간격으로 템포 맞추기">
+            탭
           </button>
           <select
-            className="h-7 rounded border border-graphite-700 bg-graphite-900 px-2 text-xs font-bold text-slate-100 outline-none focus:border-accent-sel"
+            className="h-7 rounded border border-line bg-surface-panel px-2 text-xs font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
             value={`${project.timeSignature[0]}/${project.timeSignature[1]}`}
             onChange={(event) => setTimeSignature(event.target.value.split("/").map(Number) as [number, number])}
-            aria-label="Time signature"
+            aria-label="박자표"
           >
             {TIME_SIGNATURE_OPTIONS.map(([top, bottom]) => (
               <option key={`${top}/${bottom}`} value={`${top}/${bottom}`}>
@@ -275,10 +268,10 @@ export function TransportBar({
             ))}
           </select>
           <select
-            className="h-7 rounded border border-graphite-700 bg-graphite-900 px-2 text-xs font-bold text-slate-100 outline-none focus:border-accent-sel"
+            className="h-7 rounded border border-line bg-surface-panel px-2 text-xs font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
             value={project.key ?? "C"}
             onChange={(event) => setProjectKey(event.target.value)}
-            aria-label="Project key"
+            aria-label="프로젝트 조성"
           >
             {projectKeyOptions().map((key) => (
               <option key={key} value={key}>
@@ -290,26 +283,26 @@ export function TransportBar({
 
         <div className="flex h-10 items-center gap-1.5 rounded-md border border-graphite-700 bg-graphite-975/80 px-2">
           <button
-            className={`studio-button h-7 px-2 text-[11px] ${project.metronomeOn ? "border-accent-cycle bg-accent-cycle/15 text-white" : ""}`}
+            className={`studio-button h-7 px-2 text-[11px] ${project.metronomeOn ? "border-accent-cycle bg-accent-cycle/15 text-ink-high" : ""}`}
             onClick={() => toggleMetronome()}
-            title="Metronome"
+            title="메트로놈"
           >
-            Metro
+            메트로놈
           </button>
           <select
-            className="h-7 rounded border border-graphite-700 bg-graphite-900 px-2 text-xs font-bold text-slate-100 outline-none focus:border-accent-sel"
+            className="h-7 rounded border border-line bg-surface-panel px-2 text-xs font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
             value={project.countInBars ?? 0}
             onChange={(event) => setCountInBars(Number(event.target.value))}
-            aria-label="Count in"
+            aria-label="카운트인"
           >
-            <option value={0}>No count</option>
-            <option value={1}>1 bar</option>
-            <option value={2}>2 bars</option>
+            <option value={0}>카운트인 없음</option>
+            <option value={1}>1마디</option>
+            <option value={2}>2마디</option>
           </select>
           <button
-            className={`studio-button h-7 px-2 text-[11px] ${tunerStatus === "listening" ? "border-accent-sel bg-accent-sel/15 text-white" : ""}`}
+            className={`studio-button h-7 px-2 text-[11px] ${tunerStatus === "listening" ? "border-accent-sel bg-accent-sel/15 text-ink-high" : ""}`}
             onClick={startTuner}
-            title="Tuner"
+            title="튜너"
           >
             <Mic size={13} />
           </button>
@@ -325,32 +318,32 @@ export function TransportBar({
             step={0.01}
             value={project.masterVolume ?? 0.85}
             onChange={(event) => setMasterVolume(Number(event.target.value))}
-            aria-label="Master volume"
+            aria-label="마스터 음량"
           />
-          <Meter label="Master peak meter" value={masterLevel} className="w-12" />
+          <CurrentMasterMeter />
         </div>
 
         <div className="order-last min-w-0 basis-full sm:order-none sm:basis-auto">
           <input
-            className="h-6 w-full rounded border border-transparent bg-transparent px-1 text-sm font-bold text-slate-100 outline-none transition focus:border-graphite-700 focus:bg-black/20 sm:w-[clamp(120px,13vw,220px)]"
+            className="h-6 w-full rounded border border-transparent bg-transparent px-1 text-sm font-bold text-ink-high outline-none transition focus-visible:border-ink-accent focus-visible:ring-2 focus-visible:ring-ink-accent sm:w-[clamp(120px,13vw,220px)]"
             value={project.name}
             onChange={(event) => renameProject(event.target.value)}
-            aria-label="Project name"
+            aria-label="프로젝트 이름"
           />
-          <div className="text-[11px] text-graphite-600">
-            v{project.version} | {project.tracks.length} tracks | {project.key ?? "C"}
+          <div className="text-[11px] text-ink-muted">
+            v{project.version} | 트랙 {project.tracks.length}개 | {project.key ?? "C"}
           </div>
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
-        <SegmentedToggle value={educationView} options={educationOptions} onChange={onEducationViewChange} ariaLabel="Education view" className="grid-cols-2" />
-        <SegmentedToggle value={mode} options={modeOptions} onChange={setMode} ariaLabel="Workspace mode" className="grid-cols-3" />
+      <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
+        <SegmentedToggle value={educationView} options={educationOptions} onChange={onEducationViewChange} ariaLabel="학생·교사 화면" className="grid-cols-2" />
+        <SegmentedToggle value={mode} options={modeOptions} onChange={setMode} ariaLabel="작업 화면" className="grid-cols-3" />
         <SegmentedToggle
           value={appTheme}
           options={themeOptions}
           onChange={onAppThemeChange}
-          ariaLabel="UI theme"
+          ariaLabel="화면 테마"
           className="grid-cols-4"
           labelClassName="hidden 2xl:inline"
         />
@@ -363,7 +356,7 @@ export function TransportBar({
           href="./manual/quickstart/garageband-quickstart-user-manual.html"
           target="_blank"
           rel="noreferrer"
-          title="퀵스타트 메뉴얼"
+          title="퀵스타트 설명서"
         >
           <PlayCircle size={15} />
           <span className="hidden 2xl:inline">퀵스타트</span>
@@ -373,26 +366,28 @@ export function TransportBar({
           href="./manual/user/garageband-user-manual.html"
           target="_blank"
           rel="noreferrer"
-          title="유저 메뉴얼"
+          title="사용 설명서"
         >
           <BookOpen size={15} />
-          <span className="hidden 2xl:inline">유저 메뉴얼</span>
+          <span className="hidden 2xl:inline">사용 설명서</span>
         </a>
-        <button className="studio-button" onClick={() => createProject("New Project")} title="New project">
+        <button className="studio-button" onClick={() => createProject("새 프로젝트")} title="새 프로젝트">
           <FolderPlus size={15} />
-          <span className="hidden sm:inline">New</span>
+          <span className="hidden sm:inline">새 프로젝트</span>
         </button>
-        <button className="studio-button" onClick={duplicateProject} title="Duplicate project">
+        <button className="studio-button" onClick={duplicateProject} title="프로젝트 복제">
           <Copy size={15} />
-          <span className="hidden sm:inline">Duplicate</span>
+          <span className="hidden sm:inline">복제</span>
         </button>
-        <button className="studio-button" onClick={onSave} title="Save project">
+        <button className="studio-button" onClick={onSave} title={saveStatus === "error" ? "저장 다시 시도" : "프로젝트 저장"}>
           <Save size={15} />
-          <span className="hidden sm:inline">{statusLabel(saveStatus, "Save")}</span>
+          <span className={saveStatus === "error" ? "inline" : "hidden sm:inline"}>
+            {saveStatus === "error" ? "저장 실패 · 다시 시도" : saveStatus === "working" ? "저장 중" : saveStatus === "done" ? "저장됨" : "저장"}
+          </span>
         </button>
-        <button className="studio-button" onClick={onExport} title="Share and export">
+        <button className="studio-button" onClick={onExport} disabled={exportDisabled} title={exportDisabled ? "녹음 저장을 마친 뒤 내보내기" : "공유 및 내보내기"}>
           <Download size={15} />
-          <span className="hidden sm:inline">{statusLabel(exportStatus, "Export")}</span>
+          <span className="hidden sm:inline">{exportStatus === "error" ? "내보내기 실패" : statusLabel(exportStatus, "공유")}</span>
         </button>
       </div>
     </header>

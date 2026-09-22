@@ -1,41 +1,58 @@
-import { getLoopById } from "../data/loops";
+import { getLoopById, resolveLoopPattern } from "../data/loops";
 import type { AutomationParam, Clip, LoopStep, Project, Track } from "../types/project";
 import { automationBaseValue, automationValueAtBeat, normalizeTrackAutomation } from "./automation";
-import { clipGain, resolveClipAudioTiming, resolveClipFadeDurations } from "./clipAudioMath";
+import { clipGain, resolveClipAudioSegment, segmentGainAt } from "./clipAudioMath";
 import { normalizeTrackFx, normalizeTrackSends, resolveProjectMasterFx, resolveTrackAudibleGain } from "./fx";
 import { normalizeProject } from "../utils/projectMigration";
+import { barLengthBeats } from "../utils/meterMath";
+import { logError } from "../utils/logger";
+import { getInstrumentPatch } from "../data/instruments";
+import { reportSampleFallback } from "./sampleNotice";
+import { SAMPLE_PLAYBACK_GAIN, sampleLibrary, samplePlaybackRate, selectSampleForNote } from "./sampleLibrary";
 
-const SAMPLE_RATE = 44100;
+const EXPORT_QUALITY = {
+  standard: { sampleRate: 44100, bitDepth: 16 },
+  high: { sampleRate: 48000, bitDepth: 24 }
+} as const;
 const TWO_PI = Math.PI * 2;
-const MP3_FALLBACK_REASON = "MP3 encoding is not available in this offline renderer; exported WAV audio instead.";
 
-export type ExportAudioFormat = "wav" | "mp3";
 export type ExportQuality = "standard" | "high";
 export type ExportRangeMode = "full" | "cycle";
 
 export type ExportAudioOptions = {
-  format?: ExportAudioFormat;
   quality?: ExportQuality;
   range?: ExportRangeMode;
 };
 
 export type ResolvedExportOptions = {
-  requestedFormat: ExportAudioFormat;
-  format: ExportAudioFormat;
   quality: ExportQuality;
   range: ExportRangeMode;
   startBeat: number;
   endBeat: number;
+  sampleRate: 44100 | 48000;
+  bitDepth: 16 | 24;
 };
 
 export type ExportAudioResult = {
   blob: Blob;
   fileName: string;
   format: "wav";
-  requestedFormat: ExportAudioFormat;
   mimeType: "audio/wav";
-  fallbackReason?: string;
+  sampleRate: 44100 | 48000;
+  bitDepth: 16 | 24;
 };
+
+export class AudioExportError extends Error {
+  readonly clipId: string;
+  readonly clipName: string;
+
+  constructor(clip: Pick<Clip, "id" | "name">) {
+    super(`“${clip.name}” 오디오 클립을 내보내지 못했습니다.`);
+    this.name = "AudioExportError";
+    this.clipId = clip.id;
+    this.clipName = clip.name;
+  }
+}
 
 function beatSeconds(project: Project) {
   return 60 / Math.max(1, Number(project.bpm) || 120);
@@ -44,7 +61,7 @@ function beatSeconds(project: Project) {
 function projectEndBeat(project: Project) {
   return project.tracks.flatMap((track) => track.clips).reduce((max, clip) => {
     return Math.max(max, clip.startBeat + clip.lengthBeats);
-  }, 16);
+  }, 0);
 }
 
 function projectDurationSeconds(project: Project, range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">) {
@@ -57,7 +74,7 @@ function clampBeat(value: unknown, fallback = 0) {
 }
 
 function safeBaseName(name: string) {
-  return name.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "webband-project";
+  return name.trim().replace(/[^\p{L}\p{N}_.-]+/gu, "-").replace(/^[.-]+|[.-]+$/g, "") || "webband-project";
 }
 
 function safeZipEntryName(name: string) {
@@ -75,20 +92,18 @@ export function resolveExportFileName(projectName: string, extension: string) {
 }
 
 export function normalizeExportOptions(project: Project, options: ExportAudioOptions = {}): ResolvedExportOptions {
-  const requestedFormat = options.format === "mp3" ? "mp3" : "wav";
   const quality = options.quality === "high" ? "high" : "standard";
-  const fullEndBeat = Math.max(16, projectEndBeat(project));
+  const fullEndBeat = Math.max(4 * barLengthBeats(project.timeSignature), projectEndBeat(project));
   const cycleStart = clampBeat(project.cycleStart, 0);
-  const cycleEnd = Math.max(cycleStart + 0.25, clampBeat(project.cycleEnd, cycleStart + 8));
+  const cycleEnd = clampBeat(project.cycleEnd, cycleStart);
   const useCycle = options.range === "cycle" && project.cycleEnabled && cycleEnd > cycleStart;
 
   return {
-    requestedFormat,
-    format: requestedFormat,
     quality,
     range: useCycle ? "cycle" : "full",
     startBeat: useCycle ? cycleStart : 0,
-    endBeat: useCycle ? cycleEnd : fullEndBeat
+    endBeat: useCycle ? cycleEnd : fullEndBeat,
+    ...EXPORT_QUALITY[quality]
   };
 }
 
@@ -307,7 +322,7 @@ function scheduleNoise(
   gainValue: number,
   highpass = 900
 ) {
-  const buffer = context.createBuffer(1, Math.ceil(SAMPLE_RATE * duration), SAMPLE_RATE);
+  const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < data.length; i += 1) {
     data[i] = Math.random() * 2 - 1;
@@ -351,9 +366,10 @@ function scheduleLoopClip(
   const loop = getLoopById(clip.loopId);
   if (!loop) return;
   const beat = beatSeconds(project);
+  const pattern = resolveLoopPattern(loop, project.key);
 
   for (let offset = 0; offset < clip.lengthBeats; offset += loop.lengthBeats) {
-    loop.pattern.forEach((step) => {
+    pattern.forEach((step) => {
       const absoluteBeat = clip.startBeat + offset + step.beat;
       if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
       if (absoluteBeat < range.startBeat || absoluteBeat >= range.endBeat) return;
@@ -407,7 +423,8 @@ function scheduleMidiClip(
   project: Project,
   output: AudioNode,
   clip: Clip,
-  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">,
+  oscillator: OscillatorType = "triangle"
 ) {
   const beat = beatSeconds(project);
   (clip.notes ?? []).forEach((note) => {
@@ -421,7 +438,7 @@ function scheduleMidiClip(
       (absoluteBeat - range.startBeat) * beat,
       note.durationBeats * beat,
       note.velocity * 0.26,
-      "triangle"
+      oscillator
     );
   });
 }
@@ -433,50 +450,104 @@ async function scheduleAudioClip(
   clip: Clip,
   range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">
 ) {
+  const clipEndBeat = clip.startBeat + clip.lengthBeats;
+  if (clipEndBeat <= range.startBeat || clip.startBeat >= range.endBeat) return;
+
   try {
     const { getClipAudioBlob } = await import("./clipAudio");
     const blob = await getClipAudioBlob(clip);
-    if (!blob) return;
+    if (!blob) throw new Error("오디오 원본이 없습니다.");
     const arrayBuffer = await blob.arrayBuffer();
     const decoded = await context.decodeAudioData(arrayBuffer);
-    const source = context.createBufferSource();
-    const gain = context.createGain();
+    if (!Number.isFinite(decoded.duration) || decoded.duration <= 0) {
+      throw new Error("오디오 길이를 확인할 수 없습니다.");
+    }
     const beat = beatSeconds(project);
-    const clipEndBeat = clip.startBeat + clip.lengthBeats;
-    if (clipEndBeat <= range.startBeat || clip.startBeat >= range.endBeat) return;
     const overlapStartBeat = Math.max(clip.startBeat, range.startBeat);
     const overlapEndBeat = Math.min(clipEndBeat, range.endBeat);
     const start = (overlapStartBeat - range.startBeat) * beat;
-    const timing = resolveClipAudioTiming(clip, project.bpm, decoded.duration);
-    const rangeOffsetSeconds = Math.max(0, (overlapStartBeat - clip.startBeat) * beat);
-    const duration = Math.min(timing.durationSeconds - rangeOffsetSeconds, Math.max(0, (overlapEndBeat - overlapStartBeat) * beat));
-    const clipGainValue = clipGain(clip);
+    const segment = resolveClipAudioSegment(clip, project.bpm, decoded.duration, overlapStartBeat);
+    const duration = Math.min(segment.durationSeconds, Math.max(0, (overlapEndBeat - overlapStartBeat) * beat));
     if (duration <= 0) return;
 
+    const source = context.createBufferSource();
+    const gain = context.createGain();
     source.buffer = decoded;
-    source.playbackRate.value = timing.playbackRate;
-    const { fadeInSeconds: fadeIn, fadeOutSeconds: fadeOut } = resolveClipFadeDurations(clip, duration, project.bpm);
-    gain.gain.setValueAtTime(fadeIn > 0 ? 0 : clipGainValue, start);
-    if (fadeIn > 0) {
-      gain.gain.linearRampToValueAtTime(clipGainValue, start + fadeIn);
-    }
-    if (fadeOut > 0) {
-      gain.gain.setValueAtTime(clipGainValue, Math.max(start + fadeIn, start + duration - fadeOut));
+    source.playbackRate.value = segment.playbackRate;
+    const fadeInEnd = Math.min(segment.fadeInSeconds, duration);
+    const fadeOutStart = segment.durationSeconds - segment.fadeOutSeconds;
+    const points = [0, fadeInEnd, fadeOutStart, duration]
+      .filter((point) => point >= 0 && point <= duration)
+      .sort((left, right) => left - right)
+      .filter((point, index, all) => index === 0 || point > all[index - 1]);
+    const baseGain = clipGain(clip);
+    points.forEach((point, index) => {
+      const value = baseGain * segmentGainAt(segment, point);
+      if (index === 0) gain.gain.setValueAtTime(value, start);
+      else gain.gain.linearRampToValueAtTime(value, start + point);
+    });
+    if (duration < segment.durationSeconds) {
+      const cutFade = Math.min(0.005, duration / 2);
+      gain.gain.setValueAtTime(baseGain * segmentGainAt(segment, duration - cutFade), start + duration - cutFade);
       gain.gain.linearRampToValueAtTime(0, start + duration);
-    } else {
-      gain.gain.setValueAtTime(clipGainValue, start + duration);
     }
     source.connect(gain).connect(output);
-    source.start(start, timing.offsetSeconds + rangeOffsetSeconds * timing.playbackRate, duration * timing.playbackRate);
+    source.start(start, segment.offsetSeconds, duration * segment.playbackRate);
     source.stop(start + duration);
-  } catch {
-    // Skip unreadable imported audio while preserving the rest of the export.
+  } catch (error) {
+    logError("exportProject.scheduleAudioClip", error);
+    throw new AudioExportError(clip);
   }
 }
 
-function encodeWav(buffer: AudioBuffer) {
+async function scheduleSampleMidiClip(
+  context: OfflineAudioContext,
+  project: Project,
+  output: AudioNode,
+  clip: Clip,
+  range: Pick<ResolvedExportOptions, "startBeat" | "endBeat">,
+  packId: string,
+  fallbackOscillator: OscillatorType
+) {
+  let pack;
+  try {
+    pack = await sampleLibrary.loadPack(packId);
+  } catch (error) {
+    reportSampleFallback(error);
+    scheduleMidiClip(context, project, output, clip, range, fallbackOscillator);
+    return;
+  }
+  const beat = beatSeconds(project);
+  (clip.notes ?? []).forEach((note) => {
+    const absoluteBeat = clip.startBeat + note.startBeat;
+    if (absoluteBeat >= clip.startBeat + clip.lengthBeats) return;
+    if (absoluteBeat < range.startBeat || absoluteBeat >= range.endBeat) return;
+    const selected = selectSampleForNote(pack, note.pitch, note.velocity);
+    const rate = samplePlaybackRate(note.pitch, selected.file.note);
+    const start = (absoluteBeat - range.startBeat) * beat;
+    const holdDuration = Math.min(note.durationBeats * beat, (range.endBeat - absoluteBeat) * beat);
+    const duration = Math.min(holdDuration + 0.005, selected.buffer.duration / rate);
+    if (duration <= 0) return;
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = selected.buffer;
+    source.playbackRate.value = rate;
+    const level = note.velocity * selected.file.gain * SAMPLE_PLAYBACK_GAIN;
+    gain.gain.setValueAtTime(level, start);
+    if (holdDuration < selected.buffer.duration / rate) {
+      gain.gain.setValueAtTime(level, start + holdDuration);
+      gain.gain.linearRampToValueAtTime(0, start + duration);
+    }
+    source.connect(gain).connect(output);
+    source.start(start);
+    source.stop(start + duration);
+  });
+}
+
+export function encodeWav(buffer: AudioBuffer, bitDepth: 16 | 24 = 16) {
   const channels = [buffer.getChannelData(0), buffer.getChannelData(1)];
-  const length = buffer.length * 4 + 44;
+  const bytesPerFrame = 2 * (bitDepth / 8);
+  const length = buffer.length * bytesPerFrame + 44;
   const arrayBuffer = new ArrayBuffer(length);
   const view = new DataView(arrayBuffer);
 
@@ -494,9 +565,9 @@ function encodeWav(buffer: AudioBuffer) {
   view.setUint16(20, 1, true);
   view.setUint16(22, 2, true);
   view.setUint32(24, buffer.sampleRate, true);
-  view.setUint32(28, buffer.sampleRate * 4, true);
-  view.setUint16(32, 4, true);
-  view.setUint16(34, 16, true);
+  view.setUint32(28, buffer.sampleRate * bytesPerFrame, true);
+  view.setUint16(32, bytesPerFrame, true);
+  view.setUint16(34, bitDepth, true);
   writeString(36, "data");
   view.setUint32(40, length - 44, true);
 
@@ -504,18 +575,25 @@ function encodeWav(buffer: AudioBuffer) {
   for (let i = 0; i < buffer.length; i += 1) {
     for (let channel = 0; channel < 2; channel += 1) {
       const sample = Math.max(-1, Math.min(1, channels[channel][i]));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-      offset += 2;
+      if (bitDepth === 16) {
+        view.setInt16(offset, Math.round(sample < 0 ? sample * 0x8000 : sample * 0x7fff), true);
+        offset += 2;
+      } else {
+        const pcm = Math.round(sample < 0 ? sample * 0x800000 : sample * 0x7fffff);
+        view.setUint8(offset, pcm & 0xff);
+        view.setUint8(offset + 1, (pcm >> 8) & 0xff);
+        view.setUint8(offset + 2, (pcm >> 16) & 0xff);
+        offset += 3;
+      }
     }
   }
 
   return new Blob([view], { type: "audio/wav" });
 }
 
-export async function exportProjectToWav(project: Project, options: ExportAudioOptions = {}) {
-  const range = normalizeExportOptions(project, options);
+async function renderProjectToWav(project: Project, range: ResolvedExportOptions) {
   const duration = projectDurationSeconds(project, range);
-  const context = new OfflineAudioContext(2, Math.ceil(duration * SAMPLE_RATE), SAMPLE_RATE);
+  const context = new OfflineAudioContext(2, Math.ceil(duration * range.sampleRate), range.sampleRate);
   const master = createMasterGraph(context, project);
 
   const hasSolo = project.tracks.some((track) => track.solo);
@@ -527,7 +605,11 @@ export async function exportProjectToWav(project: Project, options: ExportAudioO
       if (clip.type === "loop") scheduleLoopClip(context, project, trackOutput.input, clip, range);
       if (clip.type === "midi") {
         if (track.type === "drum" || track.role === "beat") scheduleMidiDrumClip(context, project, trackOutput.input, clip, range);
-        else scheduleMidiClip(context, project, trackOutput.input, clip, range);
+        else {
+          const patch = getInstrumentPatch(track.instrumentId);
+          if (patch.samplePackId) audioSchedules.push(scheduleSampleMidiClip(context, project, trackOutput.input, clip, range, patch.samplePackId, patch.synth.oscillator));
+          else scheduleMidiClip(context, project, trackOutput.input, clip, range);
+        }
       }
       if (clip.type === "audio") audioSchedules.push(scheduleAudioClip(context, project, trackOutput.input, clip, range));
     });
@@ -535,20 +617,23 @@ export async function exportProjectToWav(project: Project, options: ExportAudioO
 
   await Promise.all(audioSchedules);
   const rendered = await context.startRendering();
-  return encodeWav(rendered);
+  return encodeWav(rendered, range.bitDepth);
+}
+
+export async function exportProjectToWav(project: Project, options: ExportAudioOptions = {}) {
+  return renderProjectToWav(project, normalizeExportOptions(project, options));
 }
 
 export async function exportProjectAudio(project: Project, options: ExportAudioOptions = {}): Promise<ExportAudioResult> {
   const resolved = normalizeExportOptions(project, options);
-  const blob = await exportProjectToWav(project, resolved);
-  const fallbackReason = resolved.requestedFormat === "mp3" ? MP3_FALLBACK_REASON : undefined;
+  const blob = await renderProjectToWav(project, resolved);
   return {
     blob,
     fileName: resolveExportFileName(project.name, "wav"),
     format: "wav",
-    requestedFormat: resolved.requestedFormat,
     mimeType: "audio/wav",
-    fallbackReason
+    sampleRate: resolved.sampleRate,
+    bitDepth: resolved.bitDepth
   };
 }
 
@@ -560,9 +645,10 @@ function copyProjectForTrack(project: Project, track: Track): Project {
 }
 
 export async function exportProjectStemsZip(project: Project, options: ExportAudioOptions = {}) {
+  const range = normalizeExportOptions(project, options);
   const files = await Promise.all(
     project.tracks.map(async (track, index) => {
-      const blob = await exportProjectToWav(copyProjectForTrack(project, track), { ...options, format: "wav" });
+      const blob = await renderProjectToWav(copyProjectForTrack(project, track), range);
       return {
         name: `stems/${String(index + 1).padStart(2, "0")}-${safeBaseName(track.name)}.wav`,
         blob
@@ -614,7 +700,7 @@ function zipLocalHeader(nameBytes: Uint8Array, dataBytes: Uint8Array, crc: numbe
   return new Blob([
     uint32(0x04034b50),
     uint16(20),
-    uint16(0),
+    uint16(0x0800),
     uint16(0),
     uint16(0),
     uint16(0),
@@ -632,7 +718,7 @@ function zipCentralHeader(nameBytes: Uint8Array, dataBytes: Uint8Array, crc: num
     uint32(0x02014b50),
     uint16(20),
     uint16(20),
-    uint16(0),
+    uint16(0x0800),
     uint16(0),
     uint16(0),
     uint16(0),

@@ -123,7 +123,7 @@ export function AutomationLane({ track, width, pixelsPerBeat }: AutomationLanePr
 
   return (
     <div
-      className="relative border-t border-white/10 bg-black/20"
+      className="relative border-t border-line bg-black/20"
       style={{ height: AUTOMATION_LANE_HEIGHT, width }}
       onPointerDown={handleLanePointerDown}
       onClick={(event) => event.stopPropagation()}
@@ -134,7 +134,7 @@ export function AutomationLane({ track, width, pixelsPerBeat }: AutomationLanePr
       </svg>
 
       <select
-        className="absolute left-2 top-2 z-10 h-7 w-28 rounded-md border border-white/10 bg-studio-950/95 px-2 text-[11px] font-bold text-slate-100 outline-none focus:border-meter-green"
+        className="absolute left-2 top-2 z-10 h-7 w-28 rounded-md border border-line bg-surface-base/95 px-2 text-[11px] font-bold text-ink-high outline-none focus:border-meter-green"
         value={param}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}

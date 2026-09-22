@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildKeyboardNote, keyboardKeyToMidi } from "../../utils/touchInstruments";
+import { uiText } from "../../utils/uiText";
 import type { TouchInstrumentContext } from "./TouchInstruments";
 
 const WHITE_KEYS = [
@@ -80,17 +81,17 @@ export function KeyboardInstrument({ context }: { context: TouchInstrumentContex
 
   return (
     <div className="grid min-h-full gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-      <div className="min-w-0 rounded-md border border-white/10 bg-black/20 p-3">
+      <div className="min-w-0 rounded-md border border-line bg-black/20 p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="panel-title">Keyboard</span>
-          <span className="text-xs font-black text-slate-300">{pitchName(lastPitch)}</span>
+          <span className="panel-title">건반</span>
+          <span className="text-xs font-black text-ink-body">{pitchName(lastPitch)}</span>
         </div>
 
         <div className="mb-2 grid grid-cols-6 gap-1 pl-[5.5%] pr-[16%]">
           {blackKeys.map((key) => (
             <button
               key={key.key}
-              className="h-14 rounded-b-md border border-white/10 bg-graphite-950 text-[11px] font-black text-slate-300 shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] transition hover:border-accent-sel hover:text-white active:translate-y-0.5"
+              className="h-14 rounded-b-md border border-line bg-graphite-950 text-[11px] font-black text-ink-body shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] transition hover:border-accent-sel hover:text-ink-high active:translate-y-0.5"
               onPointerDown={() => triggerKey(key.key)}
               title={`${key.key.toUpperCase()} ${pitchName(key.pitch)}`}
               aria-label={`${key.key.toUpperCase()} ${pitchName(key.pitch)}`}
@@ -105,7 +106,7 @@ export function KeyboardInstrument({ context }: { context: TouchInstrumentContex
           {whiteKeys.map((key) => (
             <button
               key={key.key}
-              className="flex h-28 min-w-0 flex-col items-center justify-end rounded-md border border-white/10 bg-slate-100 px-1 pb-2 text-graphite-900 shadow-[inset_0_-6px_0_rgba(15,18,23,0.12)] transition hover:border-accent-sel hover:bg-white active:translate-y-0.5"
+              className="flex h-28 min-w-0 flex-col items-center justify-end rounded-md border border-line bg-slate-100 px-1 pb-2 text-graphite-900 shadow-[inset_0_-6px_0_rgba(15,18,23,0.12)] transition hover:border-accent-sel hover:bg-white active:translate-y-0.5"
               onPointerDown={() => triggerKey(key.key)}
               title={`${key.key.toUpperCase()} ${pitchName(key.pitch)}`}
               aria-label={`${key.key.toUpperCase()} ${pitchName(key.pitch)}`}
@@ -117,20 +118,20 @@ export function KeyboardInstrument({ context }: { context: TouchInstrumentContex
         </div>
       </div>
 
-      <div className="space-y-3 rounded-md border border-white/10 bg-white/[0.04] p-3">
+      <div className="space-y-3 rounded-md border border-line bg-white/[0.04] p-3">
         <div className="grid grid-cols-3 gap-1">
           {[3, 4, 5].map((item) => (
             <button
               key={item}
-              className={`studio-button h-8 px-2 ${octave === item ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
+              className={`studio-button h-8 px-2 ${octave === item ? "border-accent-sel bg-accent-sel/15 text-ink-accent" : ""}`}
               onClick={() => setOctave(item)}
             >
-              O{item}
+              {item}옥타브
             </button>
           ))}
         </div>
-        <label className="block text-xs font-bold text-slate-400">
-          Velocity
+        <label className="block text-xs font-bold text-ink-body">
+          연주 세기
           <input
             className="mt-2 w-full"
             type="range"
@@ -141,8 +142,8 @@ export function KeyboardInstrument({ context }: { context: TouchInstrumentContex
             onChange={(event) => setVelocity(Number(event.target.value))}
           />
         </label>
-        <label className="block text-xs font-bold text-slate-400">
-          Length
+        <label className="block text-xs font-bold text-ink-body">
+          길이
           <input
             className="mt-2 w-full"
             type="range"
@@ -154,10 +155,10 @@ export function KeyboardInstrument({ context }: { context: TouchInstrumentContex
           />
         </label>
         <button
-          className={`studio-button w-full ${writeArmed ? "border-meter-rose bg-meter-rose/15 text-white" : ""}`}
+          className={`studio-button w-full ${writeArmed ? "border-meter-rose bg-meter-rose/15 text-ink-high" : ""}`}
           onClick={() => setWriteArmed((value) => !value)}
         >
-          {writeArmed || context.isRecording ? "Write On" : "Write Off"}
+          {writeArmed || context.isRecording ? uiText.common.writeOn : uiText.common.writeOff}
         </button>
       </div>
     </div>

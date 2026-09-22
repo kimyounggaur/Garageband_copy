@@ -9,7 +9,7 @@ const transportBar = readFileSync(transportBarPath, "utf8");
 const checks = [
   {
     label: "header includes user manual link",
-    ok: transportBar.includes("./manual/user/garageband-user-manual.html") && transportBar.includes("유저 메뉴얼")
+    ok: transportBar.includes("./manual/user/garageband-user-manual.html") && transportBar.includes("사용 설명서")
   },
   {
     label: "header includes quickstart manual link",

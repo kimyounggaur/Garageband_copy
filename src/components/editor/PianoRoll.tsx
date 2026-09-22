@@ -1,9 +1,10 @@
 import * as Tone from "tone";
 import type { PointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createInstrumentSynth } from "../../audio/instrumentSynth";
+import { useInstrumentVoice } from "../../audio/useInstrumentVoice";
 import { useDawStore } from "../../store/useDawStore";
 import type { Clip, MidiNote, ProjectScale } from "../../types/project";
+import { barLengthBeats } from "../../utils/meterMath";
 import {
   cloneNotesForPaste,
   isPitchInScale,
@@ -12,6 +13,7 @@ import {
   scalePitchClasses
 } from "../../utils/pianoRoll";
 import { clamp, snapBeat } from "../../utils/timeline";
+import { uiText } from "../../utils/uiText";
 import { Copy, Eraser, MousePointer2, Pencil, Play, Trash2, Wand2 } from "../icons";
 
 type PianoRollProps = {
@@ -35,14 +37,12 @@ const QUANTIZE_OPTIONS = [
   { label: "1/8T", beats: 1 / 3 },
   { label: "1/16T", beats: 1 / 6 }
 ];
+const SCALE_LABELS: Record<ProjectScale, string> = {
+  major: "장조", minor: "단조", chromatic: "반음계"
+};
 
 function pitchName(pitch: number) {
   const names = ["도", "도#", "레", "레#", "미", "파", "파#", "솔", "솔#", "라", "라#", "시"];
-  return `${names[((pitch % 12) + 12) % 12]}${Math.floor(pitch / 12) - 1}`;
-}
-
-function midiToNoteName(pitch: number) {
-  const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   return `${names[((pitch % 12) + 12) % 12]}${Math.floor(pitch / 12) - 1}`;
 }
 
@@ -84,9 +84,9 @@ export function PianoRoll({ clip }: PianoRollProps) {
   const [gridBeats, setGridBeats] = useState(0.25);
   const [quantizeStrength, setQuantizeStrength] = useState(1);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | undefined>();
-  const synthRef = useRef<ReturnType<typeof createInstrumentSynth> | null>(null);
 
   const track = project.tracks.find((item) => item.id === clip.trackId);
+  const getPreviewVoice = useInstrumentVoice(track?.instrumentId);
   const scale = normalizePianoRollScale(project.scale, project.key);
   const scaleLocked = scale !== "chromatic";
   const scaleClasses = useMemo(() => scalePitchClasses(project.key, scale), [project.key, scale]);
@@ -95,7 +95,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
     return Array.from({ length: MAX_PITCH - MIN_PITCH + 1 }, (_, index) => MAX_PITCH - index);
   }, []);
   const height = pitches.length * ROW_HEIGHT;
-  const editableBeats = Math.max(clip.lengthBeats, MIN_EDITABLE_BEATS);
+  const editableBeats = Math.max(clip.lengthBeats, (MIN_EDITABLE_BEATS / 4) * barLengthBeats(project.timeSignature));
   const gridWidth = editableBeats * NOTE_BEAT_WIDTH;
   const pasteBeat =
     currentBeat > clip.startBeat
@@ -112,21 +112,13 @@ export function PianoRoll({ clip }: PianoRollProps) {
     setSelectedNoteIds((ids) => ids.filter((id) => validIds.has(id)));
   }, [notes]);
 
-  useEffect(() => {
-    return () => {
-      synthRef.current?.dispose();
-      synthRef.current = null;
-    };
-  }, [track?.instrumentId]);
-
   const previewPitch = useCallback(
     (pitch: number, velocity = 0.72) => {
-      void Tone.start().then(() => {
-        synthRef.current ??= createInstrumentSynth(track?.instrumentId).toDestination();
-        synthRef.current.triggerAttackRelease(midiToNoteName(pitch), "8n", Tone.now(), velocity);
-      });
+      void getPreviewVoice().then((voice) => {
+        voice.trigger(pitch, "8n", Tone.now(), velocity);
+      }).catch(() => undefined);
     },
-    [track?.instrumentId]
+    [getPreviewVoice]
   );
 
   function noteRect(note: MidiNote): SelectionBox {
@@ -407,15 +399,15 @@ export function PianoRoll({ clip }: PianoRollProps) {
       <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-black/20 px-3 py-2">
         <div className="flex flex-wrap items-center gap-1">
           {[
-            { id: "pointer" as const, label: "Move", icon: MousePointer2 },
-            { id: "pencil" as const, label: "Draw", icon: Pencil },
-            { id: "eraser" as const, label: "Erase", icon: Eraser }
+            { id: "pointer" as const, label: "이동", icon: MousePointer2 },
+            { id: "pencil" as const, label: "그리기", icon: Pencil },
+            { id: "eraser" as const, label: "지우기", icon: Eraser }
           ].map((item) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.id}
-                className={`studio-button h-8 px-2 ${tool === item.id ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : ""}`}
+                className={`studio-button h-8 px-2 ${tool === item.id ? "border-accent-sel bg-accent-sel/15 text-ink-accent" : ""}`}
                 onClick={() => setTool(item.id)}
                 title={item.label}
               >
@@ -428,14 +420,14 @@ export function PianoRoll({ clip }: PianoRollProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           <select
-            className="h-8 rounded-md border border-graphite-700 bg-graphite-950 px-2 text-xs font-bold text-slate-100 outline-none focus:border-accent-sel"
+            className="h-8 rounded-md border border-line bg-surface-base px-2 text-xs font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
             value={gridBeats}
             onChange={(event) => setGridBeats(Number(event.target.value))}
-            aria-label="Piano roll grid"
+            aria-label="피아노롤 격자 간격"
           >
             {QUANTIZE_OPTIONS.map((option) => (
               <option key={option.label} value={option.beats}>
-                Grid {option.label}
+                격자 {option.label}
               </option>
             ))}
           </select>
@@ -444,20 +436,20 @@ export function PianoRoll({ clip }: PianoRollProps) {
             onClick={() => setProjectScale(scaleLocked ? "chromatic" : normalizePianoRollScale(undefined, project.key))}
           >
             <Play size={13} />
-            {scaleLocked ? `${project.key ?? "C"} ${scale}` : "Chromatic"}
+            {scaleLocked ? `${project.key ?? "C"} ${SCALE_LABELS[scale]}` : SCALE_LABELS.chromatic}
           </button>
           <select
-            className="h-8 rounded-md border border-graphite-700 bg-graphite-950 px-2 text-xs font-bold text-slate-100 outline-none focus:border-accent-sel"
+            className="h-8 rounded-md border border-line bg-surface-base px-2 text-xs font-bold text-ink-high outline-none focus-visible:ring-2 focus-visible:ring-ink-accent"
             value={scaleLocked ? scale : "chromatic"}
             onChange={(event) => setProjectScale(event.target.value as ProjectScale)}
-            aria-label="Project scale"
+            aria-label="프로젝트 음계"
           >
-            <option value="major">Major</option>
-            <option value="minor">Minor</option>
-            <option value="chromatic">Chromatic</option>
+            <option value="major">{SCALE_LABELS.major}</option>
+            <option value="minor">{SCALE_LABELS.minor}</option>
+            <option value="chromatic">{SCALE_LABELS.chromatic}</option>
           </select>
-          <label className="flex h-8 items-center gap-2 rounded-md border border-graphite-700 bg-graphite-950 px-2 text-xs font-bold text-slate-300">
-            Strength
+          <label className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface-base px-2 text-xs font-bold text-ink-body">
+            정렬 강도
             <input
               className="w-20"
               type="range"
@@ -470,15 +462,15 @@ export function PianoRoll({ clip }: PianoRollProps) {
           </label>
           <button className="studio-button h-8 px-2" onClick={applyQuantize} disabled={notes.length === 0}>
             <Wand2 size={14} />
-            Quantize
+            {uiText.common.quantize}
           </button>
           <button className="studio-button h-8 px-2" onClick={copySelection} disabled={selectedNotes.length === 0}>
             <Copy size={14} />
-            Copy
+            복사
           </button>
           <button className="studio-button h-8 px-2" onClick={() => removeNotes(clip.id, selectedNoteIds)} disabled={selectedNoteIds.length === 0}>
             <Trash2 size={14} />
-            Delete
+            삭제
           </button>
         </div>
       </div>
@@ -494,8 +486,8 @@ export function PianoRoll({ clip }: PianoRollProps) {
                   className={`flex w-full items-center justify-between border-b border-white/[0.06] px-2 text-left text-[10px] font-bold ${
                     enabled
                       ? isBlackKey(pitch)
-                        ? "bg-graphite-900 text-slate-400 hover:text-white"
-                        : "bg-white/[0.055] text-slate-200 hover:text-white"
+                        ? "bg-surface-panel text-ink-body hover:text-ink-high"
+                        : "bg-surface-raised/50 text-ink-high hover:text-ink-accent"
                       : "bg-black/25 text-graphite-700"
                   }`}
                   style={{ height: ROW_HEIGHT }}
@@ -517,7 +509,7 @@ export function PianoRoll({ clip }: PianoRollProps) {
               height,
               backgroundImage:
                 "linear-gradient(to right, rgba(255,255,255,0.16) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)",
-              backgroundSize: `${NOTE_BEAT_WIDTH * Math.max(1, project.timeSignature[0] || 4)}px 100%, ${NOTE_BEAT_WIDTH * gridBeats}px 100%, 100% ${ROW_HEIGHT}px`
+              backgroundSize: `${NOTE_BEAT_WIDTH * barLengthBeats(project.timeSignature)}px 100%, ${NOTE_BEAT_WIDTH * gridBeats}px 100%, 100% ${ROW_HEIGHT}px`
             }}
             onPointerDown={handleGridPointerDown}
             onDoubleClick={(event) => addNoteAtPoint(getPointInElement(event, event.currentTarget))}
@@ -541,10 +533,10 @@ export function PianoRoll({ clip }: PianoRollProps) {
                   data-note-id={note.id}
                   className={`absolute rounded border text-[10px] font-black leading-4 shadow-lg ${
                     selected
-                      ? "border-white bg-meter-cyan text-studio-950"
+                      ? "border-white bg-meter-cyan text-ink-onBright"
                       : enabled
-                        ? "border-black/40 bg-meter-amber text-studio-950"
-                        : "border-white/10 bg-graphite-600 text-slate-200"
+                        ? "border-black/40 bg-meter-amber text-ink-onBright"
+                        : "border-line bg-surface-raised text-ink-high"
                   }`}
                   style={{
                     left: rect.left,
@@ -581,8 +573,8 @@ export function PianoRoll({ clip }: PianoRollProps) {
       </div>
 
       <div className="grid border-t border-white/10 bg-black/25" style={{ gridTemplateColumns: `${KEYBOARD_WIDTH}px minmax(0,1fr)` }}>
-        <div className="flex items-center justify-center border-r border-white/10 px-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-          Velocity
+        <div className="flex items-center justify-center border-r border-line px-2 text-[10px] font-black uppercase tracking-[0.12em] text-ink-body">
+          세기
         </div>
         <div className="overflow-x-auto overflow-y-hidden">
           <div className="relative h-[87px]" style={{ width: gridWidth }}>
@@ -598,8 +590,8 @@ export function PianoRoll({ clip }: PianoRollProps) {
                     left: note.startBeat * NOTE_BEAT_WIDTH + Math.max(0, note.durationBeats * NOTE_BEAT_WIDTH) / 2 - 6,
                     height: Math.max(6, note.velocity * 66)
                   }}
-                  title={`${pitchName(note.pitch)} velocity ${Math.round(note.velocity * 100)}`}
-                  aria-label={`${pitchName(note.pitch)} velocity`}
+                  title={`${pitchName(note.pitch)} 세기 ${Math.round(note.velocity * 100)}`}
+                  aria-label={`${pitchName(note.pitch)} 세기`}
                   onPointerDown={(event) => beginVelocityEdit(note, event)}
                 />
               );

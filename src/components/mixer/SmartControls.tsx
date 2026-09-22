@@ -1,5 +1,6 @@
 import { buildSmartControlPatch, normalizeTrackFx, normalizeTrackSends, resolveSmartControlMacros } from "../../audio/fx";
 import { useDawStore } from "../../store/useDawStore";
+import { uiText } from "../../utils/uiText";
 import { Knob } from "../ui";
 
 export function SmartControls() {
@@ -11,7 +12,7 @@ export function SmartControls() {
   if (!selectedTrack) {
     return (
       <section className="rounded-md border border-graphite-700 bg-graphite-800/70 p-3 text-xs font-bold text-graphite-500">
-        Select a track for Smart Controls.
+        스마트 컨트롤을 사용하려면 트랙을 선택해 주세요.
       </section>
     );
   }
@@ -29,43 +30,43 @@ export function SmartControls() {
     <section className="rounded-md border border-graphite-700 bg-graphite-800/70 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="panel-title truncate">Smart Controls</div>
+          <div className="panel-title truncate">스마트 컨트롤</div>
           <div className="mt-0.5 truncate text-[11px] font-semibold text-graphite-500">{selectedTrack.name}</div>
         </div>
-        <span className="rounded bg-white/[0.06] px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
-          FX
+        <span className="rounded bg-white/[0.06] px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-ink-body">
+          효과
         </span>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
         <Knob
-          label="Bright"
+          label="밝기"
           value={macros.brightness}
           step={0.02}
           onChange={(value) => applyTrackSmartControl(selectedTrack.id, "brightness", value)}
         />
-        <Knob label="Space" value={macros.space} step={0.02} onChange={(value) => applyTrackSmartControl(selectedTrack.id, "space", value)} />
-        <Knob label="Punch" value={macros.punch} step={0.02} onChange={(value) => applyTrackSmartControl(selectedTrack.id, "punch", value)} />
+        <Knob label="공간감" value={macros.space} step={0.02} onChange={(value) => applyTrackSmartControl(selectedTrack.id, "space", value)} />
+        <Knob label="타격감" value={macros.punch} step={0.02} onChange={(value) => applyTrackSmartControl(selectedTrack.id, "punch", value)} />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-500">
         <div className="rounded bg-black/20 p-2">
-          <div className="text-slate-300">EQ</div>
-          <div>Low {fx.eq.low.toFixed(1)} dB</div>
-          <div>Mid {fx.eq.mid.toFixed(1)} dB</div>
-          <div>High {fx.eq.high.toFixed(1)} dB</div>
+          <div className="text-ink-body">이퀄라이저</div>
+          <div>저음 {fx.eq.low.toFixed(1)} dB</div>
+          <div>중음 {fx.eq.mid.toFixed(1)} dB</div>
+          <div>고음 {fx.eq.high.toFixed(1)} dB</div>
         </div>
         <div className="rounded bg-black/20 p-2">
-          <div className="text-slate-300">Bus</div>
-          <div>Rev {(sends.reverb * 100).toFixed(0)}%</div>
-          <div>Delay {(sends.delay * 100).toFixed(0)}%</div>
-          <div>Ratio {fx.comp.ratio.toFixed(1)}:1</div>
+          <div className="text-ink-body">{uiText.common.bus}</div>
+          <div>리버브 {(sends.reverb * 100).toFixed(0)}%</div>
+          <div>딜레이 {(sends.delay * 100).toFixed(0)}%</div>
+          <div>압축 비율 {fx.comp.ratio.toFixed(1)}:1</div>
         </div>
       </div>
 
       <div className="mt-2 hidden text-[10px] text-graphite-600 xl:block">
-        Bright maps to {preview.brightness?.high.toFixed(1)} dB high EQ, Space to {((preview.space?.reverb ?? 0) * 100).toFixed(0)}%
-        reverb, Punch to {preview.punch?.ratio.toFixed(1)}:1 compression.
+        밝기는 고음 조절량 {preview.brightness?.high.toFixed(1)} dB, 공간감은 리버브 {((preview.space?.reverb ?? 0) * 100).toFixed(0)}%,
+        타격감은 압축 비율 {preview.punch?.ratio.toFixed(1)}:1에 반영됩니다.
       </div>
     </section>
   );

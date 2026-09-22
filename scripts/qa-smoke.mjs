@@ -389,9 +389,9 @@ test("Phase 2 transport utilities compute LCD modes, tap tempo, tuner pitch, and
 });
 
 test("Phase 3 library utilities filter loops, report tempo/key matching, and define instrument patches", () => {
-  assert(LOOP_LIBRARY.every((loop) => loop.key && loop.genre && loop.mood?.length && loop.type), "모든 루프가 브라우저 메타데이터를 가진다");
+  assert(LOOP_LIBRARY.every((loop) => (loop.musicalRole === "drums" ? !loop.key : Boolean(loop.key)) && loop.genre && loop.mood?.length && loop.type && loop.timeSignature), "모든 루프가 브라우저 메타데이터를 가진다");
 
-  const electroLoops = filterLoops({ category: "Drums", genre: "Electronic", query: "electro" });
+  const electroLoops = filterLoops({ category: "Drums", genre: "Electronic", query: "일렉트로" });
   assertDeepEqual(
     electroLoops.map((loop) => loop.id),
     ["drums-electro"],
@@ -677,8 +677,8 @@ test("Phase 3 store actions select instrument patches and annotate loop tempo/ke
   const loopClipId = useDawStore.getState().addLoopClip("bass-midnight", instrumentTrack.id, 4);
   const loopClip = useDawStore.getState().project.tracks.flatMap((item) => item.clips).find((item) => item.id === loopClipId);
   assert(loopClip, "루프 클립 생성");
-  assert(loopClip.instructions?.includes("BPM 120 -> 100"), "루프 템포 보정 표시");
-  assert(loopClip.instructions?.includes("Key C -> D"), "루프 키 보정 표시");
+  assert(loopClip.instructions?.includes("템포 120 → 100 BPM"), "루프 템포 보정 표시");
+  assert(loopClip.instructions?.includes("조성이 다릅니다: Cm → D"), "루프 조성 차이 경고 표시");
   assertEqual(useDawStore.getState().selectedClipId, loopClipId, "배치된 루프 선택");
 });
 
@@ -1025,7 +1025,7 @@ test("Phase 10 store actions edit, trigger, and clear live loop cells", () => {
   assert(useDawStore.getState().undoStack.length > 0, "phase 10 edits are undoable");
 });
 
-test("Phase 11 export helpers normalize share options and project files", async () => {
+test("WAV 내보내기 음질과 범위가 실제 PCM 설정에 맞게 정규화된다", async () => {
   const shareProject = project({
     version: 12,
     name: "My Mix!",
@@ -1042,11 +1042,15 @@ test("Phase 11 export helpers normalize share options and project files", async 
     ]
   });
 
-  const options = normalizeExportOptions(shareProject, { format: "mp3", quality: "high", range: "cycle" });
-  assertEqual(options.requestedFormat, "mp3", "requested MP3 format is kept");
-  assertEqual(options.format, "mp3", "share options keep the requested format before rendering");
+  const options = normalizeExportOptions(shareProject, { quality: "high", range: "cycle" });
   assertEqual(options.quality, "high", "quality is normalized");
+  assertEqual(options.sampleRate, 48000, "고음질 WAV 샘플레이트");
+  assertEqual(options.bitDepth, 24, "고음질 WAV 비트 깊이");
   assertDeepEqual([options.startBeat, options.endBeat], [4, 12], "cycle range is exported");
+  const standard = normalizeExportOptions(shareProject, { quality: "standard", range: "full" });
+  assertEqual(standard.sampleRate, 44100, "표준 WAV 샘플레이트");
+  assertEqual(standard.bitDepth, 16, "표준 WAV 비트 깊이");
+  assertEqual(standard.startBeat, 0, "전체 범위 시작 박자");
   assertEqual(resolveExportFileName("My Mix!", "webband.json"), "My-Mix.webband.json", "project file name is safe");
 
   const blob = createProjectFileBlob(shareProject);

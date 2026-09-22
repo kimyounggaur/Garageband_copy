@@ -1,4 +1,5 @@
-import type { LoopCategory, LoopDefinition } from "../types/project";
+import type { LoopCategory, LoopDefinition, LoopStep } from "../types/project";
+import { CURATED_LOOPS } from "./loopCatalog";
 
 export type LoopBrowserFilters = {
   category?: LoopCategory | "All";
@@ -34,15 +35,16 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
     id: "drums-grid",
     name: "그리드 룸 드럼",
     category: "Drums",
+    musicalRole: "drums",
     type: "midi",
     trackType: "drum",
-    key: "C",
     genre: "Pop",
     mood: ["Steady", "Bright"],
     bpm: 120,
+    timeSignature: [4, 4],
     lengthBeats: 4,
     color: "#38bdf8",
-    description: "A tight four-beat drum groove with kick, snare, and hats.",
+    description: "킥, 스네어, 하이햇으로 만든 촘촘한 4박자 드럼 리듬입니다.",
     pattern: [
       { beat: 0, drum: "kick", velocity: 0.95 },
       { beat: 0.5, drum: "hat", velocity: 0.55 },
@@ -56,17 +58,18 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "drums-electro",
-    name: "Electro Pulse",
+    name: "일렉트로 펄스",
     category: "Drums",
+    musicalRole: "drums",
     type: "midi",
     trackType: "drum",
-    key: "C",
     genre: "Electronic",
     mood: ["Energetic", "Bright"],
     bpm: 124,
+    timeSignature: [4, 4],
     lengthBeats: 4,
     color: "#22c55e",
-    description: "A punchy electronic beat with a clear clap backbeat.",
+    description: "클랩이 뒷박을 살리는 힘찬 전자 비트입니다.",
     pattern: [
       { beat: 0, drum: "kick", velocity: 0.96 },
       { beat: 0.75, drum: "hat", velocity: 0.5 },
@@ -80,17 +83,19 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "bass-midnight",
-    name: "Midnight Bass",
+    name: "한밤의 베이스",
     category: "Bass",
+    musicalRole: "bass",
     type: "midi",
     trackType: "instrument",
-    key: "C",
+    key: "Cm",
     genre: "Hip Hop",
     mood: ["Dark", "Steady"],
     bpm: 120,
+    timeSignature: [4, 4],
     lengthBeats: 4,
     color: "#f59e0b",
-    description: "A warm bass phrase that leaves room for drums and keys.",
+    description: "드럼과 건반이 들어갈 공간을 남긴 따뜻한 베이스 구절입니다.",
     pattern: [
       { beat: 0, note: "C2", durationBeats: 0.5, velocity: 0.86 },
       { beat: 0.75, note: "C2", durationBeats: 0.25, velocity: 0.68 },
@@ -101,17 +106,19 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "bass-clean",
-    name: "Clean Sub Bass",
+    name: "맑은 서브 베이스",
     category: "Bass",
+    musicalRole: "bass",
     type: "midi",
     trackType: "instrument",
-    key: "F",
+    key: "Fm",
     genre: "R&B",
     mood: ["Smooth", "Warm"],
     bpm: 110,
+    timeSignature: [4, 4],
     lengthBeats: 4,
     color: "#fb7185",
-    description: "A simple sub bass movement for sparse arrangements.",
+    description: "여백이 많은 편곡에 어울리는 단순한 서브 베이스입니다.",
     pattern: [
       { beat: 0, note: "F1", durationBeats: 0.75, velocity: 0.82 },
       { beat: 1, note: "F2", durationBeats: 0.5, velocity: 0.65 },
@@ -121,17 +128,19 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "synth-glass",
-    name: "Glass Arpeggio",
+    name: "유리빛 아르페지오",
     category: "Synth",
+    musicalRole: "melody",
     type: "midi",
     trackType: "instrument",
     key: "C",
     genre: "Electronic",
     mood: ["Bright", "Dreamy"],
     bpm: 120,
+    timeSignature: [4, 4],
     lengthBeats: 4,
     color: "#a78bfa",
-    description: "A bright eighth-note synth arpeggio.",
+    description: "밝은 8분음표 신스 아르페지오입니다.",
     pattern: [
       { beat: 0, note: "C4", durationBeats: 0.35, velocity: 0.55 },
       { beat: 0.5, note: "E4", durationBeats: 0.35, velocity: 0.54 },
@@ -145,27 +154,40 @@ export const LOOP_LIBRARY: LoopDefinition[] = [
   },
   {
     id: "fx-rise",
-    name: "Soft Riser",
+    name: "부드러운 상승음",
     category: "FX",
+    musicalRole: "melody",
     type: "midi",
     trackType: "instrument",
     key: "C",
     genre: "Cinematic",
     mood: ["Rising", "Tense"],
     bpm: 120,
+    timeSignature: [4, 4],
     lengthBeats: 4,
     color: "#eab308",
-    description: "A short transition texture for section changes.",
+    description: "구간이 바뀔 때 쓰는 짧은 전환 효과입니다.",
     pattern: [
       { beat: 0, note: "C4", durationBeats: 1, velocity: 0.25 },
       { beat: 1, note: "D4", durationBeats: 1, velocity: 0.32 },
       { beat: 2, note: "F4", durationBeats: 1, velocity: 0.38 },
       { beat: 3, note: "A4", durationBeats: 1, velocity: 0.44 }
     ]
-  }
+  },
+  ...CURATED_LOOPS
 ];
 
 export const LOOP_CATEGORIES: LoopCategory[] = ["Drums", "Bass", "Synth", "FX"];
+
+export const LOOP_GENRE_LABELS: Record<string, string> = {
+  Pop: "팝", Electronic: "일렉트로닉", "Hip Hop": "힙합", "R&B": "알앤비", Cinematic: "영화음악",
+  Rock: "록", Funk: "펑크", Jazz: "재즈", Blues: "블루스", Latin: "라틴", Reggae: "레게",
+  Classical: "클래식", Folk: "포크"
+};
+export const LOOP_MOOD_LABELS: Record<string, string> = {
+  Steady: "안정적인", Bright: "밝은", Energetic: "활기찬", Dark: "어두운",
+  Smooth: "부드러운", Warm: "따뜻한", Dreamy: "몽환적인", Rising: "고조되는", Tense: "긴장감 있는"
+};
 
 export function getLoopById(loopId?: string) {
   return LOOP_LIBRARY.find((loop) => loop.id === loopId);
@@ -220,20 +242,40 @@ export function transposeLoopNote(note: string, fromKey?: string, toKey?: string
   return `${nextNote}${nextOctave}`;
 }
 
-export function loopMatchSummary(loop: LoopDefinition | undefined, project: { bpm?: number; key?: string }) {
+export function resolveLoopPattern(loop: LoopDefinition, projectKey?: string): LoopStep[] {
+  return loop.pattern.map((step) => step.note
+    ? { ...step, note: transposeLoopNote(step.note, loop.key, projectKey) }
+    : step);
+}
+
+export function loopMatchSummary(
+  loop: LoopDefinition | undefined,
+  project: { bpm?: number; key?: string; timeSignature?: [number, number] }
+) {
   const loopBpm = loop?.bpm ?? project.bpm ?? 120;
   const projectBpm = Number(project.bpm ?? loopBpm);
-  const loopKey = loop?.key ?? project.key ?? "C";
-  const projectKey = project.key ?? loopKey;
-  const pitchShift = loopPitchShift(loopKey, projectKey);
+  const loopKey = loop?.key;
+  const projectKey = project.key;
+  const pitchShift = loopKey && projectKey ? loopPitchShift(loopKey, projectKey) : 0;
+  const modeMismatch = Boolean(loopKey && projectKey && loopKey.endsWith("m") !== projectKey.endsWith("m"));
+  const loopMeter = loop?.timeSignature ?? project.timeSignature ?? [4, 4];
+  const projectMeter = project.timeSignature ?? loopMeter;
+  const needsMeterMatch = loopMeter[0] !== projectMeter[0] || loopMeter[1] !== projectMeter[1];
   const needsTempoMatch = loopBpm !== projectBpm;
-  const needsKeyMatch = pitchShift !== 0;
+  const needsKeyMatch = pitchShift !== 0 || modeMismatch;
   return {
     needsTempoMatch,
     needsKeyMatch,
+    needsMeterMatch,
+    keyConvertible: !modeMismatch,
     tempoRatio: projectBpm / Math.max(1, loopBpm),
     pitchShift,
-    tempoLabel: needsTempoMatch ? `BPM ${loopBpm} -> ${projectBpm}` : "Tempo match",
-    keyLabel: needsKeyMatch ? `Key ${loopKey} -> ${projectKey}` : "Key match"
+    tempoLabel: needsTempoMatch ? `템포 ${loopBpm} → ${projectBpm} BPM` : "템포 일치",
+    keyLabel: modeMismatch
+      ? `조성이 다릅니다: ${loopKey} → ${projectKey}. 음계가 맞는지 확인하세요.`
+      : pitchShift !== 0 ? `조성 ${loopKey} → ${projectKey} 전조` : "조성 일치",
+    meterLabel: needsMeterMatch
+      ? `박자표가 다릅니다: ${loopMeter.join("/")} → ${projectMeter.join("/")}. 배치 전 확인하세요.`
+      : "박자표 일치"
   };
 }

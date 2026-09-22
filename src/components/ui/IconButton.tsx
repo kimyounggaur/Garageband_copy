@@ -19,7 +19,7 @@ const toneClasses = {
 export function IconButton({ label, active = false, tone = "default", tooltip, children, className = "", ...props }: IconButtonProps) {
   const button = (
     <button
-      className={`studio-icon-button ${active ? "border-accent-sel bg-accent-sel/15 text-accent-sel" : toneClasses[tone]} ${className}`}
+      className={`studio-icon-button ${active ? "border-accent-sel bg-accent-sel/15 text-ink-accent" : toneClasses[tone]} ${className}`}
       aria-label={label}
       title={tooltip ?? label}
       {...props}

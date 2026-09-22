@@ -1,4 +1,5 @@
-import type { MidiNote, Project, Track, TrackRole } from "../types/project";
+import type { MidiNote, Project } from "../types/project";
+import { optionalMusicFeedback } from "../education/musicFeedback";
 
 export type ChordSuggestion = {
   id: string;
@@ -27,13 +28,7 @@ export type MelodySuggestion = {
   explanation: string;
 };
 
-export type LearningFeedback = {
-  usedNotes: string;
-  repeatedPattern: string;
-  range: string;
-  density: string;
-  tension: string;
-};
+export type LearningFeedback = ReturnType<typeof optionalMusicFeedback>;
 
 const NOTE_NAMES = ["도", "도#", "레", "레#", "미", "파", "파#", "솔", "솔#", "라", "라#", "시"];
 const CHORD_TONES: Record<string, number[]> = {
@@ -55,16 +50,6 @@ function allMidiNotes(project: Project) {
 
 function pitchName(pitch: number) {
   return NOTE_NAMES[pitch % 12];
-}
-
-function trackRole(track: Track): TrackRole {
-  if (track.role) return track.role;
-  if (track.type === "drum") return "beat";
-  if (track.type === "audio") return "recording";
-  const lower = track.name.toLowerCase();
-  if (lower.includes("bass") || track.name.includes("베이스")) return "bass";
-  if (lower.includes("chord") || lower.includes("key") || lower.includes("pad") || track.name.includes("화성")) return "harmony";
-  return "melody";
 }
 
 function dominantPitchClass(project: Project) {
@@ -90,8 +75,8 @@ export function suggestChordProgressions(project: Project): ChordSuggestion[] {
   const bpm = project.bpm;
   const baseReason =
     pitchClass === undefined
-      ? "아직 미디 음이 적어서 가장 익숙한 C장조 진행으로 시작합니다."
-      : `프로젝트에서 ${NOTE_NAMES[pitchClass]} 계열 음이 자주 보여서 C장조 안에서 안정적인 진행을 골랐습니다.`;
+      ? "아직 미디 음이 적어서 C장조 코드 진행을 예시로 보여드립니다."
+      : `${NOTE_NAMES[pitchClass]} 음이 자주 쓰였지만 이 음만으로 조성을 판정할 수는 없습니다. 아래 C장조 진행을 예시로 들어보고 맞는지 직접 선택하세요.`;
   const energy = bpm >= 125 ? "밝고 빠른 느낌" : bpm <= 90 ? "차분한 느낌" : "자연스러운 느낌";
 
   return [
@@ -225,21 +210,5 @@ export function continueMelody(project: Project, selectedClipId?: string): Melod
 }
 
 export function explainProject(project: Project, selectedClipId?: string): LearningFeedback {
-  const notes = selectedMidiClip(project, selectedClipId)?.notes ?? allMidiNotes(project);
-  const pitchClasses = Array.from(new Set(notes.map((note) => pitchName(note.pitch))));
-  const durations = notes.map((note) => note.durationBeats);
-  const range = notes.length ? Math.max(...notes.map((note) => note.pitch)) - Math.min(...notes.map((note) => note.pitch)) : 0;
-  const shortNotes = durations.filter((duration) => duration <= 0.5).length;
-  const longNotes = durations.filter((duration) => duration >= 1).length;
-  const density = notes.length >= 16 ? "음이 촘촘해서 에너지가 있어요." : notes.length >= 6 ? "음이 적당해서 따라 부르기 쉬워요." : "음 사이에 쉼이 많아서 여유롭게 들려요.";
-  const hasRepeatedDuration = durations.some((duration, index) => index > 0 && duration === durations[index - 1]);
-  const roles = project.tracks.filter((track) => track.clips.length > 0).map(trackRole);
-
-  return {
-    usedNotes: pitchClasses.length > 0 ? `사용한 음은 ${pitchClasses.join(", ")}입니다.` : "아직 분석할 미디 음이 많지 않아요.",
-    repeatedPattern: hasRepeatedDuration ? "비슷한 길이의 음이 반복되어 기억하기 쉬운 패턴이 생깁니다." : "리듬 길이가 다양해서 말하듯이 들립니다.",
-    range: range > 18 ? `음역이 ${range}반음이라 넓고 극적으로 들려요.` : range > 0 ? `음역이 ${range}반음이라 안정적으로 들려요.` : "음역은 아직 좁습니다.",
-    density: `${density} 짧은 음 ${shortNotes}개, 긴 음 ${longNotes}개가 보여요.`,
-    tension: roles.includes("beat") && roles.includes("bass") ? "비트와 베이스가 안정감을 만들고, 높은 멜로디 음이 살짝 긴장감을 줍니다." : "아직 반주 역할이 적어서 멜로디가 더 앞드러지게 들립니다."
-  };
+  return optionalMusicFeedback(project, selectedClipId);
 }

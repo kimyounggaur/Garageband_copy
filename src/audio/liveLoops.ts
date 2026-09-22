@@ -1,5 +1,6 @@
 import { getLoopById } from "../data/loops";
 import type { Clip, LiveLoopCell, LiveLoopScene, LiveLoops, Project, Track } from "../types/project";
+import { barLengthBeats } from "../utils/meterMath";
 
 export const DEFAULT_LIVE_LOOP_SCENE_COUNT = 4;
 export const DEFAULT_LIVE_LOOP_QUANTIZE_BEATS = 4;
@@ -35,6 +36,7 @@ export function createDefaultLiveLoops(sceneCount = DEFAULT_LIVE_LOOP_SCENE_COUN
   return {
     scenes: Array.from({ length: Math.max(1, sceneCount) }, (_, index) => normalizeScene({}, index)),
     cells: [],
+    quantizeMode: "bar",
     quantizeBeats: DEFAULT_LIVE_LOOP_QUANTIZE_BEATS
   };
 }
@@ -112,6 +114,7 @@ export function normalizeLiveLoops(liveLoops: unknown, tracks: TrackRef[]): Live
         (sceneOrder.get(left.sceneId) ?? 0) - (sceneOrder.get(right.sceneId) ?? 0) ||
         (trackOrder.get(left.trackId) ?? 0) - (trackOrder.get(right.trackId) ?? 0)
     ),
+    quantizeMode: loose.quantizeMode === "bar" ? "bar" : undefined,
     quantizeBeats: Number.isFinite(Number(loose.quantizeBeats)) && Number(loose.quantizeBeats) > 0 ? quantizeBeats : DEFAULT_LIVE_LOOP_QUANTIZE_BEATS
   };
 }
@@ -131,9 +134,12 @@ export function liveLoopCellForTrackScene(liveLoops: Pick<LiveLoops, "cells">, t
 export function liveLoopTriggerBeat(
   currentBeat: number,
   timeSignature: [number, number] = [4, 4],
-  quantizeBeats?: number
+  quantizeBeats?: number,
+  quantizeMode?: "bar"
 ) {
-  const quantize = Math.max(0.25, finiteNumber(quantizeBeats, Math.max(1, timeSignature[0] || DEFAULT_LIVE_LOOP_QUANTIZE_BEATS)));
+  const quantize = quantizeMode === "bar" || quantizeBeats === undefined
+    ? barLengthBeats(timeSignature)
+    : Math.max(0.25, finiteNumber(quantizeBeats, DEFAULT_LIVE_LOOP_QUANTIZE_BEATS));
   const beat = Math.max(0, finiteNumber(currentBeat, 0));
   const grid = beat / quantize;
   const rounded = Math.round(grid);

@@ -62,7 +62,7 @@
           <circle cx="54" cy="58" r="34" fill="#e879f9"/>
           <text x="54" y="69" text-anchor="middle" font-size="28" font-weight="900" fill="#07111c">6</text>
           <text x="102" y="67" font-size="30" font-weight="900" fill="#f8fafc">공유</text>
-          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">Mix, Stems</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">ZIP, Project</text><text x="30" y="194" font-size="21" font-weight="800" fill="#dbeafe">파일을 내보냅니다.</text>
+          <text x="30" y="132" font-size="21" font-weight="800" fill="#dbeafe">믹스 WAV, 트랙별</text><text x="30" y="163" font-size="21" font-weight="800" fill="#dbeafe">WAV ZIP,</text><text x="30" y="194" font-size="21" font-weight="800" fill="#dbeafe">프로젝트 파일을</text><text x="30" y="225" font-size="21" font-weight="800" fill="#dbeafe">받습니다.</text>
           <rect x="30" y="214" width="150" height="13" rx="7" fill="#253348"/>
           <rect x="30" y="214" width="150" height="13" rx="7" fill="#e879f9"/>
         </g>

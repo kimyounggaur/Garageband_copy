@@ -7,10 +7,15 @@
     "dev": "vite --host 127.0.0.1 --port 3000",
     "build": "node scripts/build.mjs",
     "build:raw": "tsc -b && vite build",
+    "test": "vitest",
+    "test:run": "vitest run --coverage",
     "preview": "vite preview --host 127.0.0.1 --port 3000",
     "qa:manuals": "node scripts/qa-manual-links.mjs",
     "qa:shortcuts": "node scripts/qa-shortcuts.mjs",
     "qa:themes": "node scripts/qa-themes.mjs",
+    "qa:loops": "node scripts/qa-loops.mjs",
+    "qa:samples": "node scripts/qa-samples.mjs",
+    "qa:pwa": "node scripts/qa-pwa.mjs",
     "qa:smoke": "node scripts/qa-smoke.mjs"
   },
   "dependencies": {
@@ -24,10 +29,13 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^3.2.7",
     "autoprefixer": "^10.4.20",
+    "axe-core": "^4.13.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "vitest": "^3.2.7"
   }
 }

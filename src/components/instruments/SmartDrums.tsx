@@ -37,15 +37,15 @@ export function SmartDrums({ context }: { context: TouchInstrumentContext }) {
 
   return (
     <div className="grid min-h-full gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-      <div className="min-w-0 rounded-md border border-white/10 bg-black/20 p-3">
+      <div className="min-w-0 rounded-md border border-line bg-black/20 p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="panel-title">Smart Drums</span>
-          <span className="text-xs font-black text-slate-300">{notes.length} hits</span>
+          <span className="panel-title">스마트 드럼</span>
+          <span className="text-xs font-black text-ink-body">소리 {notes.length}개</span>
         </div>
 
         <div
           ref={padRef}
-          className="relative h-52 overflow-hidden rounded-md border border-white/10 bg-[linear-gradient(to_right,rgba(122,215,255,.12),rgba(250,204,21,.12)),linear-gradient(to_top,rgba(15,18,23,.85),rgba(255,255,255,.08))]"
+          className="relative h-52 overflow-hidden rounded-md border border-line bg-[linear-gradient(to_right,rgba(122,215,255,.12),rgba(250,204,21,.12)),linear-gradient(to_top,rgba(15,18,23,.85),rgba(255,255,255,.08))]"
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
             updateFromPointer(event);
@@ -54,33 +54,33 @@ export function SmartDrums({ context }: { context: TouchInstrumentContext }) {
             if (event.buttons) updateFromPointer(event);
           }}
         >
-          <div className="absolute inset-x-0 top-1/2 border-t border-white/10" />
-          <div className="absolute inset-y-0 left-1/2 border-l border-white/10" />
+          <div className="absolute inset-x-0 top-1/2 border-t border-line" />
+          <div className="absolute inset-y-0 left-1/2 border-l border-line" />
           <div
             className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-accent-play shadow-[0_0_18px_rgba(94,194,107,0.5)]"
             style={{ left: `${complexity * 100}%`, top: `${(1 - loudness) * 100}%` }}
           />
-          <span className="absolute left-3 top-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Quiet</span>
-          <span className="absolute bottom-8 left-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">Loud</span>
-          <span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-            <span>Simple</span>
-            <span>Complex</span>
+          <span className="absolute left-3 top-3 text-[10px] font-black uppercase tracking-[0.12em] text-ink-body">작게</span>
+          <span className="absolute bottom-8 left-3 text-[10px] font-black uppercase tracking-[0.12em] text-ink-body">크게</span>
+          <span className="absolute bottom-3 left-3 right-3 flex justify-between text-[10px] font-black uppercase tracking-[0.12em] text-ink-body">
+            <span>단순</span>
+            <span>복잡</span>
           </span>
         </div>
 
         <div className="mt-3 grid grid-cols-5 gap-2">
           {laneCounts.map((lane) => (
-            <div key={lane.id} className="rounded-md border border-white/10 bg-white/[0.04] p-2 text-center">
+            <div key={lane.id} className="rounded-md border border-line bg-white/[0.04] p-2 text-center">
               <div className="mx-auto mb-1 h-2 w-8 rounded-full" style={{ backgroundColor: lane.color }} />
-              <div className="truncate text-[10px] font-black uppercase text-slate-400">{lane.label}</div>
-              <div className="text-sm font-black text-slate-100">{lane.count}</div>
+              <div className="truncate text-[10px] font-black uppercase text-ink-body">{lane.label}</div>
+              <div className="text-sm font-black text-ink-high">{lane.count}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="space-y-3 rounded-md border border-white/10 bg-white/[0.04] p-3">
-        <label className="block text-xs font-bold text-slate-400">
+      <div className="space-y-3 rounded-md border border-line bg-white/[0.04] p-3">
+        <label className="block text-xs font-bold text-ink-body">
           Complexity
           <input
             className="mt-2 w-full"
@@ -92,7 +92,7 @@ export function SmartDrums({ context }: { context: TouchInstrumentContext }) {
             onChange={(event) => setComplexity(Number(event.target.value))}
           />
         </label>
-        <label className="block text-xs font-bold text-slate-400">
+        <label className="block text-xs font-bold text-ink-body">
           Loudness
           <input
             className="mt-2 w-full"

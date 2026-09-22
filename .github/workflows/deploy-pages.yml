@@ -31,8 +31,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npx tsc -b --noEmit
+
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Smoke QA
+        run: npm run qa:smoke
+
+      - name: MIDI loop QA
+        run: npm run qa:loops -- --final
+
+      - name: Sample provenance QA
+        run: npm run qa:samples
+
+      - name: Theme QA
+        run: npm run qa:themes
+
+      - name: Shortcut QA
+        run: npm run qa:shortcuts
+
+      - name: Manual links QA
+        run: npm run qa:manuals
+
       - name: Build
         run: npm run build
+
+      - name: PWA release QA
+        run: npm run qa:pwa
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
